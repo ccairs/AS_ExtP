@@ -1,0 +1,35 @@
+{
+  "name": "as-extp",
+  "version": "1.0.0",
+  "description": "AS_ExtP — After Effects AI 扩展平台：LLM Agent · MCP 工具集（内接与外供）· ComfyUI 生成 · 素材库 · GLSL 效果宿主与 Hotbox 插件",
+  "scripts": {
+    "lint": "eslint .",
+    "audit:theme": "node tools/theme-hardcoded-audit.js",
+    "audit:family": "node tools/family-extinct-audit.js"
+  },
+  "keywords": [
+    "after-effects",
+    "cep",
+    "llm",
+    "mcp",
+    "extendscript",
+    "ai"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ccairs/AS_ExtP.git"
+  },
+  "engines": {
+    "node": ">=20.18.0"
+  },
+  "dependencies": {
+    "@wwek/xlsx": "^0.20.3",
+    "mammoth": "^1.12.1",
+    "unpdf": "^1.8.0"
+  },
+  "devDependencies": {
+    "acorn": "^8.18.0",
+    "eslint": "^9.39.5"
+  }
+}

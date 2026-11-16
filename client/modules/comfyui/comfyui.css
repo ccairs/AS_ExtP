@@ -1,0 +1,2298 @@
+/* ============================================================
+   ComfyUI Module Styles
+   统一使用全局共享样式：
+   - .btn / .btn.run / .btn.secondary / .btn.active → 按钮
+   - .row / .checkbox-row → 表单行
+   - .toggle-wrap / .switch-input / .switch-slider → 开关
+   - input / select / textarea → 表单控件
+   仅定义 ComfyUI 模块特有布局
+   ============================================================ */
+
+/* --- Panel Container --- */
+#comfyuiPanel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    gap: 0;
+}
+
+#comfyuiPanel.hidden {
+    display: none;
+}
+
+/* --- Topbar --- */
+.comfyui-topbar {
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 8px;
+    flex-shrink: 0;
+    min-height: 36px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    background: var(--surface-2);
+    /* 左侧装饰条 - 匹配 section-title 风格 */
+    border-left: 3px solid var(--accent);
+}
+
+/* topbar 内按钮统一紧凑尺寸 */
+.comfyui-topbar .btn {
+    font-size: 11px;
+    padding: 2px 10px;
+}
+
+/* topbar 内 select 紧凑 */
+.comfyui-topbar select,
+.comfyui-topbar .cs-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    max-width: 160px;
+    border-radius: 5px;
+    background-position: right 8px center;
+}
+
+/* --- Status Indicator --- */
+.comfyui-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.comfyui-status-indicator {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #555;
+    transition: background .2s, box-shadow .2s;
+}
+
+.comfyui-status-indicator.connected {
+    background: var(--signal-green, #4ade80);
+    box-shadow: 0 0 6px rgba(var(--signal-green-rgb),0.5);
+}
+
+.comfyui-status-indicator.disconnected {
+    background: var(--danger-vivid);
+    box-shadow: 0 0 6px rgba(var(--danger-vivid-rgb),.4);
+}
+
+.comfyui-status-text {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* --- Form View Wrapper --- */
+.comfyui-form-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* --- Main Content Area --- */
+.comfyui-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    background: var(--surface-3);
+}
+
+/* --- Left Panel: Params --- */
+.comfyui-params {
+    width: 40%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 200px;
+}
+
+.comfyui-divider {
+    width: 4px;
+    cursor: col-resize;
+    background: var(--btn-border);
+    flex-shrink: 0;
+    transition: background .15s;
+}
+
+.comfyui-divider:hover,
+.comfyui-divider.dragging {
+    background: var(--accent);
+}
+
+/* --- Params Form --- */
+.comfyui-params-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* 表单控件紧凑尺寸覆盖（颜色/边框/焦点环继承全局 input/select/textarea） */
+.comfyui-params-form input[type="text"],
+.comfyui-params-form input[type="number"]:not(.comfyui-param-number),
+.comfyui-params-form textarea {
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+.comfyui-params-form textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.comfyui-params-form select,
+.comfyui-params-form .cs-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    background-position: right 8px center;
+}
+
+/* ============================================================
+/* 滑条布局 */
+.comfyui-params-form input[type="range"],
+.comfyui-slider-row input[type="range"] {
+    flex: 1;
+    height: 20px;
+    margin: 0;
+}
+
+/* 参数行 */
+.comfyui-param {
+    /* 使用 .row 时由 common.css 提供 grid 布局 */
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.comfyui-param label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* 滑块行 */
+.comfyui-slider-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.comfyui-param-number {
+    width: 52px;
+    text-align: center;
+    padding: 4px 4px !important;
+    border-radius: 4px 0 0 4px;
+    -moz-appearance: textfield;
+}
+.comfyui-param-number::-webkit-inner-spin-button,
+.comfyui-param-number::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* 自定义步进按钮组 */
+.comfyui-stepper {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+}
+
+.comfyui-step-btn {
+    width: 26px;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 0;
+    border-left: none;
+    color: var(--text-muted);
+    background: var(--btn-bg);
+    border: 1px solid var(--btn-border);
+    cursor: pointer;
+    transition: all .12s ease;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.comfyui-step-btn:last-of-type {
+    border-radius: 0 4px 4px 0;
+}
+
+.comfyui-step-btn:hover {
+    color: var(--accent);
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+}
+
+.comfyui-step-btn:active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    transform: scale(0.93);
+}
+
+/* --- Bottom Action Bar --- */
+.comfyui-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    border-top: 1px solid var(--btn-border);
+    flex-shrink: 0;
+}
+
+/* 生成按钮使用 .btn.run 全局样式 */
+.comfyui-generate-btn.btn.run {
+    flex: 1;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* --- Image Upload / Drop Zone --- */
+.comfyui-image-drop {
+    border: 2px dashed var(--btn-border);
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .15s ease;
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-2);
+    position: relative;
+}
+
+.comfyui-image-drop:hover {
+    border-color: var(--accent);
+}
+
+.comfyui-image-drop.dragover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.comfyui-image-placeholder {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.comfyui-image-preview {
+    max-width: 100%;
+    max-height: 160px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.comfyui-video-preview {
+    max-width: 100%;
+    max-height: 160px;
+    border-radius: 4px;
+    background: #000;
+    cursor: pointer;
+}
+
+.comfyui-image-clear {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .6);
+    color: #fff;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 2;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.comfyui-image-clear:hover {
+    background: var(--danger-vivid);
+}
+
+.comfyui-capture-btn {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 3;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, .6);
+    border: 1px solid var(--btn-border);
+    color: #fff;
+    font-size: 13px;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comfyui-image-drop:hover .comfyui-capture-btn {
+    opacity: 1;
+}
+
+.comfyui-capture-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.comfyui-capture-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* --- 粘贴按钮（与截图按钮同款，hover 显示） --- */
+.comfyui-paste-btn {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 3;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, .6);
+    border: 1px solid var(--btn-border);
+    color: #fff;
+    font-size: 13px;
+    padding: 0;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.comfyui-image-drop:hover .comfyui-paste-btn {
+    opacity: 1;
+}
+
+.comfyui-paste-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.comfyui-paste-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* --- 多图参考槽位 --- */
+.comfyui-image-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.comfyui-image-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+}
+
+.comfyui-image-slot-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .7);
+    border: 1px solid var(--btn-border);
+    color: #fca5a5;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    z-index: 3;
+    padding: 0;
+    transition: all .15s ease;
+}
+
+.comfyui-image-slot-remove:hover {
+    background: var(--danger-vivid);
+    color: #fff;
+    border-color: var(--danger-vivid);
+}
+
+.comfyui-add-image-btn {
+    margin-top: 6px;
+    width: 100%;
+    font-size: 11px;
+    padding: 5px 10px;
+}
+
+/* --- Right Panel: Results --- */
+.comfyui-results {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    min-height: 0;
+    min-width: 300px;
+}
+
+.comfyui-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+/* --- Result Card --- */
+.comfyui-result-card {
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface-2);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.comfyui-result-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.comfyui-result-preview {
+    width: 100%;
+    min-height: 100px;
+    max-height: 200px;
+    object-fit: contain;
+    display: block;
+    background: #111;
+}
+
+.comfyui-result-preview[src] {
+    cursor: pointer;
+}
+
+.comfyui-result-info {
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.comfyui-result-type {
+    font-size: 10px;
+    color: var(--accent);
+    background: var(--surface-2);
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    align-self: flex-start;
+}
+
+.comfyui-result-filename {
+    font-size: 11px;
+    color: var(--text-muted);
+    word-break: break-all;
+}
+
+.comfyui-audio-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+    color: var(--text-muted);
+    font-size: 24px;
+    min-height: 100px;
+}
+
+/* --- Result Card Actions --- */
+.comfyui-result-actions {
+    display: flex;
+    gap: 4px;
+    padding: 6px 8px;
+}
+
+/* 导入按钮 - accent 边框强调 */
+.comfyui-import-btn.btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.comfyui-import-btn.btn:hover {
+    background: var(--accent-soft);
+}
+
+/* 删除按钮 - danger 风格 */
+.comfyui-delete-btn.btn {
+    flex: 0 0 28px;
+    font-size: 11px;
+    padding: 4px;
+}
+
+/* --- Generating State --- */
+.comfyui-result-card.comfyui-generating {
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-soft);
+}
+
+.comfyui-progress-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    background: #111;
+}
+
+.comfyui-progress-inner {
+    text-align: center;
+    padding: 16px;
+    width: 100%;
+}
+
+.comfyui-progress-container {
+    height: 3px;
+    background: var(--surface-2);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.comfyui-progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 0;
+    transition: width .3s;
+}
+
+.comfyui-progress-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.comfyui-executing-node {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+/* --- Error Display --- */
+.comfyui-error {
+    padding: 16px;
+    color: #fca5a5;
+    text-align: center;
+    font-size: 12px;
+    white-space: pre-wrap;
+    background: rgba(var(--danger-vivid-rgb),.06);
+    border: 1px solid rgba(var(--danger-vivid-rgb),.2);
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+/* --- Toast / Status Message --- */
+.comfyui-status-message {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 6px 14px;
+    background: var(--btn-bg);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 12px;
+    z-index: 1000;
+    animation: comfyui-fadeOut 3s forwards;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .4);
+}
+
+@keyframes comfyui-fadeOut {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* --- Lightbox --- */
+.comfyui-lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.92);
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* --- Settings Section --- */
+/* 模块设置面板分组排版走 common.css 的 st-panel 共用样式 */
+
+/* --- Danger Button (fallback, 防止 agent.css 未加载) --- */
+.danger-btn {
+    border: 1px solid #8e2936;
+    color: var(--danger);
+    background: rgba(var(--danger-deep-rgb),.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+
+.danger-btn:hover {
+    border-color: #b63c4c;
+    background: #4a1720;
+}
+
+/* --- Scrollbar --- */
+.comfyui-params-form,
+.comfyui-results {
+}
+
+.comfyui-params-form,
+.comfyui-results {
+}
+
+/* --- Iframe Loading State --- */
+.comfyui-iframe-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.comfyui-iframe-loading .spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--btn-border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: comfyui-spin .8s linear infinite;
+}
+
+@keyframes comfyui-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   画布模式样式（由旧样式迁入）
+   作用域: #comfyuiPanel .comfyui-canvas-view
+   ============================================================ */
+#comfyuiPanel .comfyui-canvas-view {
+    width: 100%;
+    height: 100%;
+    background: var(--app-bg);
+    color: var(--text-main);
+    overflow: hidden;
+    position: relative;
+}
+
+/* Tab 切换按钮 */
+.comfyui-tabs .comfyui-tab-btn {
+    padding: 4px 16px;
+    font-size: 13px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.comfyui-tabs .comfyui-tab-btn:hover {
+    color: var(--text-main);
+}
+.comfyui-tabs .comfyui-tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* ── 画布 + 网格 ── */
+.ng-canvas {
+    position: absolute;
+    top: 36px; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    cursor: default;
+    background-color: var(--app-bg);
+    background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px);
+    background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+}
+.ng-canvas.panning { cursor: grabbing; }
+/* 画布边缘拖入高亮：外部文件拖入时 inset 辉光提示 */
+.ng-canvas-dragover,
+.comfyui-canvas-view.ng-canvas-dragover {
+    box-shadow: inset 0 0 0 3px var(--accent), inset 0 0 30px rgba(59,158,255,0.15);
+    transition: box-shadow .2s ease;
+}
+
+.ng-world { position: absolute; transform-origin: 0 0; z-index: 2; }
+
+/* ── 顶栏 ── */
+.ng-topbar {
+    position: absolute; top: 0; left: 0; right: 0; height: 36px;
+    z-index: 15;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px;
+    background: var(--surface-3);
+    border-bottom: 1px solid var(--border);
+}
+.ng-topbar-title { font-size: 13px; color: var(--text-main); font-weight: 600; white-space: nowrap; letter-spacing: 0.3px; }
+.ng-topbar-title::before { content: "◆"; color: var(--accent); margin-right: 6px; font-size: 10px; }
+.ng-topbar-hint { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.ng-topbar-spacer { flex: 1; }
+.ng-topbar-zoom {
+    font-size: 11px; color: var(--text-muted); min-width: 40px; text-align: right;
+    padding: 2px 8px; background: var(--surface-1); border-radius: 10px;
+}
+/* 顶栏连接状态灯 + 按钮 */
+.ng-conn-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted); flex-shrink: 0;
+    transition: background .2s ease, box-shadow .2s ease;
+}
+.ng-conn-dot.ng-conn-ok { background: var(--signal-green); box-shadow: 0 0 6px var(--signal-green); }
+.ng-conn-dot.ng-conn-fail { background: #ff5b5b; box-shadow: 0 0 6px #ff5b5b; }
+.ng-conn-dot.ng-conn-testing { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: ng-pulse 0.8s ease infinite; }
+.ng-conn-dot.ng-conn-unknown { background: var(--text-muted); }
+@keyframes ng-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.ng-conn-lbl { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.ng-topbar-btn {
+    font-size: 11px;
+    background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--btn-text);
+    border-radius: 4px; padding: 3px 8px; cursor: pointer; white-space: nowrap;
+    transition: background .15s ease, border-color .15s ease;
+}
+.ng-topbar-btn:hover { background: var(--btn-hover-bg); border-color: var(--accent); }
+
+/* ── 画布切换器（按钮 + 下拉菜单）── */
+.ng-canvas-switcher { position: relative; flex-shrink: 0; }
+.ng-canvas-btn {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    background: var(--btn-bg); border: 1px solid var(--btn-border); color: var(--btn-text);
+    border-radius: 4px; padding: 3px 9px; cursor: pointer; white-space: nowrap;
+    max-width: 160px;
+    transition: background .15s ease, border-color .15s ease;
+}
+.ng-canvas-btn:hover { background: var(--btn-hover-bg); border-color: var(--accent); }
+.ng-canvas-name { overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.ng-canvas-name::before { content: "☰ "; color: var(--accent); font-weight: 400; }
+.ng-canvas-caret { font-size: 9px; color: var(--text-muted); }
+.ng-canvas-menu {
+    position: absolute; top: calc(100% + 4px); left: 0;
+    min-width: 200px; max-width: 280px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 5px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    padding: 4px; z-index: 200;
+}
+.ng-canvas-menu.ng-hidden { display: none; }
+.ng-canvas-row {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 6px; border-radius: 4px; cursor: pointer;
+    transition: background .12s ease;
+}
+.ng-canvas-row:hover { background: var(--surface-3); }
+.ng-canvas-row-active .ng-canvas-row-name { color: var(--accent); font-weight: 600; }
+.ng-canvas-row-active .ng-canvas-row-name::before { content: "● "; color: var(--accent); font-size: 9px; }
+/* 粒度修正：该画布文件上次读取失败（不可用但可点击重试，非禁用项） */
+.ng-canvas-row-unavailable .ng-canvas-row-name { color: var(--text-muted); }
+.ng-canvas-row-unavailable .ng-canvas-row-name::before { content: "⚠ "; color: var(--warn, #e6a23c); }
+.ng-canvas-row-name {
+    flex: 1; font-size: 12px; color: var(--text-main);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ng-canvas-row-actions { display: none; gap: 2px; flex-shrink: 0; }
+.ng-canvas-row:hover .ng-canvas-row-actions { display: flex; }
+.ng-canvas-icon {
+    width: 20px; height: 20px; padding: 0;
+    background: transparent; border: none; color: var(--text-muted);
+    font-size: 11px; cursor: pointer; border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s ease, color .12s ease;
+}
+.ng-canvas-icon:hover { background: var(--surface-1); color: var(--text-main); }
+.ng-canvas-delete:hover { color: var(--danger-vivid); }
+.ng-canvas-divider { height: 1px; background: var(--border); margin: 4px 2px; }
+.ng-canvas-new {
+    padding: 6px 8px; font-size: 12px; color: var(--accent); cursor: pointer;
+    border-radius: 4px; font-weight: 600;
+    transition: background .12s ease;
+}
+.ng-canvas-new:hover { background: var(--accent-soft); }
+
+/* 模块设置页连接配置 */
+.ng-settings-section { display: flex; flex-direction: column; gap: 10px; }
+.ng-settings-title { font-size: 13px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
+.ng-conn-form { padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ng-conn-form label { font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+.ng-conn-form input {
+    font-size: 12px; background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; box-sizing: border-box;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ng-conn-form input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* ── 连线 ── */
+.ng-edge-layer { z-index: 1; }
+.ng-edge {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    pointer-events: none;
+    opacity: 0.8;
+    transition: opacity .15s ease;
+}
+/* 连线按端口类型上色：图=蓝、视频=紫、文本=绿、其它=accent */
+.ng-edge.ng-edge-img { stroke: #3b9eff; }
+.ng-edge.ng-edge-vid { stroke: var(--reason); }
+.ng-edge.ng-edge-txt { stroke: var(--signal-green); }
+/* 选中节点关联边高亮（canvasController.refreshSelectionHighlight 加 .ng-edge-sel）：
+   强调色描边 + 光晕，与 hover 的加粗 + currentColor 光晕可区分；同时命中时 hover 的粗细/光晕叠加。 */
+.ng-edge.ng-edge-sel { stroke: var(--accent); opacity: 1; stroke-width: 2.5; filter: drop-shadow(0 0 3px var(--accent)); }
+/* 鼠标悬停 hit 线时可见线高亮（canvasController mouseover 加 .ng-edge-hover，提示可 Ctrl+删）*/
+.ng-edge.ng-edge-hover { opacity: 1; stroke-width: 3; filter: drop-shadow(0 0 4px currentColor); }
+/* 临时拖线（主线段 + 批量派生线，id 前缀 ng-temp-edge）：默认白色（无目标 / 不兼容目标时跟鼠标）。
+   类型色由 .ng-edge.ng-edge-img/vid/txt 提供：两条 class 的特异性 (0,2,0) 高于本行属性选择器 (0,1,0)，
+   与规则先后无关；本行只定义临时线自身的颜色与虚线样式。 */
+[id^="ng-temp-edge"] { stroke: #e8e8e8; stroke-width: 2.5; stroke-dasharray: 5 3; opacity: 0.9; fill: none; pointer-events: none; }
+
+/* ── 节点 ── */
+.ng-node {
+    position: absolute;
+    min-width: 210px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    user-select: none;
+    z-index: 2;
+    overflow: visible;  /* 允许缩略图 hover 预览溢出节点 */
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow .15s ease, border-color .15s ease, transform .12s ease;
+}
+.ng-node:hover { border-color: var(--accent); box-shadow: 0 6px 22px rgba(0,0,0,0.45); }
+.ng-node.ng-node-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 22px rgba(0,0,0,0.45); }
+/* 拖线时：不可连接节点变暗 */
+.ng-node.ng-node-dimmed {
+    opacity: 0.3;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+/* 拖线时：光标下的目标节点轻提示 */
+.ng-node.ng-node-highlight {
+    border-color: #e67e22;
+    transition: border-color 0.15s ease;
+}
+
+/* 框选矩形（Ctrl+拖拽） */
+.ng-rubber-band {
+    position: absolute; z-index: 10;
+    border: 1px solid var(--accent);
+    background: rgba(59,158,255,0.12);
+    pointer-events: none;
+}
+.ng-rubber-band.ng-hidden { display: none; }
+
+.ng-node-note {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 3px 10px;
+    background: var(--surface-3);
+    border-bottom: 1px solid var(--border);
+    font-style: italic;
+    flex-shrink: 0;
+    border-radius: 10px 10px 0 0;
+}
+.ng-node-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    background: var(--surface-3);
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px 0 0 0;
+    cursor: grab;
+    flex-shrink: 0;
+}
+.ng-node:active .ng-node-head { cursor: grabbing; }
+.ng-node-title { font-size: 13px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+.ng-node-title-input {
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 1px 5px;
+    width: 100%;
+    box-sizing: border-box;
+    outline: none;
+    font-family: inherit;
+}
+.ng-node-toggle {
+    cursor: pointer; color: var(--text-muted); font-size: 10px;
+    padding: 3px 5px; border-radius: 4px;
+    transition: background .15s ease, color .15s ease;
+}
+.ng-node-toggle:hover { background: var(--btn-hover-bg); color: var(--text-main); }
+
+.ng-node-body {
+    display: flex;
+    align-items: center;
+    padding: 0 12px 2px;  /* 极简，只放缩略图行 */
+    gap: 4px;
+    min-height: 0;
+    flex-shrink: 0;
+}
+
+/* ── 连线悬浮圆圈（鼠标靠近节点边缘时弹出，跟随鼠标 XY）── */
+.ng-conn-circle {
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);  /* fallback，JS 按端口类型注入色 */
+    background: transparent;
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+    cursor: crosshair;
+    transition: opacity 0.15s ease;
+    box-sizing: border-box;
+    box-shadow: 0 0 8px rgba(0,0,0,0.35);
+}
+.ng-conn-circle.ng-conn-active { opacity: 1; pointer-events: auto; }
+/* 鼠标离开 → 滑回端点消失 */
+.ng-conn-circle.ng-conn-returning {
+    transition: left 0.25s ease, top 0.25s ease, opacity 0.2s ease;
+    opacity: 0;
+    pointer-events: none;
+}
+/* 点击扩散波纹（独立 DOM 元素，定位在鼠标点击处）*/
+.ng-conn-ripple {
+    position: absolute;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 101;
+    transform: translate(-50%, -50%) scale(0.5);
+}
+.ng-conn-ripple.ng-conn-ripple-go {
+    animation: ng-ripple 0.45s ease-out forwards;
+}
+@keyframes ng-ripple {
+    0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 0.5; }
+    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+/* 拖线时目标吸附圆圈（绿色，指示可连接）*/
+.ng-conn-circle.ng-conn-target {
+    border-color: var(--signal-green) !important;
+    box-shadow: 0 0 10px var(--signal-green), 0 0 0 6px rgba(46,204,113,0.3);
+}
+
+/* ── 缩略图行（body 内，上游连线图片预览）── */
+.ng-thumbs {
+    display: flex; align-items: center; gap: 4px;
+    flex-wrap: wrap;
+    min-height: 0;
+}
+.ng-thumb-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+.ng-thumb {
+    width: 32px; height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: block;
+    transition: border-color .15s ease, transform .15s ease;
+}
+.ng-thumb:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+/* 占位符：已连线但无数据（虚线框） */
+.ng-thumb-placeholder {
+    border: 1px dashed var(--text-muted);
+    background: transparent;
+    cursor: default;
+    opacity: 0.5;
+    display: flex; align-items: center; justify-content: center;
+}
+.ng-thumb-placeholder::after {
+    content: "?";
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 700;
+}
+.ng-thumb-placeholder:hover {
+    border-color: var(--text-muted);
+    transform: none;
+}
+/* 缩略图右上角 × 按钮 */
+.ng-thumb-close {
+    display: none;
+    position: absolute; top: -6px; right: -6px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: none; color: #ccc;
+    border: none; font-size: 10px; line-height: 16px;
+    text-align: center; cursor: pointer;
+    z-index: 2;
+    opacity: 0.9;
+    transition: opacity .15s ease;
+}
+.ng-thumb-close:hover { opacity: 1; }
+.ng-thumb-wrap:hover .ng-thumb-close { display: block; }
+/* 缩略图 hover 大预览（上方弹出） */
+.ng-thumb-preview {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    padding: 3px;
+}
+.ng-thumb-wrap:hover .ng-thumb-preview { display: block; }
+.ng-thumb-preview-img {
+    display: block;
+    max-width: 140px; max-height: 140px;
+    object-fit: contain;
+    border-radius: 3px;
+}
+
+/* 拖拽排序反馈 */
+.ng-thumb-dragging { opacity: 0.5; }
+.ng-thumb-drop-before::after {
+    content: "";
+    position: absolute; left: -4px; top: 0;
+    width: 3px; height: 100%;
+    background: var(--accent);
+    border-left: 3px solid;
+}
+.ng-thumb-drop-after::after {
+    content: "";
+    position: absolute; right: -4px; top: 0;
+    width: 3px; height: 100%;
+    background: var(--accent);
+    border-right: 3px solid;
+}
+
+.ng-node-editor { padding: 8px 10px; border-top: 1px solid var(--border); flex: 1; overflow: hidden auto; min-height: 0; border-radius: 0 0 10px 10px; }
+.ng-node-editor.ng-editor-text { overflow: hidden; }  /* 文本节点不显示滚动条 */
+.ng-node:not(.ng-node-expanded) .ng-node-editor { flex: 0 0 auto; }  /* 折叠态不占高 */
+/* 右下角调整大小手柄（仅展开态显示）*/
+.ng-node-resize {
+    position: absolute; right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    z-index: 3;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+.ng-node-expanded .ng-node-resize { opacity: 1; pointer-events: auto; }
+.ng-node-resize::after {
+    content: ""; position: absolute; right: 3px; bottom: 3px;
+    width: 7px; height: 7px;
+    border-right: 2px solid var(--text-muted);
+    border-bottom: 2px solid var(--text-muted);
+    border-bottom-right-radius: 2px;
+    opacity: 0.4;
+    transition: opacity .15s ease, border-color .15s ease;
+}
+.ng-node-resize:hover::after { opacity: 1; border-color: var(--accent); }
+.ng-hidden { display: none !important; }
+.ng-note-input {
+    font-size: 11px; padding: 3px 6px; margin: 2px 4px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 3px;
+    box-sizing: border-box;
+}
+
+/* ── 右键菜单 ── */
+.ng-context-menu {
+    position: fixed;
+    z-index: 10000;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+    padding: 4px;
+    min-width: 160px;
+    max-height: 70vh;
+    overflow-y: auto;
+    backdrop-filter: blur(6px);
+}
+.ng-menu-group-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 8px 12px 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.ng-menu-item {
+    padding: 7px 12px;
+    font-size: 13px;
+    color: var(--text-main);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background .12s ease;
+}
+.ng-menu-item:hover { background: var(--accent-soft); }
+.ng-menu-disabled { color: var(--text-muted); opacity: 0.45; pointer-events: none; }
+.ng-menu-danger { color: var(--danger-vivid); }
+.ng-menu-danger:hover { background: rgba(220,53,69,0.22); }
+
+/* ── 模板参数控件 ── */
+.ng-model-params { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.ng-param-row { display: flex; align-items: center; gap: 6px; }
+.ng-param-label { font-size: 11px; color: var(--text-muted); min-width: 56px; flex-shrink: 0; }
+.ng-param-select, .ng-param-text, .ng-param-number {
+    flex: 1; min-width: 0; font-size: 12px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 4px; padding: 4px 7px;
+    box-sizing: border-box;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ng-param-select:focus, .ng-param-text:focus, .ng-param-number:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ng-param-text { resize: vertical; height: 40px; }
+/* 滑块 + 数字输入组合：数字框紧凑，滑块填满 */
+.ng-param-number { width: 50px; flex: 0 0 50px; text-align: center; padding: 3px 4px; -moz-appearance: textfield; }
+.ng-param-number::-webkit-inner-spin-button,
+.ng-param-number::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.ng-param-number-flex { width: auto; flex: 1; text-align: left; }
+.ng-param-slider {
+    flex: 1; min-width: 0; height: 4px;
+    -webkit-appearance: none; appearance: none;
+    background: var(--surface-3); border-radius: 999px;
+    outline: none; cursor: pointer; margin: 0;
+}
+.ng-param-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--btn-text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.ng-param-slider::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: 2px solid var(--btn-text);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+/* toggle 开关（复用 common.css .toggle-wrap，此处缩放适配参数面板） */
+.ng-param-toggle { gap: 0; }
+.ng-param-toggle .switch-slider {
+    width: 28px; height: 16px;
+}
+.ng-param-toggle .switch-slider::after {
+    width: 12px; height: 12px; top: 1px; left: 1px;
+}
+.ng-param-toggle .switch-input:checked + .switch-slider::after {
+    transform: translateX(12px);
+}
+.ng-param-check { width: 15px; height: 15px; cursor: pointer; }
+.ng-gen-row { display: flex; gap: 6px; align-items: center; }
+.ng-gen-row .ng-model-select {
+    flex: 1; min-width: 0; font-size: 12px; background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 4px; padding: 4px 7px; box-sizing: border-box;
+    transition: border-color .15s ease;
+}
+.ng-gen-row .ng-model-select:focus { outline: none; border-color: var(--accent); }
+.ng-gen-row .ng-send-btn { flex-shrink: 0; }
+.ng-text-area {
+    width: 100%; height: 100%; min-height: 50px; resize: none; font-size: 12px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; box-sizing: border-box;
+    line-height: 1.4;
+    overflow: hidden;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ng-text-area:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ng-text-area::placeholder { color: var(--text-muted); }
+.ng-prompt {
+    width: 100%; resize: none; height: 54px; font-size: 12px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--border); border-radius: 5px; padding: 7px 8px; box-sizing: border-box;
+    line-height: 1.4;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.ng-prompt:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ng-prompt::placeholder { color: var(--text-muted); }
+
+/* ── 图片/视频输入图槽（仿 comfyui）── */
+.ng-drop {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 80px;
+    border: 2px dashed var(--btn-border);
+    border-radius: 8px;
+    background: var(--surface-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: border-color .15s ease, background .15s ease;
+}
+.ng-drop:hover { border-color: var(--accent); }
+.ng-drop.dragover { border-color: var(--accent); background: var(--accent-soft); }
+.ng-drop-empty { font-size: 11px; color: var(--text-muted); text-align: center; pointer-events: none; line-height: 1.5; }
+.ng-drop-preview { max-width: 100%; max-height: 100%; object-fit: contain; }
+/* 按钮 hover 图槽才显现（对齐 comfyui，平时更干净）*/
+.ng-drop-btn {
+    position: absolute; top: 5px; left: 5px;
+    width: 26px; height: 26px;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: 1px solid var(--btn-border); border-radius: 5px;
+    cursor: pointer; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease;
+}
+.ng-drop:hover .ng-drop-btn { opacity: 1; }
+.ng-drop-btn:hover { background: var(--accent); border-color: var(--accent); }
+.ng-paste-btn { left: 37px; }
+.ng-drop-clear {
+    position: absolute; top: 5px; right: 5px;
+    width: 22px; height: 22px;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border-radius: 50%;
+    cursor: pointer; font-size: 0;  /* × 改用伪元素画十字，字符本身不渲染 */
+    z-index: 2;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease;
+}
+/* 用伪元素画对称十字，避免 × 字符相对圆心偏移（字形盒非视觉居中）*/
+.ng-drop-clear::before,
+.ng-drop-clear::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 11px; height: 2px;
+    background: #fff;
+    border-radius: 1px;
+    transform-origin: center;
+}
+.ng-drop-clear::before { transform: translate(-50%, -50%) rotate(45deg); }
+.ng-drop-clear::after  { transform: translate(-50%, -50%) rotate(-45deg); }
+.ng-drop:hover .ng-drop-clear { opacity: 1; }
+.ng-drop-clear:hover { background: var(--danger-vivid); }
+
+/* ── 图片编辑节点 ── */
+.ng-iedit-preview {
+    position: relative;
+    width: 100%; height: 100%; min-height: 80px;
+    border-radius: 8px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+.ng-iedit-thumb {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    position: absolute; inset: 0;
+}
+.ng-iedit-empty {
+    color: var(--text-muted); font-size: 12px; text-align: center;
+    z-index: 0;
+}
+.ng-iedit-btn {
+    position: absolute; bottom: 6px; right: 6px;
+    z-index: 2;
+    font-size: 12px;
+    background: rgba(0,0,0,0.7); color: #fff;
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 4px 10px; cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s ease, background .15s ease;
+}
+.ng-iedit-preview:hover .ng-iedit-btn { opacity: 1; }
+.ng-iedit-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+/* ── 通用占位/加载/错误（gen 节点 .ng-result-preview 内用）── */
+.ng-preview-empty { padding: 24px 14px; color: var(--text-muted); font-size: 12px; text-align: center; }
+.ng-preview-loading { padding: 24px 14px; color: var(--accent-soft, #7eb8da); font-size: 13px; text-align: center; animation: ng-pulse 1.2s ease-in-out infinite; }
+.ng-preview-error { padding: 24px 14px; color: #e0556a; font-size: 12px; text-align: center; word-break: break-all; }
+
+@keyframes ng-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ── 左下角缩略图 ── */
+.ng-minimap {
+    position: absolute;
+    left: 12px; bottom: 12px;
+    width: 148px; height: 98px;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    z-index: 9000;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+}
+.ng-minimap-canvas { position: absolute; inset: 0; }
+.ng-minimap-node { position: absolute; width: 6px; height: 4px; background: var(--accent); border-radius: 1px; opacity: 0.7; }
+.ng-minimap-viewport { position: absolute; border: 1.5px solid var(--accent); background: rgba(255,255,255,0.1); pointer-events: none; box-shadow: 0 0 6px rgba(0,0,0,0.4); }
+
+/* ── 悬浮 LLM 面板 ── */
+.ng-float { position: absolute; z-index: 9000; }
+.ng-float-collapsed {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--accent); color: var(--surface-3);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 2px 12px rgba(0,0,0,0.45);
+    font-size: 20px; user-select: none;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.ng-float-collapsed:hover { transform: scale(1.08); box-shadow: 0 4px 18px rgba(0,0,0,0.5), 0 0 0 4px var(--accent-soft); }
+.ng-float-collapsed:active { cursor: grabbing; }
+.ng-float-expanded {
+    position: absolute; z-index: 9000;
+    width: 300px; height: 70vh; max-height: 92vh;
+    background: rgba(20, 18, 28, 0.72);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    border: 1px solid var(--border-modal);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    display: flex; flex-direction: column; overflow: hidden;
+}
+/* ── 展开动画 ── */
+@keyframes ng-float-expand-in {
+    0%   { transform: scale(0.9); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.ng-float-expanded.ng-float-blob-in {
+    animation: ng-float-expand-in 0.2s ease-out;
+}
+.ng-float-head {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: 8px 10px;
+    background: linear-gradient(180deg, rgba(var(--accent-rgb),0.10), rgba(0,0,0,0));
+    cursor: grab;
+    border-bottom: 1px solid var(--border-modal-light);
+}
+.ng-float-head:active { cursor: grabbing; }
+/* 中间对称构图：清空贴左 · 收起钮居中 · 模型贴右 */
+.ng-float-clear-chat {
+    position: absolute; left: 8px;
+    cursor: pointer; color: var(--text-muted); font-size: 13px; padding: 2px 6px; border-radius: 4px;
+    transition: background .15s ease, color .15s ease;
+}
+.ng-float-clear-chat:hover { color: var(--danger-vivid); background: rgba(var(--danger-vivid-rgb),.12); }
+.ng-float-model {
+    position: absolute; right: 8px;
+    font-size: 10px; color: var(--text-muted); max-width: 96px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ng-float-close {
+    cursor: pointer; color: var(--text-muted);
+    font-size: 11px; line-height: 1; padding: 4px 14px; border-radius: 12px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.06);
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+    user-select: none;
+}
+.ng-float-close:hover { color: var(--text-main); background: rgba(var(--accent-rgb),0.18); border-color: rgba(var(--accent-rgb),0.4); }
+.ng-float-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+.ng-float-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.ng-float-msg { margin-bottom: 8px; padding: 8px 12px; border-radius: 12px; font-size: 12px; word-break: break-word; white-space: pre-wrap; line-height: 1.5; max-width: 88%; }
+.ng-float-msg-user { background: rgba(var(--accent-rgb),0.22); color: var(--text-main); align-self: flex-end; border-bottom-right-radius: 4px; }
+.ng-float-msg-assistant { background: rgba(255,255,255,0.06); color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
+.ng-float-input-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid rgba(255,255,255,0.06); }
+.ng-float-input { flex: 1; resize: none; height: 54px; background: rgba(0,0,0,0.25); color: var(--text-main); border: 1px solid var(--border-modal); border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.4; transition: border-color .15s ease, box-shadow .15s ease; }
+.ng-float-input:focus { outline: none; border-color: rgba(var(--accent-rgb),0.5); box-shadow: 0 0 0 2px rgba(var(--accent-rgb),0.15); }
+
+/* 展开态右下角调整大小手柄（缩到 12×12 避免压住发送钮右下角）*/
+.ng-float-resize {
+    position: absolute; right: 0; bottom: 0;
+    width: 12px; height: 12px;
+    cursor: nwse-resize; z-index: 5;
+}
+.ng-float-resize::after {
+    content: ""; position: absolute; right: 2px; bottom: 2px;
+    width: 6px; height: 6px;
+    border-right: 2px solid rgba(255,255,255,0.35);
+    border-bottom: 2px solid rgba(255,255,255,0.35);
+    border-bottom-right-radius: 2px;
+    transition: border-color .15s ease;
+}
+.ng-float-resize:hover::after { border-color: var(--accent); }
+
+/* ── 图片编辑器模态 ── */
+.ng-edit-mask {
+    position: fixed; inset: 0; z-index: 10001;
+    background: rgba(0,0,0,0.8); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+}
+.ng-edit-modal {
+    width: min(900px, 94vw); max-height: 92vh;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.65);
+    display: flex; flex-direction: column; overflow: hidden;
+}
+.ng-edit-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 14px; background: var(--surface-3); border-bottom: 1px solid var(--border);
+}
+.ng-edit-title { font-size: 13px; color: var(--text-main); font-weight: 600; }
+.ng-edit-close { cursor: pointer; color: var(--text-muted); font-size: 16px; padding: 2px 6px; border-radius: 4px; transition: background .15s ease, color .15s ease; }
+.ng-edit-close:hover { color: var(--text-main); background: var(--btn-hover-bg); }
+.ng-edit-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+.ng-edit-canvas-wrap {
+    flex: 1; overflow: hidden; padding: 14px;
+    background: var(--app-bg);
+    display: flex; align-items: center; justify-content: center;
+}
+.ng-edit-canvas-inner { position: relative; display: inline-block; line-height: 0; }
+.ng-edit-canvas { background: var(--surface-1); border: 2px solid var(--border); cursor: crosshair; border-radius: 4px; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+.ng-edit-tools {
+    width: 200px; padding: 10px; background: var(--surface-3);
+    border-left: 1px solid var(--border); overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+}
+.ng-edit-tool-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.ng-edit-prop { display: flex; flex-direction: column; gap: 4px; }
+.ng-edit-prop label { font-size: 11px; color: var(--text-muted); display: flex; flex-direction: column; gap: 3px; }
+.ng-edit-prop input[type="range"] { width: 100%; }
+.ng-edit-prop input[type="color"] { width: 40px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); }
+.ng-edit-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 9px 14px; border-top: 1px solid var(--border); }
+.ng-edit-tool.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text-main); }
+
+/* 画笔光标圈（position:fixed 跟随鼠标，不受 canvas 内缩放影响）*/
+.ng-edit-brush-cursor {
+    position: fixed;
+    border-radius: 50%;
+    border: 1px dashed rgba(255,255,255,0.65);
+    pointer-events: none;
+    z-index: 10002;
+    transform: translate(-50%, -50%);
+    display: none;
+}
+/* 画笔大小预览点（滑块旁）*/
+.ng-edit-size-val { font-weight: 600; color: var(--text-main); margin-left: 2px; }
+.ng-edit-size-dot {
+    display: inline-block; vertical-align: middle; margin-left: 6px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; transition: width .1s ease, height .1s ease;
+}
+/* 变换模式：canvas 显示移动光标 */
+.ng-edit-canvas-inner.ng-edit-transforming .ng-edit-canvas { cursor: move; }
+/* 变换信息标签 */
+.ng-edit-xform-info { font-size: 11px; color: var(--accent); margin-left: auto; align-self: center; white-space: nowrap; }
+/* 视口缩放滑块 */
+.ng-edit-vp-zoom { width: 100%; }
+.ng-edit-vp-zoom-val { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+/* 视口重置按钮 */
+.ng-edit-vp-reset { width: 100%; font-size: 11px; }
+
+/* ── 滚动条美化（CEF Chrome 88 支持 webkit）── */
+.ng-node-editor::-webkit-scrollbar,
+.ng-context-menu::-webkit-scrollbar,
+.ng-float-msgs::-webkit-scrollbar,
+.ng-edit-tools::-webkit-scrollbar,
+.ng-edit-canvas-wrap::-webkit-scrollbar { width: 8px; height: 8px; }
+.ng-node-editor::-webkit-scrollbar-track,
+.ng-context-menu::-webkit-scrollbar-track,
+.ng-float-msgs::-webkit-scrollbar-track,
+.ng-edit-tools::-webkit-scrollbar-track,
+.ng-edit-canvas-wrap::-webkit-scrollbar-track { background: transparent; }
+.ng-node-editor::-webkit-scrollbar-thumb,
+.ng-context-menu::-webkit-scrollbar-thumb,
+.ng-float-msgs::-webkit-scrollbar-thumb,
+.ng-edit-tools::-webkit-scrollbar-thumb,
+.ng-edit-canvas-wrap::-webkit-scrollbar-thumb {
+    background: var(--border); border-radius: 4px;
+}
+.ng-node-editor::-webkit-scrollbar-thumb:hover,
+.ng-float-msgs::-webkit-scrollbar-thumb:hover,
+.ng-edit-tools::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── gen 节点弹出输入容器 ── */
+
+.ng-gen-input-container {
+    position: absolute;
+    width: 520px;
+    background: var(--surface-2);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.1);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+}
+
+/* 顶层：输入参考图缩略图行（与节点体内 .ng-thumbs 一致，无框） */
+.ng-gen-input-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    min-height: 48px;
+}
+
+.ng-gen-input-thumb-placeholder {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* 中层：文本输入区 */
+.ng-gen-input-mid {
+    padding: 10px 12px;
+}
+
+.ng-gen-input-textarea {
+    width: 100%;
+    height: 110px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-main);
+    font-size: 13px;
+    padding: 10px;
+    resize: none;
+    box-sizing: border-box;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.ng-gen-input-textarea:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+/* 接了文本节点时禁用自带 textarea */
+.ng-gen-input-textarea.ng-input-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--surface-3);
+}
+
+/* 多视频参考缩略图行（与 .ng-thumbs 同构，支持拖拽排序） */
+.ng-video-thumbs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    min-height: 0;
+}
+.ng-video-thumb-vid.ng-thumb-placeholder {
+    background: transparent;
+    cursor: default;
+    opacity: 0.5;
+}
+
+.ng-video-thumb-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.ng-video-thumb-vid {
+    width: 56px; height: 36px;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: #000;
+    display: block;
+    cursor: pointer;
+    transition: border-color .15s ease, transform .15s ease;
+}
+.ng-video-thumb-vid:hover {
+    border-color: var(--accent);
+    transform: scale(1.05);
+}
+
+/* × 断开按钮（挂缩略图上，同 .ng-thumb-wrap 规则） */
+.ng-video-thumb-wrap:hover .ng-thumb-close {
+    display: block;
+}
+
+/* 视频 hover 放大预览（上方弹出，自动循环播放） */
+.ng-video-thumb-preview {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    padding: 3px;
+}
+.ng-video-thumb-wrap:hover .ng-video-thumb-preview {
+    display: block;
+}
+.ng-video-thumb-preview-vid {
+    display: block;
+    max-width: 320px;
+    max-height: 200px;
+    border-radius: 3px;
+    background: #000;
+}
+
+/* 折叠参数面板（默认收起） */
+.ng-gen-input-params-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+.ng-gen-input-params-panel.ng-gen-input-params-open {
+    max-height: 500px;
+    overflow-y: auto;
+    border-top: 1px solid var(--border);
+}
+
+.ng-gen-input-params {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 12px;
+}
+
+/* 底层：模型下拉 + 参数开关 + 发送 */
+.ng-gen-input-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+/* 参数折叠/展开按钮 */
+.ng-gen-input-params-toggle {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+.ng-gen-input-params-toggle:hover {
+    color: var(--text-main);
+    border-color: var(--accent);
+}
+
+/* 批量生成占位帧（箭头预览中的等待框） */
+.ng-batch-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: 120px;
+    background: var(--surface-2);
+    border-radius: 4px;
+    gap: 8px;
+}
+.ng-batch-ph-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: ng-batch-spin 0.7s linear infinite;
+}
+@keyframes ng-batch-spin {
+    to { transform: rotate(360deg); }
+}
+.ng-batch-ph-progress {
+    width: 60%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.ng-batch-ph-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+/* 已完成计数（Nx 旁边） */
+.ng-gen-completed {
+    display: none;
+}
+
+/* 批量生成 Nx 标签（生成按钮左侧，拖拽/点击调整） */
+.ng-gen-input-batch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-muted);
+    cursor: ew-resize;
+    user-select: none;
+    flex-shrink: 0;
+    margin-right: 4px;
+    transition: color 0.15s;
+}
+.ng-gen-input-batch:hover {
+    color: var(--accent);
+}
+.ng-gen-input-batch-edit {
+    width: 36px;
+    height: 22px;
+    padding: 0 4px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    background: var(--surface-2);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text-main);
+    flex-shrink: 0;
+    margin-right: 4px;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.ng-gen-input-batch-edit::-webkit-inner-spin-button,
+.ng-gen-input-batch-edit::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.ng-gen-input-batch-edit:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.ng-gen-input-model {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-main);
+    font-size: 11px;
+    padding: 3px 6px;
+    max-width: 140px;
+}
+
+.ng-gen-input-send {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+}
+
+.ng-gen-input-send:hover {
+    background: var(--accent-soft);
+}
+
+.ng-gen-input-send:disabled {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* 结果预览区（gen 节点内）—— 撑满编辑区，让生成图按节点尺寸 contain 显示 */
+.ng-result-preview {
+    padding: 6px;
+    min-height: 60px;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.ng-result-preview .ng-preview-placeholder {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.ng-result-preview .ng-preview-loading {
+    font-size: 11px;
+    color: var(--accent);
+}
+
+.ng-result-preview .ng-preview-error {
+    font-size: 11px;
+    color: var(--danger-vivid);
+}
+
+.ng-result-thumb {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    cursor: grab;
+}
+
+.ng-result-thumb:active {
+    cursor: grabbing;
+}
+
+/* 多图翻看导航（批量生成时显示） */
+.ng-result-nav {
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 0, 0, .65);
+    border-radius: 10px;
+    padding: 2px 6px;
+    z-index: 5;
+    user-select: none;
+}
+
+.ng-result-count {
+    color: #fff;
+    font-size: 11px;
+    min-width: 32px;
+    text-align: center;
+    line-height: 1;
+}
+
+.ng-result-prev,
+.ng-result-next {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background .12s;
+}
+
+.ng-result-prev:hover,
+.ng-result-next:hover {
+    background: rgba(255, 255, 255, .2);
+}
+
+/* 画布 gen 节点生成中进度条包裹 */
+.ng-preview-progress {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 覆盖节点内进度条样式：更紧凑简洁 */
+.ng-preview-progress .comfyui-progress-text {
+    font-size: 11px;
+    color: #9aa0a6;
+    margin: 0;
+}
+
+.ng-preview-progress .comfyui-executing-node {
+    font-size: 10px;
+    color: #6b7280;
+    margin: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ng-preview-progress .comfyui-progress-container {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 0;
+}
+
+.ng-preview-progress .comfyui-progress-bar {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0;
+    transition: width .2s ease;
+}
+
+
+.ng-group-box.ng-group-selected {
+    border-color: var(--accent);
+    border-style: solid;
+    box-shadow: 0 0 14px rgba(var(--accent-rgb),0.35);
+}
+
+/* ── worldEl 层级（节点压连线）── */
+
+/* ── 右键菜单动画 ── */
+.ng-context-menu {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.ng-context-menu:not(.ng-hidden) {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* ── gen 输入容器动画 ── */
+.ng-gen-input-container {
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+.ng-gen-input-container.ng-gen-input-open { opacity: 1; }
+
+/* ── gen 参数面板双列网格 ── */
+.ng-gen-input-params {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 10px;
+    padding: 8px 12px;
+}
+.ng-gen-input-params .ng-param-row.ng-param-wide { grid-column: 1 / -1; }
+.ng-gen-input-params .ng-param-row {
+    background: var(--surface-1);
+    border-radius: 5px;
+    padding: 4px 8px;
+    gap: 6px;
+}
+.ng-gen-input-params .ng-param-label { font-size: 10px; min-width: 44px; }
+
+/* ── 参数入场动画：从上滑入 + 透明度，按行索引错开 delay ── */
+/* 触发：参数行被插入 DOM 时自动播放（首次渲染 & model 联动刷新都会触发） */
+@keyframes ng-param-enter {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes comfyui-param-enter {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 节点备注气泡 ── */
+.ng-node-note {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 8px; right: 8px;
+    max-width: 260px;
+    font-size: 11px; color: var(--text-muted);
+    padding: 5px 10px;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-style: italic;
+    white-space: pre-wrap; word-break: break-word;
+    line-height: 1.4; z-index: 5; cursor: text;
+}
+.ng-node-note::after {
+    content: ""; position: absolute; top: 100%; left: 14px;
+    border: 5px solid transparent; border-top-color: var(--border);
+}
+.ng-note-input {
+    position: absolute; bottom: calc(100% + 6px); left: 8px;
+    max-width: 260px; font-size: 11px; padding: 5px 10px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--accent); border-radius: 8px;
+    outline: none; box-sizing: border-box; z-index: 6; line-height: 1.4;
+}
+
+/* ── 分组框 ── */
+.ng-group-box {
+    position: absolute;
+    background: rgba(0,0,0,0.18);
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    z-index: 0;
+    min-width: 120px;
+    min-height: 80px;
+    pointer-events: none;
+    transition: border-color .15s ease, background-color .15s ease;
+}
+.ng-group-head {
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: grab;
+    border-bottom: 1px solid var(--border);
+    pointer-events: auto;
+}
+.ng-group-head:active { cursor: grabbing; }
+.ng-group-note {
+    position: absolute; bottom: calc(100% + 8px); left: 8px;
+    max-width: 220px; font-size: 10px; color: var(--text-muted);
+    padding: 3px 8px; background: var(--surface-3);
+    border: 1px solid var(--border); border-radius: 6px;
+    font-style: italic; white-space: pre-wrap; word-break: break-word;
+    z-index: 5; cursor: text; pointer-events: auto;
+}
+.ng-group-note::after {
+    content: ""; position: absolute; top: 100%; left: 12px;
+    border: 4px solid transparent; border-top-color: var(--border);
+}
+.ng-group-note-input {
+    position: absolute; bottom: calc(100% + 8px); left: 8px;
+    max-width: 220px; font-size: 10px; padding: 3px 8px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--accent); border-radius: 6px;
+    outline: none; z-index: 6; pointer-events: auto;
+}
+.ng-group-box.ng-group-selected {
+    border-color: var(--accent); border-style: solid;
+    box-shadow: 0 0 14px rgba(var(--accent-rgb),0.35);
+}
+
+/* ── LLM 悬浮球 ── */
+.ng-float-collapsed {
+    position: absolute;
+    z-index: 9000;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(var(--accent-rgb),0.15);
+    border: 1.5px solid rgba(var(--accent-rgb),0.3);
+    backdrop-filter: blur(8px);
+    color: #fcd34d;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 16px rgba(var(--accent-rgb),0.15), 0 4px 12px rgba(0,0,0,0.3);
+    font-size: 18px; user-select: none;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+    animation: ng-float-pulse 3s ease-in-out infinite;
+}
+@keyframes ng-float-pulse {
+    0%, 100% { box-shadow: 0 0 16px rgba(var(--accent-rgb),0.15), 0 4px 12px rgba(0,0,0,0.3); }
+    50% { box-shadow: 0 0 26px rgba(var(--accent-rgb),0.3), 0 4px 18px rgba(0,0,0,0.35); }
+}
+.ng-float-collapsed:hover {
+    transform: scale(1.1);
+    background: rgba(var(--accent-rgb),0.24);
+    border-color: rgba(var(--accent-rgb),0.5);
+    box-shadow: 0 0 32px rgba(var(--accent-rgb),0.35), 0 6px 20px rgba(0,0,0,0.4);
+}
+.ng-float-collapsed:active { cursor: grabbing; transform: scale(0.95); }
+.ng-float-handle {
+    line-height: 1;
+    text-shadow: 0 0 8px rgba(252,211,77,0.5);
+    transition: text-shadow .2s ease;
+}
+.ng-float-collapsed:hover .ng-float-handle { text-shadow: 0 0 14px rgba(252,211,77,0.8); }
+/* 设置弹窗打开时（#settingsModal z-index:20 盖不住 9000），降悬浮球到遮罩之下让其自然变暗。
+   用三类选择器抬高特异性，盖过 .ng-float-collapsed / .ng-float-expanded 的 z-index。 */
+.ng-float.ng-float-collapsed.ng-float-dimmed,
+.ng-float-expanded.ng-float-dimmed { z-index: 15 !important; }
+
+/* ── 颜色选择器 ── */
+.ng-color-picker {
+    position: fixed; z-index: 10001;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+    padding: 6px;
+    display: grid;
+    grid-template-columns: repeat(5, 28px);
+    gap: 4px;
+    opacity: 0; transform: scale(0.92);
+    transition: opacity 0.1s ease, transform 0.1s ease;
+}
+.ng-color-picker:not(.ng-hidden) { opacity: 1; transform: scale(1); }
+.ng-color-swatch {
+    width: 28px; height: 28px;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color .1s ease, transform .1s ease;
+}
+.ng-color-swatch:hover { border-color: #fff; transform: scale(1.15); }
+.ng-color-swatch-default {
+    background: transparent;
+    position: relative;
+}
+.ng-color-swatch-default::before,
+.ng-color-swatch-default::after {
+    content: "";
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 70%; height: 2px;
+    background: var(--text-muted);
+}
+.ng-color-swatch-default::before { transform: translate(-50%, -50%) rotate(45deg); }
+.ng-color-swatch-default::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.ng-color-swatch-default:hover { border-color: var(--text-muted); }
+
+/* ── 节点创建动画 ── */
+@keyframes ng-node-appear {
+    from { opacity: 0; transform: scale(0.88); }
+    to { opacity: 1; transform: scale(1); }
+}
+.ng-node.ng-node-appear { animation: ng-node-appear 0.22s ease; }
+
+/* ── 连线圆圈层级（让 SVG hit path 优先）── */
+.ng-conn-circle { z-index: 5; }
+
+.ng-group-resize {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 12px; height: 12px;
+    cursor: nwse-resize;
+    pointer-events: auto;
+}
+.ng-group-resize::after {
+    content: ""; position: absolute; right: 2px; bottom: 2px;
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    border-radius: 0 0 3px 0;
+    transition: border-color .15s ease;
+}
+.ng-group-resize:hover::after { border-color: var(--accent); }
+.ng-group-title {
+    font-size: 11px;
+    color: var(--text-main);
+    font-weight: 500;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 12px);
+}
+.ng-group-title-input {
+    width: calc(100% - 16px);
+    font-size: 11px; padding: 2px 6px;
+    background: var(--input-bg); color: var(--text-main);
+    border: 1px solid var(--accent); border-radius: 3px;
+    outline: none; text-align: center; pointer-events: auto;
+}
+
+/* ───────────────────────── 官方模板浏览 modal ───────────────────────── */
+.comfyui-official-tpl-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex; align-items: center; justify-content: center;
+}
+.comfyui-official-tpl-panel {
+    width: 560px; max-width: calc(100vw - 48px);
+    max-height: min(640px, calc(100vh - 64px));
+    display: flex; flex-direction: column;
+    background: var(--bg-elevated, #1b1d23);
+    border: 1px solid var(--border-color, #33363f);
+    border-radius: 8px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+.comfyui-official-tpl-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; gap: 12px;
+    border-bottom: 1px solid var(--border-color, #33363f);
+}
+.comfyui-official-tpl-head-title {
+    font-size: 12.5px; font-weight: 600; color: var(--text-main, #e4e6ec);
+}
+.comfyui-official-tpl-search {
+    display: flex; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color, #33363f);
+}
+.comfyui-official-tpl-search input {
+    flex: 1; min-width: 0;
+    background: var(--input-bg, #12131a); color: var(--text-main, #e4e6ec);
+    border: 1px solid var(--border-color, #33363f); border-radius: 4px;
+    padding: 5px 8px; font-size: 12px; outline: none;
+}
+.comfyui-official-tpl-search input:focus { border-color: var(--accent, #4f8cff); }
+.comfyui-official-tpl-search select {
+    background: var(--input-bg, #12131a); color: var(--text-main, #e4e6ec);
+    border: 1px solid var(--border-color, #33363f); border-radius: 4px;
+    padding: 5px 6px; font-size: 12px; outline: none;
+}
+.comfyui-official-tpl-list {
+    flex: 1; overflow-y: auto; padding: 6px 8px;
+}
+.comfyui-official-tpl-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--border-color, #2a2d36);
+}
+.comfyui-official-tpl-row:last-child { border-bottom: none; }
+.comfyui-official-tpl-title {
+    font-size: 12px; font-weight: 600; color: var(--text-main, #e4e6ec);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    min-width: 120px;
+}
+.comfyui-official-tpl-meta {
+    flex: 1; min-width: 0;
+    font-size: 11px; color: var(--text-dim, #9aa0ad);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.comfyui-official-tpl-add { flex-shrink: 0; padding: 3px 10px; font-size: 11px; }
+.comfyui-official-tpl-pager {
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px; padding: 10px 0; font-size: 11.5px; color: var(--text-dim, #9aa0ad);
+}
+.comfyui-official-tpl-status {
+    padding: 10px 14px; font-size: 11.5px; color: var(--text-dim, #9aa0ad);
+    border-top: 1px solid var(--border-color, #33363f);
+    min-height: 18px;
+}

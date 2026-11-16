@@ -1,0 +1,1671 @@
+/* ── 素材库模块 ── */
+.assets-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.assets-empty {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: center;
+    padding: 24px;
+}
+.assets-empty.assets-empty-inline {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border: 1px dashed var(--border);
+    border-radius: 4px;
+    min-height: 0;
+}
+.assets-empty.assets-empty-inline.assets-empty-warn {
+    color: var(--danger);
+    border-color: rgba(var(--danger-vivid-rgb),.3);
+    background: rgba(255, 80, 80, .08);
+}
+.assets-empty.assets-empty-center {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+}
+
+/* 模块设置面板：分组排版走 common.css 的 st-panel 共用样式（三组：
+   数据 / 预览与转码 / 转码缓存），此处补充模块特有布局 */
+#assetsSettingsContainer .st-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+/* 数据目录：单行省略 + 打开/复制两个紧凑按钮 */
+#assetsSettingsContainer .assets-settings-path-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+#assetsSettingsContainer .assets-settings-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 5px 8px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-muted);
+    font-family: Consolas, Monaco, monospace;
+    font-size: 11px;
+    line-height: 18px;
+}
+#assetsSettingsContainer .assets-settings-mini-btn {
+    flex: 0 0 auto;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+/* 开关行：左侧标签，右侧开关 */
+#assetsSettingsContainer .assets-settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+#assetsSettingsContainer .assets-settings-toggle-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+/* 字段名后的行内状态（如分辨率字段在自动转码关闭时标注） */
+#assetsSettingsContainer .assets-settings-state {
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+}
+/* 缓存占用状态行 */
+#assetsSettingsContainer .assets-settings-status-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+#assetsSettingsContainer .assets-settings-status-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+#assetsSettingsContainer .assets-settings-status {
+    font-size: 12px;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+#assetsSettingsContainer .assets-settings-status.is-muted {
+    color: var(--text-muted);
+}
+/* 自动转码关闭时分辨率字段不生效：降透明度 + 禁用光标 */
+#assetsSettingsContainer .st-field.is-disabled {
+    opacity: .5;
+}
+#assetsSettingsContainer .st-field.is-disabled select {
+    cursor: not-allowed;
+}
+/* 开关（.toggle-wrap）的 switch-input 是绝对定位的 1px 隐藏输入框，
+   这里把它自身的箱尺寸还原为 1px（st-panel 的 `.st-field input { width: 100% }`
+   会作用到它；绝对定位元素不影响父级布局，仅影响自身箱尺寸） */
+#assetsSettingsContainer .st-field .toggle-wrap .switch-input {
+    width: 1px;
+    height: 1px;
+}
+
+/* ── 基础布局类（refs/proj/presets 共用）── */
+.assets-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* ── 工具栏 ── */
+.assets-toolbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    height: 36px;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+}
+.assets-toolbar::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10px;
+    right: 10px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb),.35), transparent);
+    pointer-events: none;
+}
+.assets-toolbar .btn {
+    font-size: 12px;
+    padding: 0 12px;
+    height: 26px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color .12s ease, background .06s ease;
+    background: var(--surface-3);
+}
+.assets-toolbar .btn:hover {
+    background: var(--border-modal);
+}
+.assets-toolbar .btn.primary {
+    background: rgba(var(--accent-rgb),.12);
+    border-color: rgba(var(--accent-rgb),.35);
+    color: var(--accent);
+}
+.assets-toolbar .btn.primary:hover {
+    background: rgba(var(--accent-rgb),.18);
+    border-color: var(--accent);
+}
+.assets-toolbar-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+/* toolbar 内开关：沿用公共 .toggle-wrap，仅紧凑化字号/间距适配 toolbar */
+.assets-toolbar .toggle-wrap {
+    font-size: 12px;
+    gap: 6px;
+}
+
+/* ── 拖拽区 ── */
+.assets-dropzone {
+    position: relative;
+    flex: 1 1 auto;
+    display: flex;
+    min-height: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    transition: border-color .15s ease, background .15s ease;
+}
+.assets-dropzone.dragover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+/* ── 列表加载遮罩：未加载完时覆盖列表的暗底 + 居中转圈（无文字）── */
+.assets-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .45);
+    pointer-events: none;
+}
+.assets-loading-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(var(--accent-rgb), .22);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: assets-loading-rotate .8s linear infinite;
+}
+@keyframes assets-loading-rotate { to { transform: rotate(360deg); } }
+
+/* ── 树形区 ── */
+.assets-treeview { background: transparent; }
+.assets-tree-left {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 4px;
+    min-height: 0;
+    flex: 0 0 230px;
+    overflow: hidden;
+}
+.assets-tree-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+}
+
+.assets-tree-right {
+    background: transparent;
+    padding: 10px;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* ── 列表/详情分隔条 ── */
+.assets-tree-splitter {
+    flex: 0 0 2px;
+    cursor: col-resize;
+    background: var(--border);
+    transition: background .15s;
+    z-index: 5;
+    position: relative;
+}
+.assets-tree-splitter::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: -3px; right: -3px;
+}
+.assets-tree-splitter:hover {
+    background: var(--accent);
+}
+
+/* ── 搜索栏 ── */
+.assets-search-wrap {
+    flex: 0 0 auto;
+    padding: 0 0 4px;
+    margin-bottom: 4px;
+}
+.assets-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 26px;
+    font-size: 11px;
+    padding: 0 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-main);
+    outline: none;
+    font-family: inherit;
+}
+.assets-search-input:focus {
+    border-color: var(--accent);
+}
+.assets-search-input::placeholder { color: var(--text-muted); }
+.assets-search-clear {
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1;
+    padding: 0;
+}
+.assets-search-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.assets-search-row .assets-search-input { flex: 1 1 auto; min-width: 0; }
+.assets-search-clear:hover {
+    background: var(--btn-bg);
+    color: var(--text-main);
+}
+
+/* ── 树行 ── */
+.assets-tree-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 1px 6px 1px 2px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background .12s ease;
+    user-select: none;
+    border-left: 2px solid transparent;
+}
+.assets-tree-row:hover {
+    background: rgba(255,255,255,.03);
+}
+.assets-tree-row.tree-row.selected {
+    background: rgba(var(--accent-rgb),.06);
+    border-color: transparent;
+    border-left-color: rgba(var(--accent-rgb),.7);
+    box-shadow: none;
+}
+.assets-tree-row.tree-row.selected:hover {
+    background: rgba(var(--accent-rgb),.1);
+}
+/* missing 行红色提示 */
+.assets-tree-row.missing {
+    opacity: 0.6;
+}
+.assets-tree-row.missing .tree-row-label {
+    color: var(--danger);
+}
+.assets-tree-row.missing.selected .tree-row-label {
+    color: var(--danger);
+}
+
+/* 文件夹折叠箭头 */
+.assets-tree-arrow {
+    width: 12px; height: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 7px; color: var(--text-muted);
+    transition: transform .12s ease; cursor: pointer;
+    opacity: .45;
+    line-height: 1;
+}
+.assets-tree-arrow.expanded { transform: rotate(90deg); }
+.assets-tree-row.assets-tree-folder:hover .assets-tree-arrow { opacity: .8; }
+
+/* 文件夹行 */
+.assets-tree-row.assets-tree-folder .tree-row-label {
+    font-weight: 500;
+}
+.assets-tree-folder-meta {
+    flex-shrink: 0;
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-left: auto;
+    padding-right: 2px;
+    opacity: .6;
+}
+
+/* ── 行末操作按钮 ── */
+.assets-row-actions {
+    display: none;
+    flex-shrink: 0;
+    margin-left: auto;
+    gap: 2px;
+}
+.assets-tree-row.selected .assets-row-actions {
+    display: flex;
+}
+.assets-tree-row:hover .assets-row-actions {
+    display: flex;
+}
+.assets-row-act {
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: color .1s, background .1s;
+    user-select: none;
+}
+.assets-row-act:hover {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb),.1);
+}
+
+.tree-row-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+}
+.tree-row-icon {
+    margin-right: 2px;
+    opacity: .85;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+/* ── 行内重命名 input ── */
+.assets-rename-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 22px;
+    font-size: 12px;
+    padding: 0 4px;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: var(--text-main);
+    outline: none;
+    font-family: inherit;
+}
+
+/* ── 缩进引导线 ── */
+.tree-indent {
+    border-left: 1px solid var(--border-modal-light);
+    padding-left: 4px;
+}
+
+/* ── 文件夹拖入高亮 ── */
+.assets-tree-row.assets-tree-folder.drag-over {
+    background: rgba(var(--drag-rgb),.15);
+    border-color: var(--drag);
+    box-shadow: inset 0 0 0 1px rgba(var(--drag-rgb),.4);
+}
+
+/* ── 行内新建行 ── */
+.tree-inline-input-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 26px;
+    padding: 0 8px 0 6px;
+    margin: 2px 0;
+    border: 1px dashed var(--warning-vivid);
+    border-radius: 4px;
+}
+.tree-inline-input-row input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 20px;
+    font-size: 12px;
+    padding: 0 4px;
+    background: transparent;
+    border: none;
+    color: var(--text-main);
+    outline: none;
+    font-family: inherit;
+}
+.tree-inline-input-row input::placeholder { color: var(--text-muted); }
+.tree-inline-input-hint {
+    font-size: 9px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* ── 底部快捷键栏 ── */
+.assets-tree-footer {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    font-size: 9px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    margin-top: auto;
+}
+/* 底栏右侧：格子尺寸滑块（网格模式，与「Ctrl+滚轮 调格子大小」同一行）。滚轮手势没有
+   可见控件，滑块就是它的可见入口——两者共用同一写入口，刻度双向同步（见 treeView._syncFooter）。
+   轨道/滑块沿用全局 input[type=range] 的主题（common.css），这里只收窄宽度：全局是
+   width:100%（会吃掉整条底栏），选择器带上 .assets-grid-zoom 才压得住它。 */
+.assets-grid-zoom {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.assets-grid-zoom input[type="range"] {
+    flex: 0 0 auto;
+    width: 84px;
+}
+/* 全局那套滑块是给"要点的主控件"用的（16px 强调色圆点 + 光晕），放到 9px 的底栏上太抢眼
+   ——这里收小到 11px、去光晕、用静音色，hover/按下才提亮（用户实测点出"圆点太大了，不要这么明显"）。
+   margin-top 的垂直居中值与全局同源：全局是 16px 圆点配 -7px，圆点缩一半就要退一半的距离
+   （-7 + (16-11)/2 = -4.5px）——照抄 6px 轨道的几何算会差 2px，圆点会偏低（用户实测点出"上下歪了"）。 */
+.assets-grid-zoom input[type="range"]::-webkit-slider-thumb {
+    width: 11px;
+    height: 11px;
+    border: none;
+    background: var(--text-muted);
+    box-shadow: none;
+    margin-top: -4.5px;
+    transition: background .12s ease;
+}
+.assets-grid-zoom input[type="range"]:hover::-webkit-slider-thumb,
+.assets-grid-zoom input[type="range"]:active::-webkit-slider-thumb {
+    background: var(--accent);
+}
+
+/* ── 空状态 ── */
+.assets-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 auto;
+    min-height: 100px;
+    padding: 24px;
+    text-align: center;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    margin: 8px;
+}
+.assets-empty-state-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    opacity: .5;
+}
+.assets-empty-state-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.assets-empty-state-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: .6;
+}
+
+/* ── 详情面板 ── */
+.assets-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.assets-detail-preview {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background:
+        linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px),
+        var(--surface-2);
+    background-size: 24px 24px, 24px 24px, 100% 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+    max-height: 280px;
+    overflow: hidden;
+    padding: 12px;
+}
+.assets-detail-preview img,
+.assets-detail-preview video {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    border-radius: 3px;
+}
+.assets-detail-preview audio {
+    width: 100%;
+}
+/* 预览视频点击条目后自动静音循环播放，自身不接手势：
+   点击一律落到外层 .assets-detail-preview 的"点击全屏"，不会顺带切播放态。
+   转码兜底产物（.mov-fallback 里的 video）同样适用 */
+.assets-detail-preview video {
+    pointer-events: none;
+}
+.assets-detail-preview .assets-detail-preview-icon {
+    font-size: 48px;
+    opacity: .8;
+    margin-bottom: 6px;
+}
+.assets-detail-preview .assets-detail-preview-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin-bottom: 2px;
+}
+.assets-detail-preview .assets-detail-preview-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+/* 详情区预览图（预设/工程素材共用）：仅在容器带 .has-img 时显示；
+   加载失败由 img 的 onerror 摘掉 has-img → 图片隐藏、图标块露出（回落不需要 JS 分支） */
+.assets-detail-preview .assets-detail-preview-img { display: none; }
+.assets-detail-preview.has-img .assets-detail-preview-img {
+    display: block;
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 3px;
+    margin-bottom: 6px;
+}
+.assets-detail-preview.has-img .assets-detail-preview-icon { display: none; }
+.assets-detail-section {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    overflow: hidden;
+}
+.assets-detail-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.015);
+}
+.assets-detail-section-body {
+    padding: 8px 10px;
+}
+.assets-detail-row {
+    display: flex;
+    align-items: flex-start;
+    padding: 3px 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+.assets-detail-row .k {
+    flex: 0 0 auto;
+    width: 60px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+.assets-detail-row .v {
+    flex: 1 1 auto;
+    color: var(--text-main);
+    word-break: break-all;
+    min-width: 0;
+}
+.assets-detail-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.assets-detail-actions .btn {
+    font-size: 12px;
+    padding: 0 12px;
+    height: 28px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color .12s ease, background .06s ease;
+}
+.assets-detail-actions .btn.danger {
+    color: var(--danger);
+    border-color: rgba(var(--danger-vivid-rgb),.35);
+    background: rgba(255,80,80,.06);
+}
+.assets-detail-actions .btn.danger:hover {
+    background: rgba(255,80,80,.12);
+    border-color: rgba(var(--danger-vivid-rgb),.5);
+}
+
+/* 旧 meta 保持兼容（逐步迁移到 .assets-detail-section） */
+.assets-detail-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    word-break: break-all;
+}
+.assets-detail-meta .k {
+    color: var(--text-main);
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+/* ── Lightbox：图片缩放/拖动 / 视频播放 ── */
+.assets-lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: rgba(0,0,0,.92);
+    align-items: center;
+    justify-content: center;
+    transition: opacity .2s ease, background .3s ease;
+    overflow: hidden;
+}
+.assets-lightbox video {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 4px;
+}
+
+/* ── 预设编辑区 ── */
+.assets-presets-notes {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+    resize: vertical;
+    min-height: 40px;
+}
+.assets-presets-flags {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+}
+.assets-presets-flag {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(28,34,42,.5);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+.assets-presets-flag.on {
+    background: rgba(var(--accent-rgb),.12);
+    border-color: rgba(var(--accent-rgb),.3);
+    color: var(--accent);
+}
+
+/* ── 工程素材备注 ── */
+.assets-proj-notes {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 4px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    resize: vertical;
+    min-height: 44px;
+    font-family: inherit;
+}
+
+/* ── 卡片堆叠 ── */
+.assets-cardstack {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        var(--surface-3);
+    background-size: 32px 32px, 32px 32px, 100% 100%;
+    border-radius: 4px;
+}
+.assets-cardstack::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+    background-size: 120px 120px;
+    opacity: .025;
+    pointer-events: none;
+    z-index: 5;
+}
+.assets-cardstack::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(var(--accent-rgb),.4), rgba(var(--accent-rgb),.1) 40%, transparent 80%);
+    pointer-events: none;
+    z-index: 6;
+}
+.assets-card {
+    position: absolute;
+    top: 20px; right: 0; bottom: 0; left: 48px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background:
+        linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px),
+        var(--surface-card);
+    background-size: 24px 24px, 24px 24px, 100% 100%;
+    overflow: hidden;
+    transition: transform .25s ease, opacity .25s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.assets-card.slot-top {
+    z-index: 30;
+    opacity: 1;
+    filter: none;
+    transform: translateX(0);
+    border: 1px solid rgba(var(--accent-rgb),.2);
+}
+.assets-card-glow {
+    position: absolute;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s ease;
+    z-index: 7;
+}
+.assets-card-glow-top,
+.assets-card-glow-bottom {
+    left: 0;
+    width: 220px;
+    height: 2px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,1) 0%, rgba(255,255,255,1) 10%, rgba(var(--accent-rgb),1) 30%, rgba(var(--accent-rgb),.55) 48%, transparent 70%);
+}
+.assets-card-glow-top { top: -1px; }
+.assets-card-glow-bottom { bottom: -1px; }
+.assets-card-glow-left,
+.assets-card-glow-right {
+    top: 0;
+    width: 2px;
+    height: 220px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,1) 0%, rgba(255,255,255,1) 10%, rgba(var(--accent-rgb),1) 30%, rgba(var(--accent-rgb),.55) 48%, transparent 70%);
+}
+.assets-card-glow-left { left: -1px; }
+.assets-card-glow-right { right: -1px; }
+.assets-card-pulse {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 110px;
+    height: 4px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 8;
+    border-radius: 2px;
+    will-change: transform, opacity;
+}
+.assets-card-pulse.cw {
+    transform-origin: 100% 50%;
+    background: linear-gradient(90deg, transparent 0%, rgba(var(--accent-rgb),.15) 25%, rgba(var(--accent-rgb),.8) 70%, rgba(255,255,255,1) 100%);
+}
+.assets-card-pulse.ccw {
+    transform-origin: 0% 50%;
+    background: linear-gradient(270deg, transparent 0%, rgba(var(--accent-rgb),.15) 25%, rgba(var(--accent-rgb),.8) 70%, rgba(255,255,255,1) 100%);
+}
+.assets-card.slot-top::before,
+.assets-card.slot-top::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-style: solid;
+    border-color: rgba(var(--accent-rgb),.45);
+    pointer-events: none;
+    z-index: 6;
+}
+.assets-card.slot-top::before { top: 3px; left: 3px; border-width: 1px 0 0 1px; }
+.assets-card.slot-top::after { bottom: 3px; right: 3px; border-width: 0 1px 1px 0; }
+.assets-card.slot-mid { z-index: 20; transform: translateX(-24px); }
+.assets-card.slot-bot { z-index: 10; transform: translateX(-48px); }
+.assets-card.dark-zone { z-index: 5; opacity: 0; transform: translateX(80%); transition: none; }
+.assets-card-temp { z-index: 35; opacity: 0; pointer-events: none; }
+.assets-card-temp .assets-card-content { display: none; }
+.assets-card-content { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.assets-card.slot-top .assets-card-content { opacity: 1; transition: opacity .2s ease .25s; }
+.assets-card:not(.slot-top) .assets-card-content { opacity: 0; transition: opacity .12s ease; }
+
+/* ── 书脊 ── */
+.assets-card-spine {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+    border-radius: 4px 0 0 4px;
+    z-index: 40;
+    transition: color .12s ease, background .12s ease;
+}
+.assets-card-spine::before {
+    content: attr(data-index);
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 8px;
+    color: var(--text-muted);
+    opacity: .5;
+    font-family: Consolas, 'Courier New', monospace;
+}
+.assets-card-spine:hover {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb),.08);
+}
+.assets-card.slot-top .assets-card-spine { display: none; }
+.assets-card.slot-bot .assets-card-spine { z-index: 40; }
+
+/* ── 顶部频谱手柄 ── */
+.assets-cardstack-handle {
+    position: relative;
+    z-index: 50;
+    flex: 0 0 auto;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 8px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    cursor: ew-resize;
+    user-select: none;
+}
+.assets-cardstack-handle-title {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+    pointer-events: none;
+}
+.assets-cardstack-handle-title::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+    border-radius: 50%;
+    opacity: .8;
+}
+.assets-cardstack-handle-bars {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1px;
+    min-width: 0;
+}
+.assets-cardstack-handle-bar {
+    width: 2px;
+    background: var(--text-muted);
+    border-radius: 1px;
+    flex: 0 0 auto;
+    opacity: .35;
+}
+.assets-cardstack-handle:hover .assets-cardstack-handle-bar { opacity: .6; }
+.assets-cardstack-handle.dragging .assets-cardstack-handle-bar { background: var(--accent); opacity: 1; }
+
+/* ── 右键菜单 ── */
+.assets-context-menu {
+    position: fixed;
+    z-index: 10010;
+    min-width: 160px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    padding: 4px 0;
+}
+.assets-context-item {
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text-main);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .12s ease;
+}
+.assets-context-item:hover { background: var(--accent-soft); }
+.assets-context-item.danger { color: var(--danger); }
+.assets-context-item.danger:hover { background: rgba(var(--danger-deep-rgb),.25); }
+
+/* ── badge ── */
+.assets-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    background: rgba(28,34,42,.5);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+}
+.assets-badge.on {
+    background: rgba(var(--accent-rgb),.12);
+    border-color: rgba(var(--accent-rgb),.3);
+    color: var(--accent);
+}
+
+/* ── 拖拽视觉 ── */
+.assets-tree-row.drag-over {
+    border-color: var(--drag);
+    box-shadow: inset 0 0 0 1px rgba(var(--drag-rgb),.4);
+}
+.assets-tree-row.drag-insert-before {
+    border-top: 2px solid var(--drag);
+    margin-top: -2px;
+}
+.assets-tree-row.drag-insert-after {
+    border-bottom: 2px solid var(--drag);
+    margin-bottom: -2px;
+}
+.assets-tree-row.drag-source {
+    opacity: 0.35;
+}
+
+/* ── 归档区面板（删除=归档，7 天后自动清理） ──
+   视觉对齐确认框（.modal / .modal-mask）：不透明底 + 遮罩模糊。
+   ⚠ 不要用 var(--surface-2) 当背景：主题里它是 rgba(24,30,36,.7)（见 theme-presets.js），
+   面板会透出下层素材树文字，真机上看起来像"两套列表叠在一起"。故底色走不透明的
+   --surface-card（基色）+ --surface-modal（.modal 同款近不透明表面）。
+   ⚠ 遮罩带 backdrop-filter（下面 .assets-archive-panel）：backdrop-filter 子树持续绘制会被
+   反复重采样，本子树内**不放持续动画**（无进场动画/无循环动画），只保留 hover 的
+   瞬时配色变化，避免 CEF 88 模糊闪断。 */
+.assets-archive-panel {
+    position: fixed;
+    inset: 0;
+    /* 压在通知卡（.notice-stack z-index 9000）之下：批量任务的进度/取消卡不能被本面板遮住；
+       toast（10010）与确认框（#confirmModal 100000）本就在其上 */
+    z-index: 8990;
+    background: rgba(0, 0, 0, .62);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 面板内禁文本选择——Shift 连选是"选中条目区间"，但浏览器会把锚点到本行之间的
+       文字一起选蓝，看起来像选中了文字而不是条目。user-select 不跨子树继承，
+       主界面不受影响；输入框在下面单独恢复可选（搜索框要能选词）。 */
+    -webkit-user-select: none;
+    user-select: none;
+}
+.assets-archive-panel input { -webkit-user-select: text; user-select: text; }
+.assets-archive-box {
+    width: min(860px, 92vw);
+    max-height: 84vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--surface-card, #0c1016);
+    background-image: linear-gradient(var(--surface-modal, rgba(20,24,32,.96)), var(--surface-modal, rgba(20,24,32,.96)));
+    color: var(--text-main, #f0f2f5);
+    border: 1px solid var(--border-modal, rgba(255,255,255,.08));
+    /* 顶上一条强调色细线：和主界面的 HUD 顶条呼应，也让弹窗"有头"（比四边同色好看） */
+    border-top-color: rgba(var(--accent-rgb, 251,191,36), .38);
+    border-radius: 10px;
+    /* 三层阴影：远投影给"浮起来"的体量 + 近投影压边 + 顶部 1px 高光（深色面板上勾出上边） */
+    box-shadow: 0 24px 64px rgba(0,0,0,.58), 0 2px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.045);
+    overflow: hidden;
+    font-size: 12px;
+}
+/* 面板内按钮统一紧凑：基础 .btn 是 padding:8px 12px 的大按钮，在工具条/密集列表里过大 */
+.assets-archive-panel .btn { padding: 2px 10px; font-size: 12px; line-height: 18px; }
+/* ⚠ 字号下限：CEP 的 CEF 把 font-size 钳到 **12px**（实测 8/9/10/11px 全部算作 12px）。
+   所以本块里的"小字"一律按 12px 设计，层级只靠 字重 / 灰度 / 底色 拉开——写 10px 是
+   自欺欺人，真机不会更小。 */
+/* 标题里的总数胶囊（与组头条数胶囊同款） */
+.assets-archive-count,
+.assets-archive-group-count {
+    flex: 0 0 auto;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--border-modal);
+    color: var(--text-main, #f0f2f5);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;   /* 数字等宽：切换分组/刷新计数时不左右跳 */
+    letter-spacing: 0;
+}
+.assets-archive-count { background: rgba(var(--accent-rgb, 251,191,36), .16); }
+.assets-archive-group-count.is-soon { color: var(--warning, #e8a33d); background: rgba(var(--accent-rgb, 251,191,36), .18); }
+.assets-archive-group-count.is-urgent { color: var(--danger, #ff8a8a); background: var(--danger-soft, rgba(255,80,80,.18)); }
+.assets-archive-head {
+    display: flex;
+    align-items: center;   /* 改 center（原 baseline）——总数成了胶囊，按基线对齐会偏 */
+    gap: 10px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border-modal, rgba(255,255,255,.08));
+}
+.assets-archive-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .3px;
+}
+/* 标题前的"归档盒"图标：CSS 画（CEP 里 emoji 常缺字形，渲染成豆腐块）
+   盒身 + 盒盖横线（渐变画线，不额外占 DOM） */
+.assets-archive-title::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 11px;
+    height: 9px;
+    border: 1.5px solid rgba(var(--accent-rgb, 251,191,36), .9);
+    border-radius: 2px;
+    background-image: linear-gradient(to bottom,
+        transparent 2px, rgba(var(--accent-rgb, 251,191,36), .5) 2px,
+        rgba(var(--accent-rgb, 251,191,36), .5) 3px, transparent 3px);
+}
+.assets-archive-sub {
+    /* 胶囊比正文更"标签化"：不再是一条左对齐的灰字，宽度随内容、右侧自动留白把「关闭」顶到最右 */
+    flex: 0 1 auto;
+    max-width: 62%;
+    margin-right: auto;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.055);
+    color: var(--text-muted, #7a8090);
+    font-size: 12px;
+    line-height: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.assets-archive-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--border-modal-light, rgba(255,255,255,.06));
+}
+.assets-archive-search {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-main, #f0f2f5);
+    background: var(--input-bg, rgba(20,26,32,.6));
+    border: 1px solid var(--border, #353a44);
+    border-radius: 6px;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+.assets-archive-search:focus {
+    outline: none;
+    border-color: var(--accent, #fbbf24);
+    box-shadow: 0 0 0 2px var(--accent-soft, rgba(251,191,36,.15));
+}
+.assets-archive-search::placeholder { color: var(--text-muted, #7a8090); }
+.assets-archive-list { flex: 1; overflow: auto; padding: 4px 14px 10px; }
+/* 细滚动条（同 ae-tools 代码抽屉的写法）：CEF 默认滚动条是亮色粗条，在深色面板里很扎眼 */
+.assets-archive-list::-webkit-scrollbar,
+.assets-archive-unreg-list::-webkit-scrollbar { width: 6px; height: 6px; }
+.assets-archive-list::-webkit-scrollbar-track,
+.assets-archive-unreg-list::-webkit-scrollbar-track { background: transparent; }
+.assets-archive-list::-webkit-scrollbar-thumb,
+.assets-archive-unreg-list::-webkit-scrollbar-thumb {
+    background: rgba(var(--accent-rgb, 251,191,36), .18);
+    border-radius: 3px;
+}
+.assets-archive-list::-webkit-scrollbar-thumb:hover,
+.assets-archive-unreg-list::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb, 251,191,36), .35); }
+.assets-archive-empty { padding: 30px 12px; text-align: center; color: var(--text-muted, #7a8090); }
+/* 图标用 CSS 画（不依赖 emoji 字形：CEP 里 emoji 常渲染成豆腐块） */
+.assets-archive-empty-icon {
+    width: 40px;
+    height: 30px;
+    margin: 0 auto 12px;
+    border: 1.5px solid rgba(var(--accent-rgb, 251,191,36), .55);
+    border-radius: 5px;
+    position: relative;
+}
+.assets-archive-empty-icon::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    right: 5px;
+    top: 9px;
+    border-top: 1.5px solid rgba(var(--accent-rgb, 251,191,36), .55);
+}
+.assets-archive-empty-text { font-size: 12px; margin-bottom: 6px; }
+.assets-archive-empty-hint { font-size: 12px; line-height: 1.6; opacity: .8; max-width: 420px; margin: 0 auto; }
+.assets-archive-group { padding-top: 6px; }   /* 组与组之间留一口气（原 2px 太挤） */
+.assets-archive-group-head {
+    position: sticky;   /* 长列表滚动时组名可见 */
+    top: 0;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0 6px 8px;   /* 组头在列表左内边贴 8px；条目行再内缩一档，见 .assets-archive-row */
+    /* 粘性组头必须不透明（与面板底同款），否则行文字会从组头下透出来 */
+    background-color: var(--surface-card, #0c1016);
+    background-image: linear-gradient(var(--surface-modal, rgba(20,24,32,.96)), var(--surface-modal, rgba(20,24,32,.96)));
+    border-bottom: 1px solid var(--border-modal-light, rgba(255,255,255,.06));
+}
+/* 组头 hover：整条提亮一档（组头本身就是折叠开关，得让人看出可点）。
+   两层叠加——底色仍是**不透明**的 --surface-modal，行文字不会从组头下透出来 */
+.assets-archive-group-head:hover {
+    background-image: linear-gradient(rgba(255,255,255,.025), rgba(255,255,255,.025)),
+        linear-gradient(var(--surface-modal, rgba(20,24,32,.96)), var(--surface-modal, rgba(20,24,32,.96)));
+}
+.assets-archive-group-name {
+    /* 组名拆三段（名字 / 条数胶囊 / 归档元信息）——靠字重与灰度分层；合成一整行
+           "预设/动画（15 条 · 归档于 … · 最快剩余 7 天）"会全同字号同灰度，读起来是一团 */
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    letter-spacing: .2px;
+}
+.assets-archive-group-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: .95;
+}
+/* 条数胶囊的样式与标题总数胶囊共用（见上方 .assets-archive-count 组选择器） */
+.assets-archive-group-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255,255,255,.09);   /* 与条数胶囊之间一条细隔线：元信息和组名不同类 */
+    color: var(--text-muted, #7a8090);
+    font-weight: 400;
+    letter-spacing: 0;
+}
+/* 组头即折叠开关：去掉按钮默认外观（只留箭头 + 组名），点击整行文案折叠/展开 */
+.assets-archive-group-toggle {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    padding: 0;
+    margin: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.assets-archive-group-toggle:hover .assets-archive-group-name { opacity: 1; color: var(--accent); }
+.assets-archive-caret { flex: 0 0 auto; width: 10px; font-size: 12px; line-height: 1; opacity: .75; }
+.assets-archive-group.is-collapsed { padding-bottom: 4px; }
+.assets-archive-row {
+    display: grid;
+    /* 列：名称 | 备注 | 剩余天数（去掉勾选框列；单条操作走多选，行尾也不放按钮）
+名称列加宽（1fr → 1.15fr）——备注大多为空，不该比名称还宽 */
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) 58px;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;   /* 20 → 24，密排列表给点呼吸感 */
+    /* 条目行在组头之下再内缩一档——组头 8px（折叠箭头在最左），条目 22px
+       ≈ 组头箭头 + 间距后的组名起点。层级一眼可辨，条目不再与组名齐平（用户："看着好乱"） */
+    padding: 3px 8px 3px 22px;
+    cursor: pointer;   /* 整行可点（点行即选中，起无勾选框） */
+    transition: background-color .1s ease;
+}
+/* 去掉每行的虚线分隔（15 行就是 15 条虚线，视觉噪音）——改由 hover 底 + 组间分隔承担；
+   hover 圆角只在未选中行上给（选中行要保持左侧竖条连续，圆角会把竖条切成一节一节） */
+.assets-archive-row:hover { background: rgba(255,255,255,.04); border-radius: 4px; }
+.assets-archive-row.is-sel {
+    background: rgba(var(--accent-rgb, 251,191,36), .13);
+    /* 左侧竖条：无勾选框后选中态是唯一线索，加一条强调色边更好扫读 */
+    box-shadow: inset 2px 0 0 var(--accent, #fbbf24);
+    border-radius: 0;
+}
+/* 行首勾选框已移除——原自绘规则（appearance:none + --accent 填充 + 伪元素勾）随组件一并退场。
+   真机结论：CEP 的 Chromium 88 不支持 accent-color；将来若要重加勾选框，别再用 accent-color 方案。
+   其余 accent-color 声明已全部删除（各类勾选框、单选框、滑杆与开关）。
+   理由：现有视觉已确认、不该再动——即使宿主升到 CEP 12（Chromium 108）支持 accent-color
+   也不动（留着等于埋一个"换宿主就改外观"的开关）。不要再加回该属性。 */
+.assets-archive-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .92; }
+.assets-archive-notes {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text-muted, #7a8090);
+    opacity: .9;
+}
+/* 剩余天数胶囊：等宽数位 + 紧迫度随主题（is-soon 用 --warning 而非写死 #e8a33d，
+   eva 等主题下才跟着变）。字号受 CEF 12px 下限约束，见块首注释 */
+.assets-archive-exp {
+    justify-self: end;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.05);
+    color: var(--text-muted, #7a8090);
+    font-size: 12px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.assets-archive-exp.is-soon {
+    color: var(--warning, #e8a33d);
+    background: rgba(var(--accent-rgb, 251,191,36), .12);
+    border-color: rgba(var(--accent-rgb, 251,191,36), .22);
+}
+.assets-archive-exp.is-urgent {
+    color: var(--danger, #ff8a8a);
+    background: var(--danger-soft, rgba(255,80,80,.18));
+    border-color: rgba(var(--danger-rgb, 255,138,138), .3);
+    font-weight: 600;
+}
+/* 组头右侧两个"整组操作"按钮：默认压暗（一眼扫列表时不该被两组按钮抢注意力），
+   鼠标进组头才提亮。不给 transition——本子树在 backdrop-filter 里，动效越少越稳（见文件头注释）。
+内边距 0/8px 太小——四字按钮（恢复该组 / 清理该组）的字贴着边框；
+   改 2px 11px + 行高 16px（按钮高 22px），和面板其它按钮的松紧一致 */
+.assets-archive-group-head .btn { padding: 2px 11px; font-size: 12px; line-height: 16px; opacity: .75; }
+.assets-archive-group-head:hover .btn { opacity: 1; }
+.assets-archive-group-head .btn:focus { opacity: 1; }
+.assets-archive-unreg-wrap { padding: 0 14px; }
+.assets-archive-unreg-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 0;
+    font-size: 12px;
+    color: var(--danger, #ff8a8a);
+    background: none;
+    border: none;
+    border-top: 1px dashed var(--border, #353a44);
+    cursor: pointer;
+}
+.assets-archive-unreg-toggle:hover { opacity: .8; }
+.assets-archive-unreg-list { max-height: 120px; overflow: auto; padding-bottom: 6px; }
+.assets-archive-unreg-item {
+    font-size: 12px;
+    color: var(--text-muted, #7a8090);
+    padding: 2px 0 2px 12px;
+    position: relative;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* 行首小破折号（CSS 画，不用项目符号字符——CEP 字体缺字会变豆腐块） */
+.assets-archive-unreg-item::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 50%;
+    width: 4px;
+    border-top: 1px solid currentColor;
+    opacity: .6;
+}
+.assets-archive-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border-top: 1px solid var(--border-modal, rgba(255,255,255,.08));
+    background: rgba(0,0,0,.18);
+}
+/* 页脚提示行：单行不换行（长内容省略号截断）——静止态是操作提示，悬停条目行时换成该条详情
+ （条目详情从原生 title 白框搬到这里） */
+.assets-archive-foot-hint {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-muted, #7a8090);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* 详情态：提亮一档，跟"静止提示"区分开（否则看不出页脚换了内容） */
+.assets-archive-foot-hint.is-info { color: var(--text-main, #f0f2f5); opacity: .82; }
+
+/* 次要危险操作（立即清理 / 清理该组）：幽灵态——保留危险语义色但不与主操作抢视觉 */
+.assets-archive-panel .btn.danger-ghost {
+    background: transparent;
+    border-color: rgba(var(--danger-rgb, 255,138,138), .35);
+    color: var(--danger, #ff8a8a);
+}
+.assets-archive-panel .btn.danger-ghost:hover {
+    border-color: var(--danger, #ff8a8a);
+    background: var(--danger-soft, rgba(255,80,80,.18));
+}
+.assets-archive-panel .btn[disabled] { opacity: .4; cursor: default; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   大图标网格模式
+   开关挂在共享左栏头部搜索行右侧，.assets-mode-grid 挂在 .assets-treeview 上。
+   格子复用 .assets-tree-row（类名与 data-id/data-folder 全同），故多选/框选/右键/
+   拖拽/搜索高亮/missing 红字在网格下全部照旧可用——这里只改排版。
+   ══════════════════════════════════════════════════════════════════════ */
+.assets-mode-toggle {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+}
+.assets-mode-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* 模式布局：两种模式的**默认**布局放这里，行内样式只叠加"用户拖过的宽度"
+   （见 treeView._applyMode）。选择器权重 (0,2,0) 高于 .assets-tree-left 的 (0,1,0)，
+   故能覆盖其 flex: 0 0 230px；.assets-tree-right 的 flex: 1 1 auto 同理被覆盖。
+   右栏宽度用 clamp 而非定值 260px：面板默认 800px 宽（CSXS/manifest.xml），此时 30% 落在
+   区间内；面板被拖窄时定值 260px 会把左栏网格挤到只剩一列，故设下限 180px、上限 260px。 */
+.assets-mode-grid .assets-tree-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.assets-mode-grid .assets-tree-right {
+    flex: 0 0 clamp(180px, 30%, 260px);
+}
+
+/* 分组间距贴着列表模式的密度：列表里文件夹行与条目行是相邻的（0 间隙），
+   网格若给组头上下留大间隙，同一棵树在两模式下的"文件夹离得多远"会明显不同 */
+.assets-grid-group { margin-bottom: 4px; }
+/* 子层容器：一个文件夹的「子分组 + 自己的格子流」共用一个缩进块（见 treeView._runPlanChunkGrid），
+   与列表模式每层一个 .tree-indent 同构——缩进线因此是一条连续的线、且覆盖到文件夹根的素材
+   （用户实测点出：线画在子分组自己身上时，根级文件夹自己的格子落在任何缩进块之外、线到它就断）。
+   数值照列表模式的 .tree-indent：12px 缩进 + 1px 竖线 + 4px 内缩，两模式层级位移一致。 */
+.assets-grid-children {
+    margin-left: 12px;
+    border-left: 1px solid var(--border-modal-light);
+    padding-left: 4px;
+}
+.assets-grid-group > .assets-tree-folder { margin-bottom: 2px; }
+.assets-grid {
+    display: grid;
+    /* 定宽列（不用 minmax(_,1fr)）：格子大小只由 --assets-grid-cell 决定，面板拖宽拖窄只改
+       列数，格子本身不变形（用户实测点出"拖动面板不要改变格子的大小"）。 */
+    grid-template-columns: repeat(auto-fill, var(--assets-grid-cell, 96px));
+    gap: 6px;
+    /* 左内缩 20px = 同层文件夹图标的位置（行 border 2 + padding 2 + 折叠箭头 12 + gap 4），
+       让格子左缘与文件夹图标站成一列（用户实测点出"格子缩进再给大一点点"）。
+       **只对文件夹内的格子流成立**：根级格子流贴内容区左缘，见下一条覆盖。 */
+    padding: 0 0 0 20px;
+}
+/* 文件夹自己的格子流落在子层容器里：容器已吃掉 17px（12 缩进 + 1 竖线 + 4 内缩），这里只补差额
+   3px——格子左缘与「所属文件夹自己的图标」仍站成一列（20 = 17 + 3，与加缩进块之前逐像素一致）。 */
+.assets-grid-children > .assets-grid { padding-left: 3px; }
+/* 根级条目（不属于任何文件夹）：格子贴内容区左缘，不缩进——与列表模式同一条口径（列表里根级行
+   的左缘就是内容区左缘，缩进只属于"进了文件夹"的行）。缩进不分根/非根时，根级条目会与根级
+   文件夹**自己**的条目同缩进（用户实测点出）。 */
+.assets-tree-content > .assets-grid { padding-left: 0; }
+/* 格子：纵向堆叠 + 定高取消（.assets-tree-row 的 height:28px 会压扁格子） */
+.assets-grid-cell {
+    flex-direction: column;
+    /* 格子比内容高时（只有 min-height 的图标格）内容竖向居中：竖排的默认 justify-content: flex-start
+       会把图标+文案顶在格子上半部、下面空一大块（用户实测点出"图标在格子的上半部分的"）。
+       带缩略图的格子内容本来就填满，这条对它无影响。 */
+    justify-content: center;
+    height: auto;
+    min-height: 84px;
+    padding: 6px 4px;
+    gap: 3px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface-2);
+    min-width: 0;
+}
+/* 格子里的图标：字号放大，并**去掉列表用的 margin-right: 2px**——那条是横排时给图标与文字
+   分家的间距，格子是竖排（align-items:center），它会把图标的 margin box 居中、图标本体偏左 1px
+   （连同列表行内联 padding-left 的不对称，整块内容会歪 2px、图标不在正中）。
+   高度与缩略图区一致（cell*0.5625）：图标态 / 封面态 / 视频态高度恒定——图标若只有 22px 行高，
+   异步封面（视频格子封面由 Bridge 抽帧产出、几十到几百 ms 后才到）到达并挂上 .has-thumb 时
+   格子被撑高，整行高度变化；折叠/展开重建后浏览器滚动锚定据此调整 scrollTop，视口就"跳走"
+   （深滚动实测：重建后同步 800 行稳定，数百 ms 后 +1473px 高度、scrollTop +396px，
+   被点行跑到视口上方）。 */
+.assets-grid-cell .tree-row-icon {
+    height: calc(var(--assets-grid-cell, 96px) * 0.5625);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    line-height: 1.1;
+    margin-right: 0;
+}
+.assets-grid-cell .tree-row-label {
+    width: 100%;
+    /* 列表的 flex: 1 1 auto 是"横向铺满整行"用的；格子是**竖排**，它会变成纵向撑满——
+       标签盒被拉到格子剩余高度、文字贴在盒顶，盒底留下幻影空白（实测：单行名 43px 盒里
+       只有 16px 有字），整块内容因此看着偏上（用户实测点出"图标在格子的上半部分的"）。
+       格子里的标签只按内容占位，剩余空间交给格子的 justify-content: center 平分。 */
+    flex: 0 0 auto;
+    text-align: center;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 11px;
+    line-height: 1.25;
+    word-break: break-all;
+}
+/* 格子上的行内动作（↗ 导入AE / 应用）：悬浮在格子右上角，**不占格子布局位**——
+   按流排布时 hover/选中出现会把格子撑高、整行跟着抖动。.assets-tree-row 已是
+   position: relative，直接绝对定位即可；半透明底保证压在缩略图上仍可辨认。 */
+.assets-grid-cell .assets-row-actions {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    margin-left: 0;
+    padding: 0 2px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .55);
+    z-index: 2;
+}
+
+/* 缩略图：仅在格子带 .has-thumb 时显示；加载失败由 img 的 error 事件摘掉该 class
+   → 缩略图隐藏、图标块露出（回落不需要 JS 分支，与详情区预览图同一协议）。
+   固定高 54px（≈96×54 的 16:9），不用 aspect-ratio——CEP 10 的 Chromium 版本对它支持不稳。 */
+.assets-grid-thumb { display: none; }
+.assets-grid-cell.has-thumb .assets-grid-thumb {
+    display: block;
+    width: 100%;
+    height: calc(var(--assets-grid-cell, 96px) * 0.5625);   /* 随格子尺寸缩放（≈16:9） */
+    object-fit: cover;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, .35);
+}
+.assets-grid-cell.has-thumb .tree-row-icon { display: none; }
+
+/* 视频格子的 hover 播放层（见 treeView._attachGridVideoHover）：首次 hover 才建 video
+   元素（不预建——几百个格子各挂一个 media player 太重），移出即移除，回到图标态 */
+.assets-grid-cell.has-video .tree-row-icon { display: none; }
+/* hover 播放时静态封面让位：两者都在格子首部，不藏起来会叠成两倍高（图标态同样让位） */
+.assets-grid-cell.has-video .assets-grid-thumb { display: none; }
+.assets-grid-cell .assets-grid-video {
+    display: block;
+    width: 100%;
+    height: calc(var(--assets-grid-cell, 96px) * 0.5625);
+    object-fit: cover;
+    border-radius: 3px;
+    background: #000;
+}
+/* hover 起播的加载期：视频只挂进格子、不显示（display:none 不影响它加载与帧事件，实测照常
+   fire loadeddata），静态封面/图标继续撑住格子。首帧可播后由 treeView 摘掉本类、加上 has-video
+   才换场——前一版 hover 即 has-video，封面立刻退场而那时 readyState 还是 0，格子会空一拍 */
+.assets-grid-cell .assets-grid-video.is-loading { display: none; }
+/* 转码文案（视图报「真在转码」时才上，见 treeView._attachGridVideoHover）：**覆盖层**——
+   绝对定位满格、不吃指针，显隐都不参与流式布局。若按 10px 文字行占流式布局位，文案一上一下
+   就把格子撑高再缩回，跟视频分辨率不一致时图标会位移一下；半透明底让静态封面/图标继续可见
+   （转码期间不必黑着等）。
+   z-index 1 压在封面/图标之上、格子行内动作按钮（z-index 2）之下。 */
+.assets-grid-cell .assets-grid-video-hint {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .55);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ── 保存预设：保存前的目标目录确认弹窗（路径行 + 复制图标 + 取消/确认） ── */
+.modal.confirm-modal.assets-save-path-modal {
+    width: min(460px, 92vw);
+}
+.assets-save-path-desc {
+    margin: 0;   /* 段距由 .confirm-modal .modal-body 的 gap 提供 */
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+.assets-save-path-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.assets-save-path {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-all;   /* 长路径按需断行，不截断 */
+    padding: 5px 8px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-main);
+    font-family: Consolas, Monaco, monospace;
+    font-size: 11px;
+    line-height: 18px;
+    user-select: all;   /* 支持整段选中 */
+}
+.assets-save-path-copy {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    color: var(--text-muted);
+}
+.assets-save-path-copy:hover {
+    color: var(--accent);
+    background: var(--btn-hover-bg);
+}
+.assets-save-path-copy.is-copied {
+    color: var(--signal-green);
+}
+.assets-save-path-tip {
+    min-height: 14px;   /* 固定占位，复制前后高度不变 */
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--text-muted);
+}
+.assets-save-path-tip.is-ok {
+    color: var(--signal-green);
+}
+.assets-save-path-tip.is-warn {
+    color: var(--danger);
+}
+/* 弹窗主按钮：与素材库 toolbar 主按钮同为 accent 配色 */
+.assets-save-path-modal .btn-row .btn.primary {
+    background: rgba(var(--accent-rgb), .12);
+    border-color: rgba(var(--accent-rgb), .35);
+    color: var(--accent);
+}
+.assets-save-path-modal .btn-row .btn.primary:hover {
+    background: rgba(var(--accent-rgb), .18);
+    border-color: var(--accent);
+}

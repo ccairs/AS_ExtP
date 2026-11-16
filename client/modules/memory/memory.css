@@ -1,0 +1,585 @@
+/* Memory 模块样式 */
+
+/* 面板外壳。模块内容区自身不铺底色（.app/.view/.module-content 均 transparent——设计上
+   背景叠加层就是要从面板后面透出），面板必须自己铺一层表面，否则叠加层原样透出、
+   正文直接压在图片上。
+   表面/边框取 .panel（Agent）与 .mgmt-*-panel（Skill/MCP）同款变量，全模块观感一致。 */
+#memoryPanel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+/* 面板体撑满外壳：列表 flex 撑开剩余高度并内部滚动、底部计数常驻。
+   不这么写时列表按内容高、外壳 overflow:hidden（common.css 的 div[data-module-panel]
+   压过 panel.css 的 overflow:auto），行数一多就被裁掉且无处可滚——
+   实测 30 行时末行 bottom=1346 > 面板 bottom=1043、滚动链上无一个可滚祖先。 */
+#memoryBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 工具栏 */
+.memory-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-search-wrap {
+  flex: 1;
+}
+
+.memory-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 13px;
+  border-radius: 4px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.memory-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.memory-search-input:focus {
+  border-color: var(--accent);
+}
+
+/* 列表 */
+.memory-list {
+  flex: 1;
+  /* min-height:0 是 flex 子项能缩到内容高以下、由自身滚动的前提 */
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.memory-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 20px;
+  font-size: 13px;
+}
+
+/* 类型分组标题 */
+.memory-group-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 10px 3px;
+}
+
+.memory-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.memory-group-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* 折叠行关系指示（↗引用数 ↖被引用数） */
+.memory-rel-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+/* 记忆行 */
+.memory-row {
+  margin: 2px 0;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.memory-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.memory-row-header:hover {
+  background: var(--surface-3);
+}
+
+.memory-row-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.memory-row-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.memory-row-desc {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memory-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.memory-row-actions .btn {
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.memory-row-actions .btn.danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.memory-row-actions .btn.danger:hover {
+  background: rgba(220, 50, 50, 0.15);
+  color: #e05555;
+  border-color: rgba(220, 50, 50, 0.3);
+}
+
+/* 多选管理模式 */
+.memory-row-check {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 1px solid var(--btn-border);
+  border-radius: 3px;
+  background: var(--input-bg);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.memory-row.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+/* 选中行 hover：header 的 surface-3 会盖掉行级选中色，用选中色覆盖保持高亮 */
+.memory-row.selected .memory-row-header:hover {
+  background: var(--accent-soft);
+}
+.memory-row.selected .memory-row-check {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.memory-icon-check {
+  display: none;
+  width: 10px; height: 10px; flex-shrink: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.memory-row.selected .memory-icon-check { display: inline-block; }
+
+/* 工具栏批量删除按钮（红 tint，对齐行内删除按钮 hover 配色） */
+.memory-toolbar .btn.danger {
+  background: rgba(220, 50, 50, 0.15);
+  border-color: rgba(220, 50, 50, 0.5);
+  color: #e05555;
+}
+.memory-toolbar .btn.danger:hover {
+  background: rgba(220, 50, 50, 0.3);
+  border-color: #e05555;
+}
+.memory-toolbar .btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* 展开的正文 */
+.memory-row-body {
+  padding: 8px 12px 12px 28px;
+  border-top: 1px solid var(--border);
+}
+
+/* 创建/修改时间标注行（展开详情顶部；存储为 UTC ISO，此处显示本地时间） */
+.memory-row-times {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.memory-content-preview {
+  font-size: 12px;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+  line-height: 1.5;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 链接区域 */
+.memory-links {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.memory-links-label {
+  flex-shrink: 0;
+}
+
+.memory-link-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.memory-link-tag:hover {
+  background: var(--accent);
+  color: var(--app-bg);
+}
+
+.memory-links-none {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* 类型徽章 */
+.memory-type-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.memory-type-lesson {
+  background: rgba(var(--reason-rgb),.2);
+  color: var(--reason);
+}
+
+.memory-type-project {
+  background: rgba(var(--signal-green-rgb),.2);
+  color: var(--signal-green);
+}
+
+.memory-type-preference {
+  background: rgba(88, 183, 255, 0.2);
+  color: #58b7ff;
+}
+
+/* 编辑器 */
+.memory-editor {
+  margin: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.memory-editor.hidden {
+  display: none;
+}
+
+.memory-editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-editor-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.memory-editor-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.memory-editor-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memory-editor-row label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.memory-editor-row input,
+.memory-editor-row select,
+.memory-editor-row textarea {
+  padding: 6px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 13px;
+  border-radius: 4px;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.memory-editor-row input:focus,
+.memory-editor-row select:focus,
+.memory-editor-row textarea:focus {
+  border-color: var(--accent);
+}
+
+.memory-editor-row textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.memory-editor-row input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.memory-editor-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 底部计数 */
+.memory-footer {
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.memory-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* SVG icons — replace emoji */
+.memory-icon-file {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-block; vertical-align: middle;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237ee787' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.memory-icon-edit {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-block; vertical-align: middle;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7'/%3E%3Cpath d='M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.memory-icon-delete {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-block; vertical-align: middle;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23f85149' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='3 6 5 6 21 6'/%3E%3Cpath d='M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.memory-icon-link {
+  width: 12px; height: 12px; flex-shrink: 0;
+  display: inline-block; vertical-align: middle; margin-right: 3px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71'/%3E%3Cpath d='M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.memory-icon-search {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-block; vertical-align: middle;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+/* Scope filter buttons */
+.memory-scope-filters {
+  display: flex; gap: 4px;
+}
+.memory-scope-btn {
+  font-size: 10px; padding: 2px 8px;
+  border: 1px solid var(--btn-border); border-radius: 10px;
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: all .12s ease;
+}
+
+/* Memory editor modal */
+.memory-modal-mask {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 32px; z-index: 50;
+}
+.memory-modal-mask.hidden { display: none; }
+.memory-modal {
+  width: min(500px, 94%);
+  /* 限高不越过遮罩（顶部 32px 偏移 + 底部余量），正文拖大时 body 滚动、
+     底部按钮行永远可见可点 */
+  max-height: calc(100% - 56px);
+  display: flex; flex-direction: column;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+  overflow: hidden;
+}
+.memory-modal-head {
+  padding: 12px 16px;
+  font-size: 14px; font-weight: 600;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.memory-modal-body {
+  padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.memory-modal-row label {
+  display: block; font-size: 12px; color: var(--text-muted);
+  font-weight: 500; margin-bottom: 3px;
+}
+.memory-modal-row input,
+.memory-modal-row select,
+.memory-modal-row textarea {
+  width: 100%; padding: 6px 10px; font-size: 13px;
+  height: auto;
+  background: var(--input-bg); border: 1px solid var(--btn-border);
+  border-radius: 4px; color: var(--text-main); outline: none;
+  box-sizing: border-box; font-family: inherit;
+}
+.memory-modal-row input:focus,
+.memory-modal-row select:focus,
+.memory-modal-row textarea:focus {
+  border-color: var(--accent);
+}
+/* 正文拖拽上限：超过后 body 内滚动（弹窗自身不再长高），取消/保存按钮始终可达 */
+.memory-modal-row textarea { resize: vertical; min-height: 100px; max-height: 45vh; }
+.memory-modal-row textarea::-webkit-resizer { background: var(--surface-3); border-radius: 0 0 4px 0; }
+/* 类型/Scope 并排下拉：紧凑高度，自动填满标签旁剩余宽度。
+   字段内部用 grid（auto + 1fr）而非 flex：CEF 88 中 <select> 作 flex item
+   时 flex-basis:auto 按固有宽度计算后 grow 不再展开，grid 1fr 直接分配
+   剩余空间，对替换元素可靠 */
+.memory-inline-row { display: flex; gap: 8px; align-items: center; }
+.memory-inline-field {
+  flex: 1 1 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px;
+}
+.memory-inline-field label { margin-bottom: 0; }
+#memoryEditorModal .memory-inline-field select {
+  width: 100%;
+  height: 24px;
+  padding: 0 24px 0 8px;
+  font-size: 12px;
+  line-height: 22px;
+}
+.memory-modal-body::-webkit-scrollbar-corner,
+.memory-list::-webkit-scrollbar-corner { background: transparent; }
+.memory-modal-footer {
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  display: flex; justify-content: flex-end; gap: 8px;
+  flex-shrink: 0;
+}
+.memory-modal-footer .btn {
+  font-size: 13px; padding: 6px 18px;
+}
+.memory-modal-footer #memoryEditorSave {
+  background: var(--accent); border-color: var(--accent); color: var(--app-bg); font-weight: 600;
+}
+.memory-scope-btn:hover { border-color: var(--accent); color: var(--text-main); }
+.memory-scope-btn.active {
+  background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent); font-weight: 500;
+}
+
+/* Tabs */
+.memory-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--border);
+}
+.memory-tab {
+  flex: 1; padding: 6px 0;
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted); background: transparent;
+  border: none; border-bottom: 2px solid transparent;
+  cursor: pointer; transition: all .12s ease;
+  text-align: center;
+}
+.memory-tab:hover { color: var(--text-main); }
+.memory-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Rule cards — 就地编辑（textarea 直接在卡片内，不再弹窗） */
+.memory-rule-card {
+  margin: 6px; padding: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.memory-rule-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.memory-rule-status { font-size: 10px; color: var(--text-muted); }
+.memory-rule-editor {
+  width: 100%; box-sizing: border-box;
+  min-height: 110px; max-height: 300px; resize: vertical;
+  padding: 6px 10px; font-size: 12px; line-height: 1.5;
+  font-family: inherit; color: var(--text-main);
+  background: var(--input-bg); border: 1px solid var(--btn-border); border-radius: 4px;
+  outline: none;
+}
+.memory-rule-editor:focus { border-color: var(--accent); }
+.memory-rule-actions {
+  margin-top: 6px; display: flex; justify-content: flex-end;
+}
+
+/* Scope badge on rows */
+.memory-scope-badge {
+  font-size: 9px; padding: 1px 5px;
+  border-radius: 6px; flex-shrink: 0;
+  border: 1px solid var(--btn-border);
+  color: var(--text-muted);
+}
+.memory-scope-badge.memory-scope-script { border-color: var(--link); color: var(--link); }
+.memory-scope-badge.memory-scope-agent { border-color: var(--warning-vivid); color: var(--warning-vivid); }
+.memory-scope-badge.memory-scope-shader { border-color: var(--signal-green); color: var(--signal-green); }

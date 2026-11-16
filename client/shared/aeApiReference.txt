@@ -1,0 +1,2053 @@
+# After Effects ExtendScript 核心对象属性与方法汇总
+# 整理来源：AE脚本API参考
+# 整理说明：按对象层级分类，顶层核心对象在前，区分属性、函数/方法，完整还原对应API内容
+
+=====================
+## app 对象（AE应用程序根对象）
+【属性】
+app.activeViewer
+    → 当前获得焦点的活动查看器面板（合成、图层或素材）对应的 Viewer 对象。若无查看器打开则返回 null。
+app.availableGPUAccelTypes
+    → 当前系统可用的 GPU 加速类型数组，取值为 GpuAccelType 枚举（如 CUDA、Metal、OpenGL）。用于设置 Project.gpuAccelType 前查询可用值。
+app.buildName
+    → 当前运行的 After Effects 构建名称，Adobe 内部用于测试和故障排查。
+app.buildNumber
+    → 当前运行的 After Effects 构建编号，Adobe 内部用于测试和故障排查。
+app.disableRendering
+    → 当为 true 时，抑制所有渲染操作（渲染队列、预览等），用于脚本临时阻止渲染。默认为 false。
+app.effects
+    → 应用程序中可用的效果列表。
+app.exitAfterLaunchAndEval
+    → 此属性仅用于在 Windows 命令行执行脚本时。当通过命令行启动应用程序时，-r 或 -s 参数会使应用程序运行脚本（分别从文件或字符串读取）。 若设为 true，After Effects 在脚本运行后退出；若为 false 则保持打开。此属性仅在 Windows 命令行运行 After Effects 时有效，在 Mac OS 中无效。
+app.exitCode
+    → 用于外部执行脚本时返回的状态码。当脚本通过命令行执行（-r 或 -s 参数）时，可设置此属性以返回状态码给调用进程。默认值为 0（成功）；非零值表示错误。
+app.fonts
+    → 返回 FontsObject 对象，提供对系统字体环境的访问（枚举字体、查询可变字体等）。参见 FontsObject 对象。（AE 24.0 新增）
+app.isoLanguage
+    → 表示 After Effects 运行环境的本地化字符串（语言和地区标识）。  $.locale 返回操作系统语言，而非 After Effects 应用程序语言。
+app.isRenderEngine
+    → 若 After Effects 作为渲染引擎运行则为 true。
+app.isWatchFolder
+    → 若当前显示监视文件夹对话框且应用程序正在监视文件夹进行渲染则为 true。
+app.memoryInUse
+    → 当前应用程序占用的内存字节数。
+app.onError
+    → 错误发生时调用的回调函数名。通过创建函数并赋值给此属性，可以系统化响应错误（例如在渲染过程中发生错误时关闭并重启应用程序，或在日志中记录错误）。详见 RenderQueue.render ()。回调函数接收错误字符串和严重级别字符串，不应返回任何值。
+app.preferences
+    → 当前加载的 AE 应用程序首选项。参见 首选项对象。
+app.project
+    → 当前加载的项目。参见 项目对象。
+app.saveProjectOnCrash
+    → 当为 true（默认值）时，若错误导致应用程序意外退出，After Effects 会尝试显示保存当前项目的对话框。 设为 false 则跳过对话框直接退出且不保存。
+app.settings
+    → 当前加载的设置。参见 设置对象。
+app.version
+    → 当前运行的 After Effects 版本号字符串，如 "23.6x220"。
+
+【方法】
+app.activate()
+    → 激活 After Effects 应用程序窗口，将其置于最前。
+    → 返回: 无。
+app.beginSuppressDialogs()
+    → 开始抑制对话框显示。在执行批处理操作时避免弹出对话框中断流程。必须用 app.endSuppressDialogs() 配对结束。
+    → 返回: 无。
+app.beginUndoGroup()
+    → 签名: app.beginUndoGroup(undoString)
+    → 参数: undoString 为撤销组在 Edit > Undo 菜单中显示的名称字符串。
+    → 标记一个撤销组的开始，使脚本的所有操作作为一个可撤销的整体。撤销组可以嵌套。必须用 app.endUndoGroup() 配对结束。
+    → 返回: 无。
+app.cancelTask()
+    → 签名: app.cancelTask(taskID)
+    → 参数: taskID 为 app.scheduleTask() 返回的任务标识符。
+    → 从延迟执行的任务队列中移除指定任务。
+    → 返回: 无。
+app.endSuppressDialogs()
+    → 签名: app.endSuppressDialogs(alert)
+    → 参数: alert 为布尔值，true 时将抑制期间发生的错误以对话框形式显示。
+    → 结束由 app.beginSuppressDialogs() 开始的对话框抑制。
+    → 返回: 无。
+app.endUndoGroup()
+    → 结束由 app.beginUndoGroup() 开始的撤销组。若未显式调用，撤销组会在脚本执行结束时自动关闭。
+    → 返回: 无。
+app.endWatchFolder()
+    → 结束当前监视文件夹的监视过程。
+    → 返回: 无。
+app.executeCommand()
+    → 签名: app.executeCommand(id)
+    → 参数: id 为菜单命令的 ID 编号，可通过 app.findMenuCommandId() 获取。
+    → 通过菜单命令 ID 执行对应的 GUI 菜单命令。
+    → 返回: 无。
+app.findMenuCommandId()
+    → 签名: app.findMenuCommandId(command)
+    → 参数: command 为菜单命令名称字符串。
+    → 查找 GUI 菜单命令对应的 ID 编号，可作为 app.executeCommand() 的参数。注意：该方法在不同语言版本的 AE 中可能不可靠。
+    → 返回: 整数，菜单命令的 ID 号。
+app.newProject()
+    → 创建新项目，等同于 File > New > New Project。若当前项目有未保存修改，会提示用户保存。
+    → 返回: 新 Project 对象；若用户取消保存对话框则返回 null。
+app.open()
+    → 签名: app.open([file])
+    → 参数: file 可选，Extendscript File 对象；若未指定则弹出"打开"对话框让用户选择。
+    → 打开指定的项目文件。若未提供 file 参数则提示用户选择。
+    → 返回: 指定项目的新 Project 对象；用户取消时返回 null。
+app.openFast()
+    → 签名: app.openFast(file)
+    → 参数: file 为要打开的项目文件的 Extendscript File 对象。
+    → 通过跳过部分检查，比 app.open() 更快地打开项目文件。
+    → 返回: 指定项目的新 Project 对象。
+app.parseSwatchFile()
+    → 签名: app.parseSwatchFile(file)
+    → 参数: file 为 Extendscript File 对象，指定色板文件（.ase 或 .xml）。
+    → 解析指定色板文件并返回色板数据。
+    → 返回: 对象，包含 name（色板名称字符串）和 color（颜色值数组 [r,g,b]）属性的对象数组。
+app.pauseWatchFolder()
+    → 签名: app.pauseWatchFolder(pause)
+    → 参数: pause 为布尔值，true 暂停监视，false 恢复监视。
+    → 暂停或恢复监视文件夹的监视过程。
+    → 返回: 无。
+app.purge()
+    → 签名: app.purge(target)
+    → 参数: target 为 PurgeTarget 枚举值（ALL_CACHES、ALL_MEMORY_CACHES、UNDO_CACHES、SNAPSHOT_CACHES、IMAGE_CACHES）。
+    → 清除指定类型的未使用数据，等同于 Edit 菜单中的 Purge 选项。
+    → 返回: 无。
+app.quit()
+    → 退出 After Effects 应用程序。会保存首选项；若项目有未保存修改，依据 app.saveProjectOnCrash 行为处理。
+    → 返回: 无。
+app.restart()
+    → 重启 After Effects 应用程序。（AE 25.4 新增）
+    → 返回: 无。
+app.scheduleTask()
+    → 签名: app.scheduleTask(stringToExecute, delay, repeat)
+    → 参数: stringToExecute 为要执行的 JavaScript 字符串；delay 为执行前等待的毫秒数；repeat 为布尔值，true 时按间隔重复执行。
+    → 安排指定的 JavaScript 字符串延迟执行。
+    → 返回: 整数，表示任务的唯一标识符，可用于 app.cancelTask() 取消任务。
+app.setMemoryUsageLimits()
+    → 签名: app.setMemoryUsageLimits(imageCachePercentage, maximumMemoryPercentage)
+    → 参数: imageCachePercentage 为图像缓存占已安装内存的百分比；maximumMemoryPercentage 为最大内存使用百分比。
+    → 设置内存与缓存首选项中的内存使用上限。
+    → 返回: 无。
+app.setMultiFrameRenderingConfig()
+    → 签名: app.setMultiFrameRenderingConfig(mfr_on, max_cpu_perc)
+    → 参数: mfr_on 为布尔值，是否启用多帧渲染；max_cpu_perc 为 CPU 使用百分比。
+    → 为下一次渲染设置多帧渲染（MFR）配置。脚本执行完成后设置会重置。（AE 22.0 / 2022 新增）
+    → 返回: 无。
+app.setSavePreferencesOnQuit()
+    → 签名: app.setSavePreferencesOnQuit(doSave)
+    → 参数: doSave 为布尔值，true 时退出时保存首选项，false 时不保存。
+    → 设置应用程序关闭时是否保存首选项的标志。
+    → 返回: 无。
+app.watchFolder()
+    → 签名: app.watchFolder(folder_object_to_watch)
+    → 参数: folder_object_to_watch 为要监视的 Extendscript Folder 对象。
+    → 启动指向指定文件夹的监视文件夹（网络渲染）进程。
+    → 返回: 无。
+
+=====================
+## Project 对象（AE项目对象）
+【属性】
+Project.activeItem
+    → 当前被选中待操作的项目项，若未选中或选中多项则返回 null。
+Project.bitsPerChannel
+    → 当前项目的色彩深度，取值为 8、16 或 32 位。
+Project.compensateForSceneReferredProfiles
+    → 若需为此项目启用” 补偿场景参考配置文件” 则设为 true，否则为 false。
+Project.dirty
+    → 若项目自上次保存后有修改则返回 true，否则为 false。 “脏” 项目会在窗口标题显示 * 标记。
+Project.displayStartFrame
+    → 设置项目设置对话框中帧计数菜单的替代方式（0 或 1），等效于对 framesCountType 使用 FramesCountType.FC_START_0 或 FramesCountType.FC_START_1 枚举值。
+Project.expressionEngine
+    → 项目设置对话框中的表达式引擎设置，返回字符串。可选值："extendscript"（旧版表达式引擎）或 "javascript"（JavaScript 引擎，AE 17.0+）。
+Project.feetFramesFilmType
+    → 项目设置对话框中” 使用英尺 + 帧” 菜单设置。建议用此属性替代旧的 timecodeFilmType 属性。
+Project.file
+    → 当前打开项目文件的 Extendscript File 对象。
+Project.footageTimecodeDisplayStartType
+    → 项目设置对话框中的” 素材起始时间” 设置（当时间显示样式选择为时间码时启用）。
+Project.framesCountType
+    → 项目设置对话框中的帧计数菜单设置。
+Project.framesUseFeetFrames
+    → 项目设置对话框中的” 使用英尺 + 帧” 设置。 使用英尺 + 帧时为 true，使用帧时为 false。
+Project.gpuAccelType
+    → 获取或设置当前项目的 GPU 加速选项。参见 app.availableGPUAccelTypes
+Project.items
+    → 项目中的所有项。
+Project.linearBlending
+    → 若需为此项目启用线性混合则设为 true，否则为 false。
+Project.linearizeWorkingSpace
+    → 若需为此项目启用” 线性化工作空间” 则设为 true，否则为 false。
+Project.numItems
+    → 项目中包含的总项数（包括文件夹和所有类型的素材）。
+Project.renderQueue
+    → 项目的渲染队列。
+Project.revision
+    → 项目当前修订版本号。每次用户操作都会增加该值。新建项目从 1 开始。
+Project.rootFolder
+    → 包含项目内容的根文件夹（这是一个虚拟文件夹，包含项目面板中的所有项，但不包括其他文件夹内的项）。
+Project.selection
+    → 项目面板中所有选中的项（按项目面板中的排序顺序）。
+Project.timeDisplayType
+    → 时间显示样式，对应项目设置对话框中的” 时间显示样式” 部分。
+Project.toolType
+    → 获取和设置工具面板中的活动工具。
+Project.transparencyGridThumbnails
+    → 当为 true 时，缩略图视图使用透明棋盘格图案。
+Project.usedFonts
+    → 返回一个对象数组，包含当前项目中使用的字体引用及其出现的文本图层和时间信息。 每个对象包含 font（Font 对象）和 usedAt（由 layerID 图层 ID 和出现时间 layerTimeD 组成的对象数组）。使用 Project.layerByID () 可检索对应图层。
+Project.workingGamma
+    → 当前项目的工作伽马值（2.2 或 2.4）。 设置非 2.2 或 2.4 的值会导致脚本错误。
+Project.workingSpace
+    → 表示项目色彩工作空间颜色配置文件的字符串。设为空字符串可将工作空间设为” 无”。 使用 app.project.listColorProfiles () 获取可用的颜色配置文件描述数组。
+Project.xmpPacket
+    → 项目的 XMP 元数据，以 RDF（基于 XML）格式存储。有关 XMP 的更多信息，参见 JavaScript Tools Guide。
+
+【方法】
+Project.autoFixExpressions()
+    → 签名: Project.autoFixExpressions(oldText, newText)
+    → 参数: oldText 为要替换的文本；newText 为新文本。仅当新文本使表达式无错误求值时才替换。
+    → 在项目中所有表达式里搜索 oldText 并替换为 newText，仅当替换后表达式求值无错误时才执行替换。
+    → 返回: 无。
+Project.close()
+    → 关闭当前项目。若项目有未保存修改，弹出对话框询问用户是否保存。
+    → 返回: 布尔值；成功关闭返回 true，若文件未保存过且用户取消保存提示则返回 false。
+Project.consolidateFootage()
+    → 合并项目中重复的素材项（指向同一源文件的多个素材项），将它们合并为单个引用。
+    → 返回: 整数；被移除的重复素材项总数。
+Project.importFile()
+    → 签名: Project.importFile(importOptions)
+    → 参数: importOptions 为 ImportOptions 对象，指定导入文件和导入方式。
+    → 根据 ImportOptions 将文件或文件序列导入到项目中。
+    → 返回: FootageItem 对象。
+Project.importFileWithDialog()
+    → 打开"导入文件"对话框，让用户交互式选择要导入的文件。
+    → 返回: 导入过程中创建的 Item 对象数组；如果用户取消对话框则返回 null。
+Project.importPlaceholder()
+    → 签名: Project.importPlaceholder(name, width, height, frameRate, duration)
+    → 参数: name 为占位符名称；width、height 为尺寸（像素）；frameRate 为帧速率；duration 为持续时间（秒）。
+    → 导入一个占位符素材项，用于临时替代尚未完成的素材。占位符显示为彩条图像。
+    → 返回: FootageItem 对象（PlaceholderItem）。
+Project.item()
+    → 签名: Project.item(index)
+    → 参数: index 为项目项的索引号（从 1 开始）。
+    → 按索引号检索项目中的项目项。
+    → 返回: Item 对象。
+Project.itemByID()
+    → 签名: Project.itemByID(id)
+    → 参数: id 为项目项的内部 ID。
+    → 按内部 ID 检索项目中的项目项。该 ID 在项目保存和重新加载后保持不变。
+    → 返回: Item 对象；若未找到则返回 null。
+Project.layerByID()
+    → 签名: Project.layerByID(id)
+    → 参数: id 为图层的内部 ID（无符号整数）。
+    → 按内部 ID 检索项目中的图层。该 ID 在项目保存和重新加载后保持不变。
+    → 返回: Layer 对象；若不存在具有给定 ID 的图层则返回 null。无效的 ID 将抛出异常。
+Project.listColorProfiles()
+    → 检索系统中可用的颜色配置文件列表，用于颜色管理。
+    → 返回: 字符串数组。
+Project.reduceProject()
+    → 签名: Project.reduceProject(itemArray)
+    → 参数: itemArray 为要保留的 Item 对象数组。
+    → 精简项目，仅保留指定数组中的项目项，移除所有其他未引用的项目项和合成。
+    → 返回: 整数；移除的项总数。
+Project.removeUnusedFootage()
+    → 移除项目中所有未被任何合成使用的素材项（不影响磁盘上的源文件）。
+    → 返回: 整数；移除的 FootageItem 对象总数。
+Project.replaceFont()
+    → 签名: Project.replaceFont(oldFont, newFont)
+    → 参数: oldFont 为要替换的 FontObject；newFont 为新的 FontObject。
+    → 将项目中所有使用 oldFont 的文本图层字体引用替换为 newFont。
+    → 返回: 布尔值；成功返回 true。（AE 17.1 / 2021 新增）
+Project.save()
+    → 签名: Project.save([file])
+    → 参数: file 可选，Extendscript File 对象；若未指定则保存到当前文件（Project.file）。若项目未保存过且未提供 file 则报错。
+    → 保存当前项目。若提供了 file 参数则保存到指定位置，否则保存到当前文件。
+    → 返回: 布尔值；成功返回 true，失败返回 false。
+Project.saveWithDialog()
+    → 弹出"另存为"对话框，让用户选择保存位置和文件名来保存项目。
+    → 返回: 布尔值；如果项目已保存则返回 true。
+Project.setDefaultImportFolder()
+    → 签名: Project.setDefaultImportFolder(folder)
+    → 参数: folder 为要设为默认导入文件夹的 Extendscript Folder 对象。
+    → 设置默认的导入文件夹，后续导入操作将默认使用此文件夹。
+    → 返回: 布尔值；指示操作是否成功。
+Project.showWindow()
+    → 显示项目面板并将其置于最前。
+    → 返回: 无。
+
+=====================
+## Item 对象（项目项基类）
+【属性】
+Item.comment
+    → 一个字符串，用于保存注释，经过任何编码转换后最多可包含 15,999 字节。注释仅供用户使用；它不会影响项目的外观或行为。
+Item.dynamicLinkGUID
+    → 用于动态链接的唯一且持久的标识号，格式为 00000000-0000-0000-0000-000000000000。
+Item.guides
+    → 一个包含 guide 对象的数组，包含 orientationType、positionType 和 position 属性。
+Item.id
+    → 用于在会话之间唯一且持久地标识项目的内部标识号。当项目保存到文件并稍后重新加载时，ID 的值保持不变。但是，当将此项目导入另一个项目时，将为导入项目中的所有项目分配新的 ID。ID 不会显示在用户界面的任何位置。
+Item.label
+    → 项目的标签颜色。颜色由其编号表示（0 表示无，1 到 16 表示标签首选项中的预设颜色之一）。
+Item.name
+    → 项目在项目面板中显示的名称。
+Item.parentFolder
+    → 包含此项目的文件夹的 FolderItem 对象。如果此项目位于项目的顶层，则这是项目的根文件夹 (app.project.rootFolder)。您可以使用 ItemCollection.addFolder () 添加一个新文件夹，并设置此值以将项目放入新文件夹中。
+Item.selected
+    → 当为 true 时，此项目被选中。可以同时选择多个项目。设置为 true 以编程方式选择项目，或设置为 false 以取消选择。
+Item.typeName
+    → 项目类型的用户可读名称；例如，“Folder”、“Footage” 或 “Composition”。这些名称依赖于应用程序的区域设置，这意味着它们会根据应用程序的界面语言而不同。
+
+【方法】
+Item.addGuide()
+    → 签名: Item.addGuide(orientationType, position)
+    → 参数: orientationType 为 0 表示水平参考线，1 表示垂直参考线；position 为参考线的 X 或 Y 坐标（像素，取决于方向）。
+    → 创建一条新的参考线并添加到此项目的 guides 数组中。
+    → 返回: 整数；新创建的参考线的索引。（AE 16.1 / CC 2019 新增）
+Item.remove()
+    → 从项目和项目面板中删除此项。若此项为 FolderItem，文件夹中包含的所有项也会从项目中删除。不会删除磁盘上的文件或文件夹。
+    → 返回: 无。
+Item.removeGuide()
+    → 签名: Item.removeGuide(guideIndex)
+    → 参数: guideIndex 为要删除的参考线在 Item.guides 数组中的索引。删除后更高索引的参考线会下移。
+    → 根据 guideIndex 从 guides 数组中移除参考线。
+    → 返回: 无。（AE 16.1 / CC 2019 新增）
+Item.setGuide()
+    → 签名: Item.setGuide(position, guideIndex)
+    → 参数: position 为参考线新的 X 或 Y 坐标（像素，取决于其已有的 orientationType，方向不可更改）；guideIndex 为要修改的参考线索引。
+    → 修改已有参考线的位置。参考线的方向类型在创建后不可更改。
+    → 返回: 无。（AE 16.1 / CC 2019 新增）
+
+=====================
+## ItemCollection 对象（项目项集合对象）
+【方法】
+ItemCollection.addComp()
+    → 签名: ItemCollection.addComp(name, width, height, frameRate, duration, aspectRatio)
+    → 参数: name 为合成名称；width、height 为尺寸（像素）；frameRate 为帧速率；duration 为持续时间（秒）；aspectRatio 为像素宽高比。
+    → 创建新合成并添加到项目中。
+    → 返回: CompItem 对象。
+ItemCollection.addFolder()
+    → 签名: ItemCollection.addFolder(name)
+    → 参数: name 为文件夹名称。
+    → 创建新文件夹并添加到项目中。
+    → 返回: FolderItem 对象。
+
+=====================
+## System 对象（系统信息对象）
+【属性】
+System.machineName
+    → 运行 After Effects 的计算机名称。
+System.osName
+    → 运行 After Effects 的操作系统名称。 在 Windows 7 及以上版本，该属性返回空值。请使用 $.os 代替。
+System.osVersion
+    → 当前本地操作系统的版本。
+System.userName
+    → 当前登录系统的用户名。
+
+【方法】
+System.callSystem()
+    → 签名: System.callSystem(cmdLineToExecute)
+    → 参数: cmdLineToExecute 为要执行的命令行字符串。
+    → 执行系统命令并返回输出结果。
+    → 返回: 字符串；执行命令的输出结果。
+
+=====================
+## CompItem 对象（合成项目）
+【属性】
+CompItem.activeCamera
+    → 活动的摄像机，即最前面的启用的摄像机图层。如果合成中没有启用的摄像机图层，则该值为 null。
+CompItem.bgColor
+    → 合成的背景颜色。数组中的三个值分别指定颜色的红色、绿色和蓝色分量。
+CompItem.counters
+    → 此属性在整个应用程序中起作用：如果在一个 CompItem 上更改，它将更改项目中每个 CompItem 的值。该值会一直保持，直到重新启动 AE。重新启动后，它将恢复为 false。 此参数没有任何作用。
+CompItem.displayStartFrame
+    → 合成开始时的帧值。 此值是使用 CompItem.displayStartTime 和 CompItem.frameDuration 计算开始帧的替代方法，以补偿浮点数问题。
+CompItem.displayStartTime
+    → 设置为合成开始的时间，以秒为单位。这相当于合成设置对话框中的 “开始时间码” 或 “开始帧” 设置。
+CompItem.draft3d
+    → 当为 true 时，合成面板中的 “草稿 3D” 模式已启用。这对应于合成面板中的 “草稿 3D” 按钮的值。
+CompItem.dropFrame
+    → 当为 true 时，表示合成使用丢帧时间码。当为 false 时，表示使用非丢帧时间码。这对应于合成设置对话框中的设置。
+CompItem.frameBlending
+    → 当为 true 时，此合成的帧混合已启用。这对应于合成面板中的 “帧混合” 按钮的值。
+CompItem.frameDuration
+    → 一帧的持续时间，以秒为单位。这是 frameRate 值（每秒帧数）的倒数。
+CompItem.hideShyLayers
+    → 当为 true 时，仅显示 shy 设置为 false 的图层在时间轴面板中。当为 false 时，所有图层都可见，包括 shy 值为 true 的图层。这对应于合成面板中的 “隐藏所有害羞图层” 按钮的值。
+CompItem.layers
+    → 一个 LayerCollection 对象，包含此合成中所有图层的 Layer 对象。
+CompItem.markerProperty
+    → 一个 PropertyGroup 对象，包含合成的所有标记。合成标记脚本的功能与 图层标记 相同。 参见 MarkerValue 对象。
+CompItem.motionBlur
+    → 当为 true 时，合成的运动模糊已启用。这对应于合成面板中的 “运动模糊” 按钮的值。
+CompItem.motionBlurAdaptiveSampleLimit
+    → 2D 图层运动的最大运动模糊采样数。这对应于合成设置对话框高级选项卡中的 “自适应采样限制” 设置。
+CompItem.motionBlurSamplesPerFrame
+    → 经典 3D 图层、形状图层和某些效果的每帧最小运动模糊采样数。这对应于合成设置对话框高级选项卡中的 “每帧采样数” 设置。
+CompItem.motionGraphicsTemplateControllerCount
+    → 合成在 Essential Graphics 面板中的属性数量。
+CompItem.motionGraphicsTemplateName
+    → 读取或写入合成在 Essential Graphics 面板中的名称属性。 Essential Graphics 面板中的名称用于导出的 Motion Graphics 模板的文件名（例如，“My Template.mogrt”）。
+CompItem.numLayers
+    → 合成中的图层数量。
+CompItem.preserveNestedFrameRate
+    → 当为 true 时，嵌套合成的帧速率在当前合成中保留。这对应于合成设置对话框高级选项卡中的 “嵌套或渲染队列时保留帧速率” 选项。
+CompItem.preserveNestedResolution
+    → 当为 true 时，嵌套合成的分辨率在当前合成中保留。这对应于合成设置对话框高级选项卡中的 “嵌套时保留分辨率” 选项。
+CompItem.renderer
+    → 用于渲染此合成的当前渲染插件模块，如合成设置对话框高级选项卡中所设置。允许的值是 CompItem.renderers 的成员。
+CompItem.renderers
+    → 可用的渲染插件模块。成员字符串反映了已安装的模块，如合成设置对话框高级选项卡中所见。
+CompItem.resolutionFactor
+    → 渲染合成的 x 和 y 下采样分辨率因子。数组中的两个值指定采样时要跳过的像素数；第一个数字控制水平采样，第二个控制垂直采样。全分辨率为 [1, 1]，半分辨率为 [2, 2]，四分之一分辨率为 [4, 4]。默认值为 [1, 1]。
+CompItem.selectedLayers
+    → 此合成中所有选中的图层。这是一个基于 0 的数组（第一个对象位于索引 0）。
+CompItem.selectedProperties
+    → 此合成中所有选中的属性（Property 和 PropertyGroup 对象）。第一个属性位于索引位置 0。
+CompItem.shutterAngle
+    → 合成的快门角度设置。这对应于合成设置对话框高级选项卡中的 “快门角度” 设置。
+CompItem.shutterPhase
+    → 合成的快门相位设置。这对应于合成设置对话框高级选项卡中的 “快门相位” 设置。
+CompItem.workAreaDuration
+    → 工作区域的持续时间，以秒为单位。这是合成工作区域的起点和终点时间之差。
+CompItem.workAreaStart
+    → 合成工作区域开始的时间，以秒为单位。
+
+【方法】
+CompItem.duplicate()
+    → 创建并返回该合成的副本，副本包含与原始合成相同的图层。
+    → 返回: CompItem 对象。
+CompItem.exportAsMotionGraphicsTemplate()
+    → 签名: CompItem.exportAsMotionGraphicsTemplate([path])
+    → 参数: path 可选，导出 .mogrt 文件的文件夹路径。
+    → 将合成导出为动态图形模板（.mogrt）文件。
+    → 返回: 布尔值。
+CompItem.getMotionGraphicsTemplateControllerName()
+    → 签名: CompItem.getMotionGraphicsTemplateControllerName(index)
+    → 参数: index 为 Essential Graphics 面板中属性的索引。
+    → 获取 Essential Graphics 面板中指定索引处属性的名称。
+    → 返回: 字符串；只读。
+CompItem.setMotionGraphicsControllerName()
+    → 签名: CompItem.setMotionGraphicsControllerName(index, name)
+    → 参数: index 为属性索引；name 为新名称。
+    → 设置 Essential Graphics 面板中指定索引处属性的名称。
+    → 返回: 字符串；只读。
+CompItem.layer()
+    → 签名: CompItem.layer(index) 或 CompItem.layer(name) 或 CompItem.layer(otherLayer, relIndex)
+    → 参数: index 为图层索引（整数）；name 为图层名称（字符串）；otherLayer+relIndex 为相对图层偏移。
+    → 通过索引、名称或相对偏移访问图层。
+    → 返回: Layer 对象。
+CompItem.openInEssentialGraphics()
+    → 在 Essential Graphics 面板中打开此合成。（AE 15.0 / CC 2018 新增）
+    → 返回: 无。
+CompItem.openInViewer()
+    → 在合成面板中打开此合成，并将面板置于最前。
+    → 返回: 合成面板的查看器对象，如果无法打开合成则返回 null。
+
+=====================
+## AVItem 对象（音视频项目基类）
+【属性】
+AVItem.duration
+    → 返回项目的持续时间（以秒为单位）。静态素材项目的持续时间为 0。
+AVItem.footageMissing
+    → 当为 true 时，AVItem 是一个占位符，或者表示源文件无法找到的素材。在这种情况下，缺失的源文件路径位于素材项目的源文件对象的 missingFootagePath 属性中。请参阅 FootageItem.mainSource 和 FileSource.missingFootagePath。
+AVItem.frameDuration
+    → 返回此 AVItem 的帧长度（以秒为单位）。这是 frameRate 的倒数。设置时，倒数会自动设置为新的 frameRate 值。此属性返回 frameRate 的倒数，可能与您设置的值不完全相同，如果该值不能均匀地除以 1.0（例如 0.3）。由于数值限制，(1 / (1 / 0.3)) 接近但不完全等于 0.3。如果 AVItem 是 FootageItem，则该值与 mainSource 相关联，并且是只读的。要更改它，请设置 mainSource 对象的 conformFrameRate 属性。
+AVItem.frameRate
+    → AVItem 的帧速率，以每秒帧数为单位。这是 frameDuration 的倒数。设置时，倒数会自动设置为新的 frameDuration 值。
+AVItem.hasAudio
+    → 当为 true 时，AVItem 具有音频组件。
+AVItem.hasVideo
+    → 当为 true 时，AVItem 具有视频组件。
+AVItem.height
+    → 项目的高度（以像素为单位）。
+AVItem.isMediaReplacementCompatible
+    → 测试 AVItem 是否可以在调用 Property.setAlternateSource () 时用作替代源。 如果项目可用，则返回 true，否则返回 false。
+AVItem.name
+    → 项目的名称，如项目面板中所示。
+AVItem.pixelAspect
+    → 项目的像素宽高比 (PAR)。
+AVItem.proxySource
+    → 用作代理的 FootageSource。该属性是只读的；要更改它，请调用任何更改代理源的 AVItem 方法：setProxy ()、setProxyWithSequence ()、setProxyWithSolid () 或 setProxyWithPlaceholder ()。
+AVItem.time
+    → 项目从项目面板直接预览时的当前时间。该值以秒为单位。使用全局方法 timeToCurrentFormat () 将其转换为以帧表示时间的字符串值。对于 mainSource 是静态的 FootageItem（item.mainSource.isStill 为 true），设置此值是错误的。
+AVItem.usedIn
+    → 所有使用此 AVItem 的合成。请注意，检索时，数组值会被复制，因此不会自动更新。如果您获取此值，然后将此项目添加到另一个合成中，则必须再次检索该值以获取包含新项目的数组。
+AVItem.useProxy
+    → 当为 true 时，项目使用代理。所有 SetProxy 方法都会将其设置为 true，而 SetProxyToNone () 方法会将其设置为 false。
+AVItem.width
+    → 项目的宽度（以像素为单位）。
+
+【方法】
+AVItem.setProxy()
+    → 签名: AVItem.setProxy(file)
+    → 参数: file 为 Extendscript File 对象，用作代理的文件。
+    → 将指定文件加载到新的 FileSource 对象，设为 proxySource，并将 useProxy 设为 true。不保留解释参数，改用用户首选项。
+    → 返回: 无。
+AVItem.setProxyToNone()
+    → 移除此 AVItem 的代理，将 proxySource 设为 null，useProxy 设为 false。
+    → 返回: 无。
+AVItem.setProxyWithPlaceholder()
+    → 签名: AVItem.setProxyWithPlaceholder(name, width, height, frameRate, duration)
+    → 参数: name 名称；width/height 像素尺寸（[4..30000]）；frameRate 帧率（[1.0..99.0]）；duration 持续时间秒（[0.0..10800.0]）。
+    → 创建 PlaceholderSource 并设为 proxySource，useProxy 设为 true。不保留解释参数。
+    → 返回: 无。
+AVItem.setProxyWithSequence()
+    → 签名: AVItem.setProxyWithSequence(file, forceAlphabetical)
+    → 参数: file 为序列首文件；forceAlphabetical 为布尔值，是否强制按字母顺序排列。
+    → 将文件序列加载到新 FileSource，设为 proxySource，useProxy 设为 true。
+    → 返回: 无。
+AVItem.setProxyWithSolid()
+    → 签名: AVItem.setProxyWithSolid(color, name, width, height, pixelAspect)
+    → 参数: color 为 [R,G,B] 浮点数组（[0.0..1.0]）；name 名称；width/height 像素尺寸（[4..30000]）；pixelAspect 像素宽高比（[0.01..100.0]）。
+    → 创建 SolidSource 并设为 proxySource，useProxy 设为 true。
+    → 返回: 无。
+
+=====================
+## FolderItem 对象（文件夹项目）
+【属性】
+FolderItem.items
+    → 一个 ItemCollection 对象，包含表示此文件夹顶级内容的 Item 对象。 与 Project 对象中的 ItemCollection 不同，此集合仅包含文件夹中的顶级项目。文件夹中的顶级项目与项目中的顶级项目不同。只有在根文件夹中为顶级的项目在项目中也是顶级的。
+FolderItem.numItems
+    → items 集合中包含的项目数量（folderItem.items.length）。 如果文件夹包含另一个文件夹，则仅计算该文件夹的 FolderItem，而不计算其中包含的任何子项目。
+
+【方法】
+FolderItem.item()
+    → 签名: FolderItem.item(index)
+    → 参数: index 为文件夹中项目项的索引号（从 1 开始）。
+    → 返回此文件夹中指定索引位置的顶级项目。
+    → 返回: Item 对象。
+
+=====================
+## FootageItem 对象（素材项目）
+【属性】
+FootageItem.file
+    → 素材源文件的 Extendscript File 对象。 如果 FootageItem 的 mainSource 是 FileSource，则此属性与 FootageItem.mainSource.file 相同。否则为 null。
+FootageItem.mainSource
+    → 素材源，一个包含与该素材项相关的所有设置的对象，包括通常通过 "解释素材" 对话框访问的那些设置。该属性是只读的。要更改其值，请调用 FootageItem 的某个 "替换" 方法。请参阅 FootageSource 对象及其三种子类：FileSource（文件素材源）、SolidSource（纯色素材源）、PlaceholderSource（占位符素材源）。
+
+【方法】
+FootageItem.openInViewer()
+    → 在素材面板中打开此素材，并将面板置于最前。
+    → 返回: 素材面板的 Viewer 对象，如果素材无法打开则返回 null。
+FootageItem.replace()
+    → 签名: FootageItem.replace(file)
+    → 参数: file 为 Extendscript File 对象，新素材源文件。
+    → 将此 FootageItem 的源更改为指定文件，创建新 FileSource 并设为 mainSource。保留原 mainSource 的解释参数；若文件有未标记 alpha 通道则自动估算 alpha 解释。
+    → 返回: 无。
+FootageItem.replaceWithPlaceholder()
+    → 签名: FootageItem.replaceWithPlaceholder(name, width, height, frameRate, duration)
+    → 参数: name 名称；width/height 像素尺寸（[4..30000]）；frameRate 帧率（[1.0..99.0]）；duration 持续时间秒（[0.0..10800.0]）。
+    → 将源更改为指定占位符，创建新 PlaceholderSource 并设为 mainSource。
+    → 返回: 无。
+FootageItem.replaceWithSequence()
+    → 签名: FootageItem.replaceWithSequence(file, forceAlphabetical)
+    → 参数: file 为序列首文件；forceAlphabetical 为布尔值，是否强制按字母顺序排列。
+    → 将源更改为指定图像序列，创建新 FileSource 并设为 mainSource。保留原解释参数。
+    → 返回: 无。
+FootageItem.replaceWithSolid()
+    → 签名: FootageItem.replaceWithSolid(color, name, width, height, pixelAspect)
+    → 参数: color 为 [R,G,B] 浮点数组（[0.0..1.0]）；name 名称；width/height 像素尺寸（[4..30000]）；pixelAspect 像素宽高比（[0.01..100.0]）。
+    → 将源更改为指定纯色，创建新 SolidSource 并设为 mainSource。
+    → 返回: 无。
+
+=====================
+## Layer 对象（图层基类）
+【属性】
+Layer.autoOrient
+    → 图层执行的自动定向类型。
+Layer.comment
+    → 图层的描述性注释。
+Layer.containingComp
+    → 包含此图层的合成。
+Layer.guides
+    → 描述图层视图（图层面板）中参考线的对象数组，只读。每个条目的属性取决于 AE 版本：AE 16.1 (CC 2019) 及以后为 orientationType（整数，0=水平/1=垂直）、positionType（整数，恒为 0=像素位置）、position（浮点，像素）；AE (Beta) 26.5 起改为 GuideOrientationType/GuidePositionType 枚举并新增 color 与 pinned（破坏性变更——请与枚举常量比较而非原始整数值）。（AE 16.1 / CC 2019 新增）
+Layer.hasVideo
+    → 当为 true 时，图层在时间轴面板中有一个视频开关（眼睛图标）；否则为 false。
+Layer.id
+    → Layer 上的实例属性，返回一个唯一且持久的标识号，用于在会话之间标识图层。 当项目保存到文件并稍后重新加载时，ID 的值保持不变。
+Layer.index
+    → 图层的索引位置。
+Layer.inPoint
+    → 图层的 “入点”，以合成时间（秒）表示。
+Layer.isNameSet
+    → 如果 name 属性的值已显式设置，而不是从源自动设置，则为 true。
+Layer.label
+    → 项目的标签颜色。颜色由其编号表示（0 表示无颜色，1 到 16 表示标签首选项中的预设颜色之一）。
+Layer.locked
+    → 当为 true 时，图层被锁定；否则为 false。这对应于图层面板中的锁定切换。
+Layer.marker
+    → 包含图层所有标记的 PropertyGroup 对象。图层标记脚本与 Comp 标记 具有相同的功能。 请参阅 MarkerValue 对象。
+Layer.nullLayer
+    → 当为 true 时，图层是作为空对象创建的；否则为 false。
+Layer.outPoint
+    → 图层的 “出点”，以合成时间（秒）表示。
+Layer.parent
+    → 此图层的父级；可以为 null。 偏移值被计算为抵消层次结构中此图层上方的任何变换，以便在设置父级时，图层的变换不会出现明显的跳跃。
+Layer.selectedProperties
+    → 包含图层中当前选定的所有 Property 和 PropertyGroup 对象的数组。
+Layer.shy
+    → 当为 true 时，图层是 “害羞的”，这意味着如果合成的 “隐藏所有害羞图层” 选项已切换为打开，则图层在图层面板中隐藏。
+Layer.solo
+    → 当为 true 时，图层是独奏的，否则为 false。
+Layer.startTime
+    → 图层的开始时间，以合成时间（秒）表示。
+Layer.stretch
+    → 图层的时间拉伸，以百分比表示。值为 100 表示没有拉伸。0 到 1 之间的值设置为 1，-1 到 0 之间的值（不包括 0）设置为 -1。
+Layer.time
+    → 图层的当前时间，以合成时间（秒）表示。
+
+【方法】
+Layer.activeAtTime()
+    → 签名: Layer.activeAtTime(time)
+    → 参数: time 为时间（秒）。
+    → 返回图层在指定时间点是否处于活动状态。
+    → 返回: 布尔值。
+Layer.addGuide()
+    → 签名: Layer.addGuide(orientationType, position)
+    → 参数: orientationType 为 0 表示水平参考线，1 表示垂直参考线（其他值默认为水平）；position 为参考线的 X 或 Y 坐标（像素，取决于方向），钳制在 ±100000 之间，非有限值会被拒绝。
+    → 创建一条新的参考线并添加到此图层视图（图层面板）的 guides 数组中。（AE 16.1 / CC 2019 新增；AE (Beta) 26.5 起另有 GuideOptions 对象重载，属 Beta API）
+    → 返回: 整数；新创建的参考线的索引。
+Layer.applyPreset()
+    → 签名: Layer.applyPreset(presetName)
+    → 参数: presetName 为动画预设文件（.ffx）的路径或 File 对象。
+    → 将指定的动画预设应用到该图层所属合成中所有选中的图层。若无图层被选中，则应用到新建的纯色图层。预设文件通常安装在 Presets 文件夹中。
+    → 返回: 无。
+Layer.copyToComp()
+    → 签名: Layer.copyToComp(intoComp)
+    → 参数: intoComp 为目标 CompItem 对象。
+    → 将此图层复制到指定合成中，原图层保持不变。新图层被添加到目标合成 LayerCollection 的最前面（可用 intoComp.layer(1) 获取）。复制会改变目标合成中已有图层的索引位置。
+    → 返回: 无。
+Layer.doSceneEditDetection()
+    → 签名: Layer.doSceneEditDetection([options])
+    → 参数: options 可选，指定编辑点应用方式（标记、拆分图层、预合成或不应用）。
+    → 对图层运行场景编辑检测，返回检测到的编辑点时间数组。（AE 22.3 / 2022 新增）
+    → 返回: 浮点值数组；检测到的编辑点的时间，以合成时间表示。
+Layer.duplicate()
+    → 复制此图层，创建一个所有值都与原图层相同的新 Layer 对象。
+    → 返回: Layer 对象。
+Layer.moveAfter()
+    → 签名: Layer.moveAfter(layer)
+    → 参数: layer 为同一合成中的 Layer 对象。
+    → 将此图层移动到指定图层之后。
+    → 返回: 无。
+Layer.moveBefore()
+    → 签名: Layer.moveBefore(layer)
+    → 参数: layer 为同一合成中的 Layer 对象。
+    → 将此图层移动到指定图层之前。
+    → 返回: 无。
+Layer.moveToBeginning()
+    → 将此图层移动到图层堆栈的最顶部（索引 1）。
+    → 返回: 无。
+Layer.moveToEnd()
+    → 将此图层移动到图层堆栈的最底部（索引 numLayers）。
+    → 返回: 无。
+Layer.remove()
+    → 从合成中删除此图层。
+    → 返回: 无。
+Layer.removeGuide()
+    → 签名: Layer.removeGuide(guideIndex)
+    → 参数: guideIndex 为要删除的参考线在 Layer.guides 数组中的索引。删除后更高索引的参考线会下移。
+    → 根据 guideIndex 从此图层视图的 guides 数组中移除参考线。（AE 16.1 / CC 2019 新增）
+    → 返回: 无。
+Layer.setGuide()
+    → 签名: Layer.setGuide(position, guideIndex)
+    → 参数: position 为参考线新的 X 或 Y 坐标（像素，取决于其已有的 orientationType，方向不可更改）；guideIndex 为要修改的参考线索引。
+    → 修改此图层视图已有参考线的位置。参考线的方向类型在创建后不可更改。（AE 16.1 / CC 2019 新增）
+    → 返回: 无。
+Layer.setParentWithJump()
+    → 签名: Layer.setParentWithJump([newParent])
+    → 参数: newParent 可选，为 Layer 对象；不传则解除父级关系。
+    → 设置此图层的父级，与在父级链接弹出菜单中按住 Alt/Option 选择父级的效果相同，会计算偏移使图层在视觉上不发生跳跃。
+    → 返回: 无。
+
+=====================
+## LayerCollection 对象（图层集合）
+【方法】
+LayerCollection.add()
+    → 签名: LayerCollection.add(item)
+    → 参数: item 为要作为图层添加的 AVItem 对象。
+    → 创建包含指定项目的新 AVLayer 并添加到此集合中。
+    → 返回: AVLayer 对象；
+LayerCollection.addBoxText()
+    → 签名: LayerCollection.addBoxText([size])
+    → 参数: size 可选，[width, height] 数组指定段落文本框尺寸。
+    → 创建新的段落（框）文本图层并添加到此集合中。
+    → 返回: TextLayer 对象。
+LayerCollection.addCamera()
+    → 签名: LayerCollection.addCamera(name, centerPoint)
+    → 参数: name 为摄像机名称；centerPoint 为 [x, y] 坐标数组。
+    → 创建新的摄像机图层并添加到此集合中。
+    → 返回: CameraLayer 对象。
+LayerCollection.addLight()
+    → 签名: LayerCollection.addLight(name, centerPoint)
+    → 参数: name 为灯光名称；centerPoint 为 [x, y] 坐标数组。
+    → 创建新的灯光图层并添加到此集合中。
+    → 返回: LightLayer 对象。
+LayerCollection.addNull()
+    → 签名: LayerCollection.addNull([duration])
+    → 参数: duration 可选，空对象图层的持续时间（秒）。
+    → 创建新的空对象图层并添加到此集合中。
+    → 返回: AVLayer 对象。
+LayerCollection.addShape()
+    → 创建新的空形状图层并添加到此集合中。
+    → 返回: ShapeLayer 对象。
+LayerCollection.addSolid()
+    → 签名: LayerCollection.addSolid(color, name, width, height, pixelAspect, duration)
+    → 参数: color 为 [r,g,b] 颜色数组；name 为名称；width、height 为尺寸；pixelAspect 为像素宽高比；duration 为持续时间（秒）。
+    → 创建新的纯色图层并添加到此集合中。
+    → 返回: AVLayer 对象。
+LayerCollection.addText()
+    → 签名: LayerCollection.addText([sourceText])
+    → 参数: sourceText 可选，文本字符串或 TextDocument 对象。
+    → 创建新的点文本图层并添加到此集合中。
+    → 返回: TextLayer 对象。
+LayerCollection.addVerticalBoxText()
+    → 签名: LayerCollection.addVerticalBoxText([size])
+    → 参数: size 可选，[width, height] 数组指定段落文本框尺寸。
+    → 创建新的垂直段落（框）文本图层并添加到此集合中。（AE 24.2 新增）
+    → 返回: TextLayer 对象。
+LayerCollection.addVerticalText()
+    → 签名: LayerCollection.addVerticalText([sourceText])
+    → 参数: sourceText 可选，文本字符串或 TextDocument 对象。
+    → 创建新的垂直点文本图层并添加到此集合中。（AE 24.2 新增）
+    → 返回: TextLayer 对象。
+LayerCollection.byName()
+    → 签名: LayerCollection.byName(name)
+    → 参数: name 为包含图层名称的字符串。
+    → 返回此集合中具有指定名称的第一个（最顶层）图层。
+    → 返回: Layer 对象或 null。
+LayerCollection.precompose()
+    → 签名: LayerCollection.precompose(layerIndices, name[, moveAllAttributes])
+    → 参数: layerIndices 为要预合成的图层索引数组；name 为新合成名称；moveAllAttributes 可选，布尔值，是否将所有属性移动到新合成。
+    → 将指定图层移动到新创建的合成中，并将新合成添加到此集合中。
+    → 返回: CompItem 对象。
+
+=====================
+## AVLayer 对象（音视频图层）
+【属性】
+AVLayer.adjustmentLayer
+    → 如果图层是调整图层，则为 true。
+AVLayer.audioActive
+    → 如果图层的音频在当前时间处于活动状态，则为 true。要使此值为 true，audioEnabled 必须为 true，除非此图层也被独奏，否则没有其他带有音频的图层可以独奏，并且时间必须在此图层的 inPoint 和 outPoint 之间。
+AVLayer.audioEnabled
+    → 当为 true 时，图层的音频已启用。此值对应于时间轴面板中的音频切换开关。
+AVLayer.blendingMode
+    → 图层的混合模式。
+AVLayer.canSetCollapseTransformation
+    → 如果可以在该图层上更改 collapseTransformation 属性的值，则为 true。
+AVLayer.canSetTimeRemapEnabled
+    → 如果可以在该图层上更改 timeRemapEnabled 属性的值，则为 true。
+AVLayer.collapseTransformation
+    → 如果该图层的折叠变换已启用，则为 true。
+AVLayer.effectsActive
+    → 如果图层的效果处于活动状态，则为 true，如用户界面中其旁边的  图标所示。
+AVLayer.environmentLayer
+    → 如果这是光线追踪 3D 合成中的环境图层，则为 true。将此属性设置为 true 会自动使图层变为 3D（threeDLayer 变为 true）。
+AVLayer.frameBlending
+    → 如果图层的帧混合已启用，则为 true。
+AVLayer.frameBlendingType
+    → 当图层的帧混合启用时，执行的帧混合类型。
+AVLayer.guideLayer
+    → 如果图层是引导图层，则为 true。
+AVLayer.hasAudio
+    → 如果图层包含音频组件，则为 true，无论其是否启用音频或独奏。
+AVLayer.hasTrackMatte
+    → 如果此图层具有轨道蒙版，则为 true。当为 true 时，此图层的 trackMatteType 值控制蒙版的应用方式。 有关可用的轨道蒙版类型，请参见 AVLayer.trackMatteType。
+AVLayer.height
+    → 图层的高度（以像素为单位）。
+AVLayer.isNameFromSource
+    → 如果图层没有明确设置的名称，但包含一个命名的源，则为 true。在这种情况下，layer.name 的值与 layer.source.name 相同。如果图层有明确设置的名称，或者图层没有源，则为 false。
+AVLayer.isTrackMatte
+    → 如果此图层被用作轨道蒙版，则为 true。
+AVLayer.motionBlur
+    → 如果图层的运动模糊已启用，则为 true。
+AVLayer.preserveTransparency
+    → 如果图层的保留透明度已启用，则为 true。
+AVLayer.quality
+    → 图层的显示质量。
+AVLayer.samplingQuality
+    → 设置 / 获取图层的采样方法（双三次或双线性）。
+AVLayer.source
+    → 此图层的源 AVItem。在文本图层中，该值为 null。使用 AVLayer.replaceSource () 更改该值。
+AVLayer.threeDLayer
+    → 如果这是 3D 图层，则为 true。
+AVLayer.threeDPerChar
+    → 如果此图层启用了 “启用逐字符 3D” 开关，则为 true，允许其字符在文本图层平面外进行动画处理。仅适用于文本图层。
+AVLayer.timeRemapEnabled
+    → 如果此图层启用了时间重映射，则为 true。
+AVLayer.trackMatteLayer
+    → 返回此图层的轨道蒙版图层。如果此图层没有轨道蒙版图层，则返回 null。
+AVLayer.trackMatteType
+    → 如果此图层具有轨道蒙版，则指定轨道蒙版的应用方式。指定 TrackMatteType.NO_TRACK_MATTE 类型将删除此图层的轨道蒙版并重置轨道蒙版类型。
+AVLayer.width
+    → 图层的宽度（以像素为单位）。
+
+【方法】
+AVLayer.addToMotionGraphicsTemplate()
+    → 签名: AVLayer.addToMotionGraphicsTemplate(comp)
+    → 参数: comp 为目标 CompItem 对象。
+    → 将此图层添加到指定合成的 Essential Graphics 面板中。
+    → 返回: 布尔值。
+AVLayer.addToMotionGraphicsTemplateAs()
+    → 签名: AVLayer.addToMotionGraphicsTemplateAs(comp, name)
+    → 参数: comp 为目标 CompItem 对象；name 为在 Essential Graphics 面板中显示的自定义名称。
+    → 将此图层添加到指定合成的 Essential Graphics 面板中，并指定自定义名称。
+    → 返回: 布尔值。
+AVLayer.audioActiveAtTime()
+    → 签名: AVLayer.audioActiveAtTime(time)
+    → 参数: time 为时间（秒）。
+    → 返回图层的音频在指定时间点是否处于活动状态。
+    → 返回: 布尔值。
+AVLayer.calculateTransformFromPoints()
+    → 签名: AVLayer.calculateTransformFromPoints(pointTopLeft, pointTopRight, pointBottomRight)
+    → 参数: 三个参数均为 [x, y, z] 坐标数组，分别指定图层中的左上、右上、右下点。
+    → 根据图层中的三个点计算变换信息（位置、缩放、旋转）。
+    → 返回: 包含变换属性的对象。
+AVLayer.canAddToMotionGraphicsTemplate()
+    → 签名: AVLayer.canAddToMotionGraphicsTemplate(comp)
+    → 参数: comp 为 CompItem 对象，要添加到的目标合成。
+    → 测试此图层是否可添加到指定合成的 Essential Graphics 面板。媒体替换图层需 hasVideo 为 true、adjustmentLayer 为 false、nullLayer 为 false，且 source 为 FootageItem（特定源类型）或 CompItem。（AE 18.0 / 2021 新增）
+    → 返回: 布尔值。
+AVLayer.compPointToSource()
+    → 签名: AVLayer.compPointToSource(point)
+    → 参数: point 为 [x, y] 合成坐标数组。
+    → 将合成坐标转换为图层坐标。
+    → 返回: 位置坐标数组（[X,Y]）；只读。
+AVLayer.openInViewer()
+    → 在图层面板中打开此图层，并将面板置于最前。
+    → 返回: 图层面板的查看器对象，如果无法打开图层（例如文本或形状图层，无法在图层面板中打开），则返回 null。
+AVLayer.removeTrackMatte()
+    → 移除此图层的轨道蒙版，但保留 TrackMatteType 设置。参见 AVLayer.setTrackMatte()。（AE 23.0 新增）
+    → 返回: 无。
+AVLayer.replaceSource()
+    → 签名: AVLayer.replaceSource(newSource, fixExpressions)
+    → 参数: newSource 为新的 AVItem 源；fixExpressions 为布尔值，是否尝试修复引用旧源的图层属性表达式。
+    → 替换此图层的源 AVItem。
+    → 返回: 无。
+AVLayer.setTrackMatte()
+    → 签名: AVLayer.setTrackMatte(type)
+    → 参数: type 为 TrackMatteType 枚举值（ALPHA、ALPHA_INVERTED、LUMA、LUMA_INVERTED、NO_TRACK_MATTE）。
+    → 设置此图层的轨道遮罩类型。
+    → 返回: 无。
+AVLayer.sourcePointToComp()
+    → 签名: AVLayer.sourcePointToComp(point)
+    → 参数: point 为 [x, y] 图层坐标数组。
+    → 将图层坐标转换为合成坐标。
+    → 返回: 位置坐标数组（[X,Y]）；只读。
+AVLayer.sourceRectAtTime()
+    → 签名: AVLayer.sourceRectAtTime(timeT, extents)
+    → 参数: timeT 为时间（秒）；extents 为布尔值，是否包含扩展边界。
+    → 在指定时间检索图层的矩形边界（包含 top、left、width、height 属性）。
+    → 返回: 具有四个属性的 JavaScript 对象：[top, left, width, height]。
+
+=====================
+## LightLayer 对象（灯光图层）
+    → 表示合成中的灯光图层。使用 LayerCollection.addLight() 创建，可通过索引号或名称字符串访问。LightLayer 是 Layer 的子类，Layer 的所有方法和属性都可用。
+    → LightLayer 可通过 property() 方法访问以下 AE 内部属性组。
+    → Marker（标记）
+    → Transform（变换）：PointOfInterest、Position、Scale、Orientation、XRotation、YRotation、Rotation、Opacity
+    → LightOptions（灯光选项）：Intensity、Color、ConeAngle、ConeFeather、CastsShadows、ShadowDarkness、ShadowDiffusion
+    → LightOptions.Falloff（衰减子组）：Falloff（衰减类型）、Radius（半径）、Falloff Distance（衰减距离）
+
+【属性】
+LightLayer.lightSource
+    → 当 LightLayer.lightType 为 LightType.ENVIRONMENT 时，用作光源的图层。可以是同一合成中的任意 2D 视频、静止图像或预合成图层；尝试指定 3D 图层会产生 “Invalid light source specified” 错误。读写。（AE 24.3 新增，当时仅允许 HDR 与 EXR 图层作为源；AE 25.2 起允许任意 2D 图层类型）
+LightLayer.lightType
+    → 灯光图层的灯光类型。对非灯光图层设置此属性会产生错误。读写。取值为 LightType 枚举：LightType.PARALLEL（平行光）、LightType.SPOT（聚光灯）、LightType.POINT（点光源）、LightType.AMBIENT（环境光）、LightType.ENVIRONMENT（环境光源，AE 24.3 新增）。
+
+=====================
+## CameraLayer 对象（摄像机图层）
+    → 表示合成中的摄像机图层。使用 LayerCollection.addCamera() 创建，可通过索引号或名称字符串访问。CameraLayer 是 Layer 的子类，Layer 的所有方法和属性都可用。CameraLayer 不定义额外的脚本 API 属性或方法。
+    → CameraLayer 可通过 property() 方法访问以下 AE 内部属性组。
+    → Marker（标记）
+    → Transform（变换）：PointOfInterest、Position、Scale、Orientation、XRotation、YRotation、Rotation、Opacity
+    → CameraOptions（摄像机选项）包含 Camera 组和 Iris 子组。
+    →   Camera 组：Zoom、DepthOfField、FocusDistance、Aperture、BlurLevel
+    →   Iris 子组（光圈）：IrisShape、IrisRotation、IrisRoundness、IrisAspectRatio、IrisDiffractionFringe、HighlightGain、HighlightThreshold、HighlightSaturation
+    →   AE 26.3 新增（仅 Advanced 3D 渲染器）：FocusAreaWidth、NearFarBlurMultiplier
+
+=====================
+## TextLayer 对象（文字图层）
+    → 表示合成中的文本图层。使用 LayerCollection.addText() 创建，可通过索引号或名称字符串访问。TextLayer 是 AVLayer 的子类（AVLayer 又是 Layer 的子类），AVLayer 和 Layer 的所有方法和属性都可用。
+    → TextLayer 可通过 property() 方法访问以下 AE 内部属性组。
+    → Text（文本）：SourceText
+    → PathOptions（路径选项）：Path、ReversePath、PerpendicularToPath、ForceAlignment、FirstMargin、LastMargin
+    → MoreOptions（更多选项）：AnchorPointGrouping、GroupingAlignment、Variable Font Spacing（可变字体间距）
+    → 3D Text（3D 文本，启用 3D 文本引擎时出现）：Front/Bevel/Side/Back 四个材质子组（每个子组含 16 个属性：Color、Hue、Saturation、Brightness、Opacity、Ambient、Diffuse、Specular Intensity、Specular Shininess、Metal、Reflection Intensity、Reflection Sharpness、Reflection Rolloff、Transparency、Transparency Rolloff、Index of Refraction）、Bevel Depth（斜面深度）、Extrusion Depth（挤出深度）
+    → Fill&Stroke（填充与描边）
+    → InterCharacterBlending（字符间混合）
+    → Animators（动画器）
+
+=====================
+## ShapeLayer 对象（形状图层）
+    → 表示合成中的形状图层。使用 LayerCollection.addShape() 创建，可通过索引号或名称字符串访问。ShapeLayer 是 AVLayer 的子类（AVLayer 又是 Layer 的子类），AVLayer 和 Layer 的所有方法和属性都可用。ShapeLayer 不定义额外的脚本 API 属性或方法；形状内容通过 property("Contents")（match name 为 ADBE Root Vectors Group）访问。
+    → ShapeLayer 可通过 property("Contents") 访问形状内容根属性组（ADBE Root Vectors Group），包含若干形状组（ADBE Vector Group），每个形状组可包含以下内容。
+    → 几何形状：Rectangle（矩形）、Ellipse（椭圆）、Polystar（多边形/星形）、Path（路径）
+    → 填充与描边：Fill、Stroke、Gradient Fill、Gradient Stroke
+    → 描边修饰：Stroke Dashes、Stroke Taper、Stroke Wave
+    → 路径操作：Merge Paths、Offset Paths、Pucker & Bloat、Repeater、Round Corners、Trim Paths、Twist、Wiggle Paths、Wiggle Transform、Zig Zag
+    → 变换：每个形状组含独立的 Transform（ADBE Vector Transform Group），子属性包括 Anchor Point、Position、Scale、Skew、Skew Axis、Rotation、Opacity
+    → 混合模式：Blend Mode（ADBE Vector Blend Mode）
+    → 材质选项：Material Options（ADBE Vector Materials Group，启用 3D 时出现）
+
+=====================
+## ThreeDModelLayer 对象（3D 模型图层）
+    → 表示合成中的 3D 模型图层。ThreeDModelLayer 是 AVLayer 的子类（AVLayer 又是 Layer 的子类），AVLayer 和 Layer 的所有方法和属性都可用。ThreeDModelLayer 不定义额外的脚本 API 属性或方法。（AE 24.4 新增）
+    → ThreeDModelLayer 继承以下 AE 属性和属性组（来自 AVLayer）：Marker（标记）、Time Remap（时间重映射）、Transform（变换：Anchor Point、Position、Scale、Orientation、X Rotation、Y Rotation、Rotation、Opacity）、Layer Styles（图层样式）、Audio（音频：AudioLevels）。
+
+=====================
+## Property 对象（属性）
+【属性】
+Property.alternateSource
+    → 获取或设置此属性的替代源（AVItem 对象），用于媒体替换。读取时返回当前替代源；写入时设置替代源。当属性类型不支持替代源、或未设置替代源时，值为 null。使用 Property.setAlternateSource() 修改，用 Property.canSetAlternateSource 预检。（AE 18.0 / 2021 新增）
+Property.canSetAlternateSource
+    → 测试该属性是否为支持媒体替换的基本属性。 如果该属性允许媒体替换，则返回 true，否则返回 false。
+Property.canSetExpression
+    → 当为 true 时，命名属性的类型可以通过脚本设置其表达式。另请参阅 Property expression 属性。
+Property.canVaryOverTime
+    → 当为 true 时，命名属性可以随时间变化 —— 即可以为此属性写入关键帧值或表达式。
+Property.dimensionsSeparated
+    → 当为 true 时，属性的维度表示为单独的属性。例如，如果图层的位置在时间轴面板中表示为 X 位置和 Y 位置属性，则位置属性将此属性设置为 true。
+Property.essentialPropertySource
+    → 基本属性对象上的实例属性，返回用于创建基本属性的原始源属性。
+Property.expression
+    → 命名属性的表达式。仅当命名属性的 canSetExpression 为 true 时可写。当您为此属性指定值时，字符串会被评估。
+Property.expressionEnabled
+    → 当为 true 时，命名属性使用其关联的表达式生成值。当为 false 时，使用属性的关键帧信息或静态值。仅当命名属性的 canSetExpression 为 true 且 expression 包含有效表达式字符串时，才能将此属性设置为 true。
+Property.expressionError
+    → 包含最近在 expression 中设置的字符串评估生成的错误（如果有）。如果未指定表达式字符串，或如果最后一个表达式字符串评估无误，则包含空字符串 ("")。
+Property.hasMax
+    → 当为 true 时，命名属性有允许的最大值；否则为 false。
+Property.hasMin
+    → 当为 true 时，命名属性有允许的最小值；否则为 false。
+Property.isDropdownEffect
+    → 当为 true 时，该属性是下拉菜单控制效果的菜单属性，并且可以使用 setPropertyParameters 更新其项目。
+Property.isSeparationFollower
+    → 当为 true 时，该属性表示多维属性的其中一个分离维度。例如，X 位置属性将此属性设置为 true。
+Property.isSeparationLeader
+    → 当为 true 时，该属性是多维的且可以分离。例如，位置属性将此属性设置为 true。
+Property.isSpatial
+    → 当为 true 时，命名属性定义空间值。例如位置和效果点控制。
+Property.isTimeVarying
+    → 当为 true 时，命名属性随时间变化 —— 即它具有关键帧或启用的表达式。当此属性为 true 时，属性 canVaryOverTime 也必须为 true。
+Property.maxValue
+    → 命名属性的允许最大值。如果 hasMax 属性为 false，则会发生异常并生成错误。
+Property.minValue
+    → 命名属性的允许最小值。如果 hasMin 属性为 false，则会发生异常并生成错误。
+Property.numKeys
+    → 命名属性中的关键帧数量。如果值为 0，则该属性未被关键帧化。
+Property.propertyIndex
+    → 命名属性的位置索引。第一个属性位于索引位置 1。
+Property.propertyParameters
+    → 下拉菜单属性中所有选项条目的字符串数组，只读。适用于效果和图层的下拉菜单属性，包括 Dropdown Menu Control 的 Menu 属性中的自定义字符串。此属性对应 Property.setPropertyParameters()，充当下拉菜单字符串的 getter。（AE 26.0 新增）
+Property.propertyValueType
+    → 命名属性中存储的值的类型。PropertyValueType 枚举为可以存储在属性中或从属性中检索的每种数据类型都有一个值。每种类型的数据以不同的结构存储和检索。所有属性对象都根据这些类别之一存储数据。例如，3D 空间属性（如图层的位置）存储为三个浮点值的数组。设置位置值时，传入这样的数组，如下所示：mylayer.property("position").setValue([10, 20, 0]); 相比之下，形状属性（如图层的遮罩形状）存储为 Shape 对象。设置形状值时，传入 Shape 对象。
+    → 返回: PropertyValueType 枚举值，只读。取值包括：NO_VALUE（无数据）、ThreeD_SPATIAL（3D 空间位置值数组）、ThreeD（3D 数量值数组）、TwoD_SPATIAL（2D 空间位置值数组）、TwoD（2D 数量值数组）、OneD（浮点值）、COLOR（4 浮点值数组 [r,g,b,opacity]，范围 0.0-1.0）、CUSTOM_VALUE（自定义值）、MARKER（MarkerValue 对象）、LAYER_INDEX（整数，0 表示无图层）、MASK_INDEX（整数，0 表示无遮罩）、SHAPE（Shape 对象）、TEXT_DOCUMENT（TextDocument 对象）。
+Property.selectedKeys
+    → 命名属性中所有选定关键帧的索引。如果未选择关键帧，或属性没有关键帧，则返回空数组。
+Property.separationDimension
+    → 对于分离的跟随者，表示其在多维领导者中的维度编号。第一个维度从 0 开始。例如，Y 位置属性的 separationDimension 值为 1；X 位置属性的值为 0。
+Property.separationLeader
+    → 此分离跟随者的原始多维属性。例如，如果当前属性是 Y 位置，则此属性的值指向位置属性。
+Property.unitsText
+    → 值所表示单位的文本描述。
+Property.value
+    → 当前时间命名属性的值。
+Property.valueText
+    → 下拉菜单属性中当前选中条目的文本字符串，只读。适用于效果和图层的下拉菜单属性，包括 Dropdown Menu Control 的 Menu 属性中的自定义字符串。（AE 26.0 新增）
+
+【方法】
+Property.addKey()
+    → 签名: Property.addKey(time)
+    → 参数: time 为关键帧的时间（秒）。
+    → 在指定时间为属性添加新关键帧。
+    → 返回: 整数；新关键帧或标记的索引。
+Property.addToMotionGraphicsTemplate()
+    → 签名: Property.addToMotionGraphicsTemplate(comp)
+    → 参数: comp 为目标 CompItem 对象。
+    → 将此属性添加到指定合成的 Essential Graphics 面板中。
+    → 返回: 布尔值。
+Property.addToMotionGraphicsTemplateAs()
+    → 签名: Property.addToMotionGraphicsTemplateAs(comp, name)
+    → 参数: comp 为目标 CompItem 对象；name 为自定义名称。
+    → 将此属性添加到指定合成的 Essential Graphics 面板中，并指定自定义名称。
+    → 返回: 布尔值。
+Property.canAddToMotionGraphicsTemplate()
+    → 签名: Property.canAddToMotionGraphicsTemplate(comp)
+    → 参数: comp 为 CompItem 对象，要添加到的目标合成。
+    → 测试此属性是否可添加到指定合成的 Essential Graphics 面板。（AE 18.0 / 2021 新增）
+    → 返回: 布尔值。
+Property.getSeparationFollower()
+    → 签名: Property.getSeparationFollower(dim)
+    → 参数: dim 为维度索引。
+    → 对于已分离的多维属性，检索指定维度的跟随者属性。
+    → 返回: 属性对象，如果属性不是多维或没有指定维度则返回错误。
+Property.isInterpolationTypeValid()
+    → 签名: Property.isInterpolationTypeValid(type)
+    → 参数: type 为 KeyframeInterpolationType 枚举值（LINEAR、BEZIER、HOLD）。
+    → 返回该属性是否可以使用指定的关键帧插值类型。
+    → 返回: 布尔值。
+Property.keyInInterpolationType()
+    → 签名: Property.keyInInterpolationType(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的"入"插值类型。
+    → 返回: KeyframeInterpolationType 枚举值。可选值：KeyframeInterpolationType.LINEAR（线性）、KeyframeInterpolationType.BEZIER（贝塞尔）、KeyframeInterpolationType.HOLD（保持）。
+Property.keyInSpatialTangent()
+    → 签名: Property.keyInSpatialTangent(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的入空间切线（仅适用于空间属性）。
+    → 返回: 浮点值数组。如果属性值类型为 PropertyValueType.TwoD_SPATIAL，数组包含 2 个浮点值；如果为 PropertyValueType.ThreeD_SPATIAL，数组包含 3 个浮点值。
+Property.keyInTemporalEase()
+    → 签名: Property.keyInTemporalEase(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的入时间缓动。
+    → 返回: KeyframeEase 对象数组。数组长度与属性维度匹配：TwoD 属性返回 2 个对象，ThreeD 属性返回 3 个对象，OneD 属性返回 1 个对象。
+Property.keyLabel()
+    → 签名: Property.keyLabel(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的标签颜色编号（0 为无，1-16 为预设颜色）。
+    → 返回: 整数（0 到 16）；只读。
+Property.keyOutInterpolationType()
+    → 签名: Property.keyOutInterpolationType(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的"出"插值类型。
+    → 返回: KeyframeInterpolationType 枚举值。可选值：KeyframeInterpolationType.LINEAR（线性）、KeyframeInterpolationType.BEZIER（贝塞尔）、KeyframeInterpolationType.HOLD（保持）。
+Property.keyOutSpatialTangent()
+    → 签名: Property.keyOutSpatialTangent(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的出空间切线（仅适用于空间属性）。
+    → 返回: 浮点值数组。如果属性值类型为 PropertyValueType.TwoD_SPATIAL，数组包含 2 个浮点值；如果为 PropertyValueType.ThreeD_SPATIAL，数组包含 3 个浮点值。
+Property.keyOutTemporalEase()
+    → 签名: Property.keyOutTemporalEase(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的出时间缓动。
+    → 返回: KeyframeEase 对象数组。数组长度与属性维度匹配：TwoD 属性返回 2 个对象，ThreeD 属性返回 3 个对象，OneD 属性返回 1 个对象。
+Property.keyRoving()
+    → 签名: Property.keyRoving(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否为漫游关键帧。
+    → 返回: 布尔值。
+Property.keySelected()
+    → 签名: Property.keySelected(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否被选中。
+    → 返回: 布尔值。
+Property.keySpatialAutoBezier()
+    → 签名: Property.keySpatialAutoBezier(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否具有空间自动贝塞尔插值。
+    → 返回: 布尔值。
+Property.keySpatialContinuous()
+    → 签名: Property.keySpatialContinuous(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否具有空间连续性。
+    → 返回: 布尔值。
+Property.keyTemporalAutoBezier()
+    → 签名: Property.keyTemporalAutoBezier(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否具有时间自动贝塞尔插值。
+    → 返回: 布尔值。
+Property.keyTemporalContinuous()
+    → 签名: Property.keyTemporalContinuous(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧是否具有时间连续性。
+    → 返回: 布尔值。
+Property.keyTime()
+    → 签名: Property.keyTime(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的时间（秒）。
+    → 返回: 浮点数值。
+Property.keyValue()
+    → 签名: Property.keyValue(keyIndex)
+    → 参数: keyIndex 为关键帧索引。
+    → 返回指定关键帧的当前值。
+    → 返回: 返回与 PropertyValueType 对应的类型的值。
+Property.nearestKeyIndex()
+    → 签名: Property.nearestKeyIndex(time)
+    → 参数: time 为时间（秒）。
+    → 返回最接近指定时间的关键帧索引。
+    → 返回: 整数。
+Property.removeKey()
+    → 签名: Property.removeKey(keyIndex)
+    → 参数: keyIndex 为要删除的关键帧索引。
+    → 删除指定索引的关键帧。删除后更高索引的关键帧会下移。
+    → 返回: 无。
+Property.setAlternateSource()
+    → 签名: Property.setAlternateSource(altSource)
+    → 参数: altSource 为 AVItem 对象，用作替代源。
+    → 为支持媒体替换的属性设置替代源。（AE 18.0 / 2021 新增）
+    → 返回: 无。
+Property.setInterpolationTypeAtKey()
+    → 签名: Property.setInterpolationTypeAtKey(keyIndex, inType, outType)
+    → 参数: keyIndex 关键帧索引；inType/outType 为 KeyframeInterpolationType 枚举值（LINEAR/BEZIER/HOLD）。
+    → 设置指定关键帧的入/出插值类型。
+    → 返回: 无。
+Property.setLabelAtKey()
+    → 签名: Property.setLabelAtKey(keyIndex, label)
+    → 参数: keyIndex 关键帧索引；label 为标签颜色编号（0-16）。
+    → 设置指定关键帧的标签颜色。
+    → 返回: 无。
+Property.setPropertyParameters()
+    → 签名: Property.setPropertyParameters(parameters)
+    → 参数: parameters 为字符串数组，设置下拉菜单控制效果的菜单项。
+    → 设置下拉菜单控制效果（Dropdown Menu Control）的菜单项。仅对 isDropdownEffect 为 true 的属性有效。
+    → 返回: 无。
+Property.setRovingAtKey()
+    → 签名: Property.setRovingAtKey(keyIndex, roving)
+    → 参数: keyIndex 关键帧索引；roving 为布尔值。
+    → 设置指定关键帧是否漫游。仅对空间属性的非首尾关键帧有效。
+    → 返回: 无。
+Property.setSelectedAtKey()
+    → 签名: Property.setSelectedAtKey(keyIndex, onOff)
+    → 参数: keyIndex 关键帧索引；onOff 为布尔值。
+    → 选择或取消选择指定关键帧。
+    → 返回: 无。
+Property.setSpatialAutoBezierAtKey()
+    → 签名: Property.setSpatialAutoBezierAtKey(keyIndex, onOff)
+    → 参数: keyIndex 关键帧索引；onOff 为布尔值。
+    → 设置指定关键帧的空间自动贝塞尔。启用时需插值类型为 BEZIER。
+    → 返回: 无。
+Property.setSpatialContinuousAtKey()
+    → 签名: Property.setSpatialContinuousAtKey(keyIndex, onOff)
+    → 参数: keyIndex 关键帧索引；onOff 为布尔值。
+    → 设置指定关键帧的空间连续性。
+    → 返回: 无。
+Property.setSpatialTangentsAtKey()
+    → 签名: Property.setSpatialTangentsAtKey(keyIndex, inTangent, outTangent)
+    → 参数: keyIndex 关键帧索引；inTangent/outTangent 为切线向量数组（2D 或 3D 浮点数组）。
+    → 设置指定关键帧的入/出空间切线。
+    → 返回: 无。
+Property.setTemporalAutoBezierAtKey()
+    → 签名: Property.setTemporalAutoBezierAtKey(keyIndex, onOff)
+    → 参数: keyIndex 关键帧索引；onOff 为布尔值。
+    → 设置指定关键帧的时间自动贝塞尔。启用时需插值类型为 BEZIER。
+    → 返回: 无。
+Property.setTemporalContinuousAtKey()
+    → 签名: Property.setTemporalContinuousAtKey(keyIndex, onOff)
+    → 参数: keyIndex 关键帧索引；onOff 为布尔值。
+    → 设置指定关键帧的时间连续性。
+    → 返回: 无。
+Property.setTemporalEaseAtKey()
+    → 签名: Property.setTemporalEaseAtKey(keyIndex, inEases, outEases)
+    → 参数: keyIndex 关键帧索引；inEases/outEases 为 KeyframeEase 对象数组（维度数与属性匹配）。
+    → 设置指定关键帧的入/出时间缓动。
+    → 返回: 无。
+Property.setValue()
+    → 签名: Property.setValue(newValue)
+    → 参数: newValue 为与属性 propertyValueType 匹配的新值（如位置传 [x,y,z] 数组、源文本传 TextDocument 或字符串）。
+    → 设置属性的当前值。若属性已关键帧化，会在当前时间创建关键帧。
+    → 返回: 无。
+Property.setValueAtKey()
+    → 签名: Property.setValueAtKey(keyIndex, newValue)
+    → 参数: keyIndex 关键帧索引；newValue 为与属性类型匹配的新值。
+    → 设置指定关键帧的值。
+    → 返回: 无。
+Property.setValueAtTime()
+    → 签名: Property.setValueAtTime(time, newValue)
+    → 参数: time 时间（秒）；newValue 为与属性类型匹配的新值。
+    → 在指定时间创建关键帧并设置值。若该时间已有关键帧则更新其值。
+    → 返回: 无。
+Property.setValuesAtTimes()
+    → 签名: Property.setValuesAtTimes(times, values)
+    → 参数: times 为时间数组（秒）；values 为对应值数组。
+    → 批量在多个时间点创建/更新关键帧。比逐个调用 setValueAtTime 更高效。
+    → 返回: 无。
+Property.valueAtTime()
+    → 签名: Property.valueAtTime(time, preExpression)
+    → 参数: time 为时间（秒）；preExpression 为布尔值，true 时返回表达式求值前的值。
+    → 返回属性在指定时间评估后的值。
+    → 返回: 适合属性 propertyValueType 类型的值（参见 Property.propertyValueType）。
+
+=====================
+## PropertyBase 对象（属性基类）
+【属性】
+PropertyBase.active
+    → 对于图层，这对应于眼球图标的设置。当为 true 时，图层的视频在当前时间处于活动状态。要使此值为 true，图层必须启用，除非此图层也被独奏，否则其他图层不能独奏，并且时间必须在此图层的 inPoint 和 outPoint 值之间。 对于音频图层，此值永远不会为 true；AVLayer 对象中有一个单独的 audioActive 属性 AVLayer.audioActive。
+PropertyBase.canSetEnabled
+    → 当为 true 时，你可以设置 enabled 属性值。通常，如果用户界面为此属性显示眼球图标，则此值为 true；对于所有图层，此值为 true。
+PropertyBase.elided
+    → 当为 true 时，此属性是一个用于组织其他属性的组。该属性不会显示在用户界面中，其子属性在时间轴面板中不会缩进。例如，对于具有两个动画器且未展开属性的文本图层，你可能会看到两个 Animator 组而非一个包含两个 Animator 的父组。
+PropertyBase.enabled
+    → 对于图层，这对应于时间轴面板中图层的视频开关状态。对于效果和所有属性，它对应于眼球图标的设置（如果有）。 当为 true 时，图层或属性已启用；否则为 false。
+PropertyBase.isEffect
+    → 当为 true 时，此属性是一个效果 PropertyGroup。
+PropertyBase.isMask
+    → 当为 true 时，此属性是一个遮罩 PropertyGroup。
+PropertyBase.isModified
+    → 当为 true 时，此属性自创建以来已被修改。
+PropertyBase.matchName
+    → 用于构建唯一命名路径的属性的特殊名称。匹配名称不会显示，但你可以在脚本中引用它。每个属性都有一个唯一的匹配名称标识符。匹配名称在版本之间是稳定的，无论显示名称（name 属性值）或应用程序的任何更改如何。与显示名称不同，它不会被本地化。索引组可能没有 name 值，但始终有 matchName 值。（索引组的类型为 PropertyType.INDEXED_GROUP；请参阅 PropertyBase.propertyType。）
+PropertyBase.name
+    → 对于图层，图层的名称。默认情况下，这与源名称相同，除非 Layer.isNameSet 返回 false。 对于效果和所有属性，属性的显示名称。（比较 PropertyBase.matchName。）如果属性不是索引组的子项（即属性组的类型为 PropertyType.INDEXED_GROUP；请参阅 PropertyBase.propertyType），则设置 name 值会出错。
+PropertyBase.parentProperty
+    → 此属性的直接父属性组，如果此 PropertyBase 是图层，则为 null。
+PropertyBase.propertyDepth
+    → 此属性与包含图层之间的父组级别数。对于图层，值为 0。
+PropertyBase.propertyIndex
+    → 命名属性的位置索引。第一个属性位于索引位置 1。
+PropertyBase.propertyType
+    → 此属性的类型。
+PropertyBase.selected
+    → 当为 true 时，此属性被选中。设置为 true 以选择该属性，或设置为 false 以取消选择。对大量属性重复采样此属性可能会降低系统性能。要读取合成或图层的完整选定属性集，请使用 CompItem.selectedProperties 或 Layer.selectedProperties。
+
+【方法】
+PropertyBase.duplicate()
+    → 如果此属性是索引组的子项，则创建并返回一个具有相同值的新 PropertyBase 对象。
+    → 返回: PropertyBase 对象。
+PropertyBase.moveTo()
+    → 签名: PropertyBase.moveTo(newIndex)
+    → 参数: newIndex 为目标位置索引。
+    → 将此属性移动到其父属性组中的新位置。仅对索引组的子属性有效（PropertyType.INDEXED_GROUP），否则报错。移动会使同组其他属性的引用失效。
+    → 返回: 无。
+PropertyBase.propertyGroup()
+    → 签名: PropertyBase.propertyGroup([countUp])
+    → 参数: countUp 可选，要上升的层数，默认为 1（获取直接父级）。
+    → 获取此属性在父子层次结构中指定级别的祖先组。
+    → 返回: PropertyGroup 对象，如果计数达到包含图层，则返回 Layer 对象。
+PropertyBase.remove()
+    → 从其父属性组中删除此属性。仅对索引组的子属性有效（PropertyType.INDEXED_GROUP）。
+    → 返回: 无。
+
+=====================
+## PropertyGroup 对象（属性组）
+【属性】
+PropertyGroup.numProperties
+    → 此组中索引属性的数量。 对于图层，此方法返回值为 3，对应于遮罩、效果和运动跟踪器组，这些是图层内的索引组。
+
+【方法】
+PropertyGroup.addProperty()
+    → 签名: PropertyGroup.addProperty(name)
+    → 参数: name 为要创建的属性名称或 matchName。
+    → 创建并返回指定名称的 PropertyBase 对象，添加到此组。通常仅可向索引组添加属性；文本动画器属性是例外，可添加到命名组。若无法创建则报错；先用 canAddProperty 检查。
+    → 返回: PropertyBase 对象。
+PropertyGroup.addVariableFontAxis()
+    → 签名: PropertyGroup.addVariableFontAxis(axisTag)
+    → 参数: axisTag 为标识可变字体轴的 4 字符标签字符串（如 "wght" 字重、"wdth" 宽度、"slnt" 倾斜、"ital" 斜体、"opsz" 光学尺寸）。
+    → 为可变字体轴创建并返回 Property 对象，添加到此属性组。只能对文本动画器内的 "ADBE Text Animator Properties" 属性组调用。轴必须存在于字体上才有效，可用 FontObject.designAxesData 查询字体支持的轴。（AE 26.0 新增）
+    → 返回: Property 对象；表示该可变字体轴。
+PropertyGroup.canAddProperty()
+    → 签名: PropertyGroup.canAddProperty(name)
+    → 参数: name 为要检查的属性名称或 matchName。
+    → 测试是否可以向此属性组添加指定名称的属性。
+    → 返回: 布尔值。
+PropertyGroup.property()
+    → 签名: PropertyGroup.property(index) 或 PropertyGroup.property(name)
+    → 参数: index 为子属性索引；name 为子属性名称字符串。
+    → 按索引或名称查找并返回此组的子属性。
+    → 返回: PropertyBase 对象 或 null（如果未找到具有指定字符串名称的子属性）。
+
+=====================
+## MaskPropertyGroup 对象（遮罩属性组）
+【属性】
+MaskPropertyGroup.color
+    → 用于绘制遮罩轮廓的颜色，显示在用户界面中（合成面板、图层面板和时间轴面板）。
+MaskPropertyGroup.inverted
+    → 当为 true 时，遮罩被反转；否则为 false。
+MaskPropertyGroup.locked
+    → 当为 true 时，遮罩被锁定且无法在用户界面中编辑；否则为 false。
+MaskPropertyGroup.maskFeatherFalloff
+    → 遮罩的羽化衰减模式。等同于图层 > 遮罩 > 羽化衰减设置。
+MaskPropertyGroup.maskMode
+    → 此遮罩的遮罩模式。
+MaskPropertyGroup.maskMotionBlur
+    → 运动模糊如何应用于此遮罩。
+MaskPropertyGroup.rotoBezier
+    → 当为 true 时，遮罩为 RotoBezier 形状；否则为 false。
+
+=====================
+## RenderQueue 对象（渲染队列）
+【属性】
+RenderQueue.canQueueInAME
+    → 指示 After Effects 渲染队列中是否有排队的渲染项目。只有排队的项目才能添加到 AME 队列中。使用 RenderQueue.queueInAME() 将项目发送到 Adobe Media Encoder 队列。
+RenderQueue.queueNotify
+    → 读取或写入整个渲染队列的 Notify 属性。 这在用户界面中表现为渲染队列面板右下角的复选框。
+RenderQueue.items
+    → 渲染队列中所有项目的集合。请参阅 RenderQueueItem 对象。
+RenderQueue.numItems
+    → 渲染队列中的项目总数。
+RenderQueue.rendering
+    → 当为 true 时，渲染过程正在进行或暂停。当为 false 时，渲染过程已停止。
+
+【方法】
+RenderQueue.item()
+    → 签名: RenderQueue.item(index)
+    → 参数: index 为渲染队列项的索引号（从 1 开始）。
+    → 从渲染队列中获取指定索引位置的渲染队列项。
+    → 返回: RenderQueueItem 对象。
+RenderQueue.pauseRendering()
+    → 签名: RenderQueue.pauseRendering(pause)
+    → 参数: pause 为布尔值，true 暂停渲染，false 恢复渲染。
+    → 暂停或恢复当前正在进行的渲染。
+    → 返回: 无。
+RenderQueue.render()
+    → 启动渲染队列中所有 status 为 QUEUED 的项目。此方法会阻塞，直到渲染完成或被停止。渲染期间可由 app.onError 或 RenderQueueItem.onstatus 回调中断。
+    → 返回: 无。
+RenderQueue.showWindow()
+    → 显示渲染队列面板并将其置于最前。
+    → 返回: 无。
+RenderQueue.stopRendering()
+    → 停止当前正在进行的渲染。
+    → 返回: 无。
+RenderQueue.queueInAME()
+    → 将渲染队列中所有 QUEUED 状态的项目添加到 Adobe Media Encoder 队列。仅 queued 项目可添加；可用 RenderQueue.canQueueInAME 预检。
+    → 返回: 无。
+
+=====================
+## RQItemCollection 对象（渲染队列项集合）
+【方法】
+RQItemCollection.add()
+    → 签名: RQItemCollection.add(comp)
+    → 参数: comp 为要添加到渲染队列的 CompItem 对象。
+    → 将合成添加到渲染队列中，创建新的渲染队列项。
+    → 返回: RenderQueueItem 对象。
+
+=====================
+## RenderQueueItem 对象（渲染队列项）
+【属性】
+RenderQueueItem.comp
+    → 该渲染队列项目将渲染的合成。要更改合成，必须删除此渲染队列项目并创建一个新的。
+RenderQueueItem.elapsedSeconds
+    → 渲染此项目所花费的秒数。
+RenderQueueItem.logType
+    → 该项目的日志类型，指示在渲染此项目时应记录哪些事件。
+RenderQueueItem.numOutputModules
+    → 分配给此项目的输出模块总数。
+RenderQueueItem.onStatusChanged
+    → 每当 RenderQueueItem.status 属性的值发生变化时调用的回调函数的名称。 在渲染进行中或暂停时，您无法对渲染队列项目或应用程序进行更改；但是，您可以使用此回调来暂停或停止渲染过程。请参阅 RenderQueue.pauseRendering () 和 RenderQueue.stopRendering ()。另请参阅 app.onError。（官方现行文档名为 onStatusChanged；旧版 CS6 文档曾记作 onstatus）
+RenderQueueItem.outputModules
+    → 该项目的输出模块集合。
+RenderQueueItem.queueItemNotify
+    → 脚本可以读取和写入渲染队列中每个项目的 Notify 复选框。这在用户界面中显示为渲染队列项目旁边的复选框，位于 Notify 列中。 默认情况下，此列是隐藏的，可能需要通过右键单击渲染队列列标题并选择 Notify 来使其可见。
+RenderQueueItem.render
+    → 当为 true 时，项目将在渲染队列启动时被渲染。当设置为 true 时，RenderQueueItem.status 设置为 RQItemStatus.QUEUED。当设置为 false 时，status 设置为 RQItemStatus.UNQUEUED。
+RenderQueueItem.skipFrames
+    → 渲染此项目时要跳过的帧数。使用此功能可以执行比完整渲染更快的渲染测试。值为 0 时不跳过任何帧，并导致所有帧的常规渲染。值为 1 时跳过每隔一帧。这相当于 “每隔两帧渲染一次”。更高的值会跳过更多的帧。总时间长度保持不变。例如，如果 skip 的值为 1，则序列输出将具有一半的帧数，而在电影输出中，每帧的持续时间将加倍。
+RenderQueueItem.startTime
+    → 该项目开始渲染的日期和时间。
+RenderQueueItem.status
+    → 该项目的当前渲染状态。
+RenderQueueItem.templates
+    → 该项目可用的所有渲染设置模板的名称。另请参阅 RenderQueueItem.saveAsTemplate ()。
+RenderQueueItem.timeSpanDuration
+    → 要渲染的合成的持续时间（以秒为单位）。持续时间通过从结束时间减去开始时间来确定。设置此值与在渲染设置对话框中设置自定义结束时间相同。
+RenderQueueItem.timeSpanStart
+    → 合成中开始渲染的时间（以秒为单位）。设置此值与在渲染设置对话框中设置自定义开始时间相同。
+
+【方法】
+RenderQueueItem.applyTemplate()
+    → 签名: RenderQueueItem.applyTemplate(templateName)
+    → 参数: templateName 为渲染设置模板名称（字符串）。
+    → 将指定的渲染设置模板应用到此渲染队列项目。
+    → 返回: 无。
+RenderQueueItem.duplicate()
+    → 创建当前渲染队列项的副本并添加到渲染队列中。
+    → 返回: RenderQueueItem 对象。
+RenderQueueItem.getSetting()
+    → 签名: RenderQueueItem.getSetting(getSettingType)
+    → 参数: getSettingType 为 RQItemSettingType 枚举值。
+    → 获取此渲染队列项目的指定设置值。（AE 23.0 新增）
+    → 返回: 字符串。
+RenderQueueItem.getSettings()
+    → 签名: RenderQueueItem.getSettings(format, extraOptions)
+    → 参数: format 为 OutputModuleFormatType 枚举值；extraOptions 为 OutputModuleExtraOptionsType 枚举值。
+    → 批量获取此渲染队列项目的设置。（AE 23.0 新增）
+    → 返回: 字符串或对象，取决于 format。
+RenderQueueItem.outputModule()
+    → 签名: RenderQueueItem.outputModule(index)
+    → 参数: index 为输出模块的索引号（从 1 开始）。
+    → 获取此渲染队列项的指定输出模块。
+    → 返回: OutputModule 对象。
+RenderQueueItem.remove()
+    → 从渲染队列中删除此项目。
+    → 返回: 无。
+RenderQueueItem.saveAsTemplate()
+    → 签名: RenderQueueItem.saveAsTemplate(name)
+    → 参数: name 为新模板名称。
+    → 将此项目的当前渲染设置保存为命名模板。
+    → 返回: 无。
+RenderQueueItem.setSetting()
+    → 签名: RenderQueueItem.setSetting(setSettingType, value)
+    → 参数: setSettingType 为 RQItemSettingType 枚举值；value 为新值。
+    → 设置此渲染队列项目的指定设置值。（AE 23.0 新增）
+    → 返回: 无。
+RenderQueueItem.setSettings()
+    → 签名: RenderQueueItem.setSettings(text, format)
+    → 参数: text 为设置内容字符串；format 为 OutputModuleFormatType 枚举值。
+    → 批量设置此渲染队列项目的设置。（AE 23.0 新增）
+    → 返回: 无。
+
+=====================
+## OMCollection 对象（输出模块集合）
+    → OMCollection 包含渲染队列项的所有输出模块，提供对 OutputModule 对象的访问并允许创建它们。第一个输出模块位于索引位置 1。它是 Collection 的子类，Collection 的所有方法和属性均可用。
+【方法】
+OMCollection.add()
+    → 签名: OMCollection.add()
+    → 向渲染队列项添加一个新的输出模块，创建 OutputModule。
+    → 返回: OutputModule 对象。
+
+=====================
+## OutputModule 对象（输出模块）
+【属性】
+OutputModule.file
+    → 此输出模块设置为渲染的文件的 Extendscript File 对象。
+OutputModule.includeSourceXMP
+    → 当为 true 时，将所有源素材的 XMP 元数据写入输出文件。对应于输出模块设置对话框中的 “包含源 XMP 元数据” 选项。
+OutputModule.name
+    → 输出模块的名称，如用户界面中所示。
+OutputModule.postRenderAction
+    → 渲染操作完成后要执行的操作。
+OutputModule.templates
+    → 本地安装的 After Effects 中所有可用的输出模块模板的名称。
+
+【方法】
+OutputModule.applyTemplate()
+    → 签名: OutputModule.applyTemplate(templateName)
+    → 参数: templateName 为输出模块模板名称（字符串）。
+    → 将指定的输出模块模板应用到此输出模块。
+    → 返回: 无。
+OutputModule.getSetting()
+    → 签名: OutputModule.getSetting(getSettingType)
+    → 参数: getSettingType 为 OMSettingType 枚举值。
+    → 获取此输出模块的指定设置值。（AE 23.0 新增）
+    → 返回: 字符串。
+OutputModule.getSettings()
+    → 签名: OutputModule.getSettings(format, extraOptions)
+    → 参数: format 为 OutputModuleFormatType 枚举值；extraOptions 为 OutputModuleExtraOptionsType 枚举值。
+    → 批量获取此输出模块的设置。（AE 23.0 新增）
+    → 返回: 字符串或对象，取决于 format。
+OutputModule.remove()
+    → 从渲染队列项目中删除此输出模块。
+    → 返回: 无。
+OutputModule.saveAsTemplate()
+    → 签名: OutputModule.saveAsTemplate(name)
+    → 参数: name 为新模板名称。
+    → 将此输出模块的当前设置保存为命名模板。
+    → 返回: 无。
+OutputModule.setSetting()
+    → 签名: OutputModule.setSetting(setSettingType, value)
+    → 参数: setSettingType 为 OMSettingType 枚举值；value 为新值。
+    → 设置此输出模块的指定设置值。（AE 23.0 新增）
+    → 返回: 无。
+OutputModule.setSettings()
+    → 签名: OutputModule.setSettings(text, format)
+    → 参数: text 为设置内容字符串；format 为 OutputModuleFormatType 枚举值。
+    → 批量设置此输出模块的设置。（AE 23.0 新增）
+    → 返回: 无。
+
+=====================
+## FileSource 对象（文件素材源）
+【属性】
+FileSource.file
+    → 定义此资产的文件的 Extendscript File 对象。要更改该值，使用 FootageItem.replace() 或 FootageItem.replaceWithSequence() 等方法替换整个素材源。
+FileSource.missingFootagePath
+    → 此资产中缺失素材的路径和文件名。另请参阅 AVItem.footageMissing。
+
+【方法】
+FileSource.reload()
+    → 重新加载此 FileSource 对应的素材文件。用于在文件被外部修改后刷新。
+    → 返回: 无。
+
+=====================
+## FootageSource 对象（素材源基类）
+【属性】
+FootageSource.alphaMode
+    → 定义素材中 Alpha 信息的解释方式。如果 hasAlpha 为 false，则此属性没有实际意义。
+FootageSource.conformFrameRate
+    → 用于替代 nativeFrameRate 的帧率。如果设置为 0，则使用 nativeFrameRate。如果 FootageSource.isStill 为 true，则设置此值会报错。如果 removePulldown 未设置为 PulldownPhase.OFF，则将此值设置为 0 会报错。如果在设置 removePulldown 为 PulldownPhase.OFF 以外的值时此值为 0，则此值会自动设置为 nativeFrameRate 的值。
+FootageSource.displayFrameRate
+    → After Effects 在合成中显示和渲染的有效帧率。如果 removePulldown 为 PulldownPhase.OFF，则此值与 conformFrameRate（如果非零）或 nativeFrameRate（如果 conformFrameRate 为 0）相同。如果 removePulldown 不是 PulldownPhase.OFF，则此值为 conformFrameRate * 0.8，即移除每 5 帧中的 1 帧后的有效帧率。
+FootageSource.fieldSeparationType
+    → 在非静态素材中如何分离场。如果 isStill 为 true，则设置此属性会报错。如果 removePulldown 不是 PulldownPhase.OFF，则将此值设置为 FieldSeparationType.OFF 会报错。
+FootageSource.hasAlpha
+    → 当为 true 时，素材具有 Alpha 通道。在这种情况下，属性 alphaMode、invertAlpha 和 premulColor 具有有效值。当为 false 时，这些属性对素材没有实际意义。
+FootageSource.highQualityFieldSeparation
+    → 当为 true 时，After Effects 使用特殊算法来确定如何进行高质量的场分离。如果 isStill 为 true，或 fieldSeparationType 为 FieldSeparationType.OFF，则设置此属性会报错。
+FootageSource.invertAlpha
+    → 当为 true 时，素材剪辑或代理中的 Alpha 通道应反转。仅当存在 Alpha 通道时此属性有效。如果 hasAlpha 为 false，或 alphaMode 为 AlphaMode.IGNORE，则此属性被忽略。
+FootageSource.isStill
+    → 当为 true 时，素材是静态的；当为 false 时，素材具有时间成分。静态素材的示例包括 JPEG 文件、纯色和持续时间为 0 的占位符。非静态素材的示例包括视频文件、音频文件、序列和非零持续时间的占位符。
+FootageSource.loop
+    → 素材在合成中连续播放的次数。如果 isStill 为 true，则设置此属性会报错。
+FootageSource.nativeFrameRate
+    → 素材的原始帧率。
+FootageSource.premulColor
+    → 要预乘的颜色。仅当 alphaMode 为 alphaMode.PREMULTIPLIED 时此属性有效。
+FootageSource.removePulldown
+    → 在使用场分离时如何移除下拉。如果 isStill 为 true，则设置此属性会报错。如果 fieldSeparationType 为 FieldSeparationType.OFF，则尝试将此值设置为 PulldownPhase.OFF 以外的值会报错。
+
+【方法】
+FootageSource.guessAlphaMode()
+    → 让 After Effects 自动估算此素材源的 Alpha 解释方式，并据此设置 alphaMode、invertAlpha 和 premulColor。
+    → 返回: 无。
+FootageSource.guessPulldown()
+    → 签名: FootageSource.guessPulldown(method)
+    → 参数: method 为 PulldownMethod 枚举值（PULLDOWN_3_2 或 ADVANCE_24P）。
+    → 让 After Effects 自动检测并设置此素材的下移（pulldown）相位。
+    → 返回: 无。
+
+=====================
+## SolidSource 对象（纯色素材源）
+【属性】
+SolidSource.color
+    → 纯色的颜色，以红、绿、蓝值表示。
+
+=====================
+## PlaceholderSource 对象（占位符素材源）
+    → 描述占位符的素材源。通过 Project.importPlaceholder() 创建 PlaceholderItem 时，其 mainSource 即为 PlaceholderSource；也可通过 FootageItem.replaceWithPlaceholder() 将现有素材源替换为 PlaceholderSource。
+    → PlaceholderSource 是 FootageSource 的子类，FootageSource 的所有方法和属性都可用。PlaceholderSource 不定义任何额外的属性或方法。
+
+=====================
+## CharacterRange 对象（字符范围）
+【属性】
+CharacterRange.characterEnd
+    → 文本图层范围计算的字符结束值。 如果有效值超出相关 TextDocument 对象 的边界，访问时将抛出异常。
+CharacterRange.characterStart
+    → 文本图层范围计算的字符起始值。 如果有效值超出相关 TextDocument 对象 的边界，访问时将抛出异常。
+CharacterRange.fillColor
+    → 文本图层范围 CharacterRange 属性的填充颜色，作为 [r, g, b] 浮点值的数组。 例如，在 8-bpc 项目中，红色值 255 将为 1.0，而在 32-bpc 项目中，超亮的蓝色值可能为 3.2。
+CharacterRange.isRangeValid
+    → 如果当前范围在相关 TextDocument 对象 的边界内，则返回 true，否则返回 false。
+CharacterRange.kerning
+    → 文本图层范围字符属性的字距调整选项。 这实际上报告的是手动字距调整值，而不是自动字距调整计算出的字距调整值。
+CharacterRange.strokeColor
+    → 文本图层 CharacterRange 描边颜色字符属性，作为 [r, g, b] 浮点值的数组。 例如，在 8-bpc 项目中，红色值 255 将为 1.0，而在 32-bpc 项目中，超亮的蓝色值可能为 3.2。
+CharacterRange.strokeOverFill
+    → 文本图层 CharacterRange 描边覆盖填充字符属性。 指示范围内字符的填充和描边的渲染顺序。当为 true 时，描边将显示在填充之上。
+CharacterRange.text
+    → 文本图层范围的文本值。 读取时，将返回与范围跨度相同数量的字符。如果跨度为零（插入点），则返回空字符串。
+
+【方法】
+CharacterRange.pasteFrom()
+    → 签名: CharacterRange.pasteFrom(characterRange)
+    → 参数: characterRange 为源 CharacterRange 对象。
+    → 使用粘贴语义将源 CharacterRange 的文本和样式复制到本对象中。
+    → 返回: 无。
+CharacterRange.toString()
+    → 返回创建此 CharacterRange 实例时所用的参数字符串。
+    → 返回: 字符串；只读。
+
+=====================
+## ComposedLineRange 对象（组合行范围）
+【属性】
+ComposedLineRange.characterEnd
+    → 文本图层范围计算的字符结束值。 如果有效值超出相关 TextDocument 对象 的边界，则在访问时抛出异常。
+ComposedLineRange.characterStart
+    → 文本图层范围计算的字符起始值。 如果有效值超出相关 TextDocument 对象 的边界，则在访问时抛出异常。
+ComposedLineRange.isRangeValid
+    → 如果当前范围在相关 TextDocument 对象 的边界内，则返回 true，否则返回 false。
+
+【方法】
+ComposedLineRange.characterRange()
+    → 返回由 characterStart 和 characterEnd 初始化的 CharacterRange 对象。
+    → 返回: CharacterRange 对象；
+ComposedLineRange.toString()
+    → 返回创建此 ComposedLineRange 实例时所用的参数字符串。
+    → 返回: 字符串；
+
+=====================
+## FontObject 对象（字体对象）
+【属性】
+FontObject.designAxesData
+    → 返回一个对象数组，包含字体的设计轴数据。 每个对象由轴 name、tag、min 值和 max 值组成。
+FontObject.designVector
+    → 对于可变字体，将返回一个有序数组，其长度与字体定义的设计轴数量匹配。
+FontObject.familyName
+    → 字体的家族名称，使用 ASCII 字符集。
+FontObject.familyPrefix
+    → 可变字体的家族前缀。例如，PostScript 名称 “SFPro-Bold” 的家族是 “SFPro”。
+FontObject.fontID
+    → 创建 FontObject 实例时分配的唯一编号，值大于或等于 1。在应用程序会话期间不会更改，但在应用程序的后续启动中可能会不同。 可用于比较两个 FontObject 实例，以查看它们是否引用相同的底层原生字体实例。
+FontObject.fullName
+    → 字体的全名，使用 ASCII 字符集。通常由家族名称和样式名称组成。
+FontObject.hasDesignAxes
+    → 如果字体是可变字体，则返回 true。
+FontObject.isFromAdobeFonts
+    → 如果字体来自 Adobe Fonts，则返回 true。
+FontObject.isSubstitute
+    → 当此字体实例表示在项目打开时缺失的字体引用时，返回 true。
+FontObject.location
+    → 字体文件在系统中的位置。 不保证所有字体类型都会返回；某些字体的返回值可能为空字符串。
+FontObject.nativeFamilyName
+    → 字体的原生家族名称，使用完整的 16 位 Unicode。对于非拉丁字体，通常与 FontObject.familyName 返回的值不同。
+FontObject.nativeFullName
+    → 字体的原生全名，使用完整的 16 位 Unicode。对于非拉丁字体，通常与 FontObject.fullName 返回的值不同。
+FontObject.nativeStyleName
+    → 字体的原生样式名称，使用完整的 16 位 Unicode。对于非拉丁字体，通常与 FontObject.styleName 返回的值不同。
+FontObject.otherFontsWithSameDict
+    → 返回与当前 Font 对象共享相同字体字典的 Font 对象数组。若此 Font 对象不是可变字体，或该可变字体只有一个实例，则返回空数组。只读。（AE 25.1 新增）
+FontObject.postScriptName
+    → 字体的 PostScript 名称。
+FontObject.styleName
+    → 字体的样式名称，使用 ASCII 字符集。
+FontObject.technology
+    → 字体所使用的技术。
+FontObject.type
+    → 字体的内部类型。
+FontObject.version
+    → 字体的版本号。
+FontObject.writingScripts
+    → 字体支持的字符集。
+
+【方法】
+FontObject.hasGlyphsFor()
+    → 签名: FontObject.hasGlyphsFor(charString)
+    → 参数: charString 为要检查的字符字符串。
+    → 查询字体是否对参数字符串中的每个字符都有字形。
+    → 返回: 布尔值。
+FontObject.hasSameDict()
+    → 签名: FontObject.hasSameDict(font)
+    → 参数: font 为另一个 FontObject 对象。
+    → 判断两个 Font 对象是否共享相同的可变字体字典。
+    → 返回: 布尔值。
+FontObject.postScriptNameForDesignVector()
+    → 签名: FontObject.postScriptNameForDesignVector(designVector)
+    → 参数: designVector 为设计向量参数。
+    → 返回与传入的设计向量对应的可变字体的 PostScript 名称。
+    → 返回: 字符串。
+
+=====================
+## FontsObject 对象（字体集合对象）
+【属性】
+FontsObject.allFonts
+    → 当前系统上所有可用字体的列表。 它们被分组为所谓的家族组，这些组是 Font 对象 的数组。
+FontsObject.favoriteFontFamilyList
+    → 提供对字符面板和属性面板中显示的收藏列表的访问。要设置收藏列表，只需提供一个基于 familyName 的（未排序的）字符串数组。要清除列表，只需分配一个空数组。
+FontsObject.fontsDuplicateByPostScriptName
+    → 多个 Font 对象 返回相同的 postScriptName 是完全合法且常见的，但由于这有时会导致在使用 TextDocument.font 或 CharacterRange 对象 的 .font 属性时对实际使用的 Font 对象 产生混淆，此属性既用于揭示存在的重复项，也用于揭示它们的相对顺序。 这将返回一个数组，其中每个元素是一个 Font 对象 的数组，其中第 0 个元素的 Font 对象 被视为给定 PostScript 名称的主要 Font 对象。
+FontsObject.fontServerRevision
+    → 返回一个无符号数字，表示字体环境的当前修订版本。 当字体环境中发生任何会改变 FontsObject.allFonts 返回的 Font 对象 的内容、属性或顺序的事情时，修订版本会增加。
+FontsObject.fontsWithDefaultDesignAxes
+    → 返回一个可变 Font 对象 的数组，每个对象使用唯一的字体字典，并具有其设计轴的默认值。此 API 是一种快速过滤每个已安装可变字体的唯一实例的便捷方法。
+FontsObject.freezeSyncSubstitutedFonts
+    → 当项目打开时，如果本地字体环境中找不到一个或多个字体，将启动与 Adobe Fonts 的 同步 过程，以查看是否可以激活并安装一个或多个字体。 默认情况下，这是自动发生的 —— 此属性将禁用此行为。
+FontsObject.missingOrSubstitutedFonts
+    → 当前项目中所有缺失或替代字体的列表。
+FontsObject.mruFontFamilyList
+    → 提供对字符面板和属性面板中显示的最近使用（MRU）列表的访问。要设置 MRU，只需提供一个基于 familyName 的（未排序的）字符串数组。要清除列表，只需分配一个空数组。
+FontsObject.substitutedFontReplacementMatchPolicy
+    → 控制用于确定哪些字体被视为自动替换替代 Font 对象 的匹配规则。
+
+【方法】
+FontsObject.getCTScriptForString()
+    → 签名: FontsObject.getCTScriptForString(string[, preferredCTScript])
+    → 参数: string 为要分析的字符串；preferredCTScript 可选，用于打破多脚本归属的平局。
+    → 返回描述字符串中字符数量及分配的 CTScript 枚举值的对象数组。
+    → 返回: 通用对象数组； * 键 chars 将设置为范围内的字符数量。
+FontsObject.getDefaultFontForCTScript()
+    → 签名: FontsObject.getDefaultFontForCTScript(ctScript)
+    → 参数: ctScript 为 CTScript 枚举值。
+    → 返回基于 CTScript 映射的默认字体对象。
+    → 返回: Font 对象
+FontsObject.getFontByID()
+    → 签名: FontsObject.getFontByID(id)
+    → 参数: id 为字体的标识符。
+    → 根据 ID 返回 Font 对象。
+    → 返回: Font 对象，如果找不到该 ID 的字体，则返回 undefined。
+FontsObject.getFontsByFamilyNameAndStyleName()
+    → 签名: FontsObject.getFontsByFamilyNameAndStyleName(familyName, styleName)
+    → 参数: familyName 为字体家族名；styleName 为样式名。
+    → 根据家族名和样式名返回 Font 对象数组。
+    → 返回: Font 对象 的数组；只读。
+FontsObject.getFontsByPostScriptName()
+    → 签名: FontsObject.getFontsByPostScriptName(postScriptName)
+    → 参数: postScriptName 为字体的 PostScript 名称。
+    → 根据 PostScript 名称返回 Font 对象数组。
+    → 返回: 字体对象数组；只读。
+FontsObject.pollForAndPushNonSystemFontFoldersChanges()
+    → 轮询非系统字体文件夹的更改并推送更新。
+    → 返回: 布尔值；true 表示检测到更改并已推送，false 表示无更改。
+FontsObject.setDefaultFontForCTScript()
+    → 签名: FontsObject.setDefaultFontForCTScript(ctScript, font)
+    → 参数: ctScript 为 CTScript 枚举值；font 为要设置的 Font 对象。
+    → 根据 CTScript 设置映射的默认字体。
+    → 返回: 无。
+
+=====================
+## ParagraphRange 对象（段落范围）
+【属性】
+ParagraphRange.characterEnd
+    → 文本图层范围计算的字符结束值。 如果有效值超出相关 TextDocument 对象 的范围，访问时将抛出异常。
+ParagraphRange.characterStart
+    → 文本图层范围计算的字符起始值。 如果有效值超出相关 TextDocument 对象 的范围，访问时将抛出异常。
+ParagraphRange.isRangeValid
+    → 如果当前范围在相关 TextDocument 对象 的范围内，则返回 true，否则返回 false。
+
+【方法】
+ParagraphRange.characterRange()
+    → 返回由 characterStart 和 characterEnd 初始化的 CharacterRange 对象。
+    → 返回: CharacterRange 对象；
+ParagraphRange.toString()
+    → 返回创建此 ParagraphRange 实例时所用的参数字符串。
+    → 返回: 字符串；
+
+=====================
+## TextDocument 对象（文本文档）
+【属性】
+TextDocument.allCaps
+    → 如果文本图层启用了 “全部大写”，则为 true；否则为 false。要设置此值，请使用 After Effects 24.0 中添加的 fontCapsOption。 此值仅反映文本图层中的第一个字符。
+TextDocument.applyFill
+    → 当为 true 时，文本图层显示填充。访问 fillColor 属性以获取实际颜色。当为 false 时，仅显示描边。
+TextDocument.applyStroke
+    → 当为 true 时，文本图层显示描边。访问 strokeColor 属性以获取实际颜色，访问 strokeWidth 以获取其粗细。当为 false 时，仅显示填充。
+TextDocument.autoHyphenate
+    → 文本图层的自动连字符段落选项。 如果此属性具有混合值，则读取为 undefined。
+TextDocument.autoLeading
+    → 文本图层的自动行距字符选项。 如果此属性具有混合值，则读取为 undefined。
+TextDocument.autoKernType
+    → 文本图层的自动字距类型选项。 此值仅反映文本图层中的第一个字符。
+TextDocument.baselineDirection
+    → 文本图层的基线方向选项。这对于垂直文本中的日语文本尤为重要。“BASELINE_VERTICAL_CROSS_STREAM” 也称为 Tate-Chu-Yoko。 此值仅反映文本图层中的第一个字符。
+TextDocument.baselineLocs
+    → 文本图层的基线 (x,y) 位置。段落文本框中的换行被视为多行。
+TextDocument.baselineShift
+    → 此文本图层的基线偏移量（以像素为单位）。 此值仅反映文本图层中的第一个字符。
+TextDocument.boxAutoFitPolicy
+    → 启用自动调整框高度以适应框中的文本内容。 框仅向下增长。
+TextDocument.boxFirstBaselineAlignment
+    → 控制第一行文本相对于框顶部的对齐方式。 如果 TextDocument.boxFirstBaselineAlignmentMinimum 不为零，则此功能将被禁用。
+TextDocument.boxFirstBaselineAlignmentMinimum
+    → 手动控制第一行文本相对于框顶部的位置。 此处设置的非零值将覆盖 TextDocument.boxFirstBaselineAlignment 值的效果。
+TextDocument.boxInsetSpacing
+    → 控制框边界与可组合文本框开始位置之间的内部间距。相同的值应用于框的所有四个边。 默认为零。
+TextDocument.boxOverflow
+    → 如果文本的某些部分未组合到框中，则返回 true。
+TextDocument.boxText
+    → 如果文本图层是段落（有界）文本图层，则为 true；否则为 false。
+TextDocument.boxTextPos
+    → 段落（框）文本图层的锚点的图层坐标，作为像素尺寸的 [宽度，高度] 数组。 如果 boxText 对文本图层不返回 true，则抛出异常。
+TextDocument.boxTextSize
+    → 段落（框）文本图层的大小，作为像素尺寸的 [宽度，高度] 数组。 如果 boxText 对文本图层不返回 true，则抛出异常。
+TextDocument.boxVerticalAlignment
+    → 启用框中组合文本的自动垂直对齐。 默认为 BoxVerticalAlignment.TOP
+TextDocument.composedLineCount
+    → 返回文本图层中组合行的数量，如果所有文本都溢出，则可能为零。 TextDocument 对象 实例从组合状态初始化，后续对 TextDocument 对象 实例的更改不会导致重新组合。
+TextDocument.composerEngine
+    → 文本图层的段落组合引擎选项。默认情况下，新的文本图层将使用 ComposerEngine.UNIVERSAL_TYPE_ENGINE；其他枚举值仅在 After Effects 22.1.1 中 Universal Type Engine（以前称为南亚和中东引擎）成为默认引擎之前创建的项目中遇到。 如果此属性具有混合值，则读取为 undefined。
+TextDocument.digitSet
+    → 文本图层的数字集选项。 此值仅反映文本图层中的第一个字符。
+TextDocument.direction
+    → 文本图层的段落方向选项。 如果该属性值为混合值，读取时将返回 undefined。
+TextDocument.endIndent
+    → 文本图层的段落末端缩进选项。 如果该属性值为混合值，读取时将返回 undefined。
+TextDocument.everyLineComposer
+    → 文本图层的” 每行排版器” 段落选项。若设为 false，TextDocument 将使用” 单行排版器”。 如果该属性值为混合值，读取时将返回 undefined。
+TextDocument.fauxBold
+    → 若文本图层启用伪粗体则返回 true，否则返回 false。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fauxItalic
+    → 若文本图层启用伪斜体则返回 true，否则返回 false。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fillColor
+    → 文本图层的填充颜色，以 [r, g, b] 浮点数组表示。例如在 8-bpc 项目中，红色值 255 对应 1.0；在 32-bpc 项目中，超亮蓝色值可以是 3.2 之类的数值。 若 applyFill 不为 true，读取时会抛出异常。
+TextDocument.firstLineIndent
+    → 文本图层的段落首行缩进选项。 如果该属性值为混合值，读取时将返回 undefined。
+TextDocument.font
+    → 通过 PostScript 名称指定的文本图层字体。 写入时限制极少 —— 如果底层字体管理系统没有与提供的 PostScript 名称匹配的字体对象实例，将创建替代实例。
+TextDocument.fontBaselineOption
+    → 文本图层的字体基线选项。用于将文本设置为上标或下标。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fontCapsOption
+    → 文本图层的字体大写选项。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fontFamily
+    → 包含字体家族名称的字符串。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fontLocation
+    → 字体文件的磁盘路径。 并非所有字体类型都能返回此值；某些字体可能返回空字符串
+TextDocument.fontObject
+    → 通过 PostScript 名称指定的文本图层字体对象。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fontSize
+    → 文本图层的字体大小（像素单位）。 该值仅反映文本图层中第一个字符的设置
+TextDocument.fontStyle
+    → 包含样式信息的字符串，如”bold”、“italic” 等。 该值仅反映文本图层中第一个字符的设置
+TextDocument.hangingRoman
+    → 文本图层的” 罗马悬挂标点” 段落选项。仅对文本框图层有意义 —— 允许标点符号悬挂在框外而不换行。 如果该属性值为混合值，读取时将返回 undefined。
+TextDocument.horizontalScale
+    → 文本图层水平缩放比例（以像素为单位）。 该值仅反映文本图层中的第一个字符。
+TextDocument.justification
+    → 文本图层的段落对齐方式。
+TextDocument.kerning
+    → 文本图层的字距调整选项。 对于 AutoKernType.METRIC_KERN 和 AutoKernType.OPTICAL_KERN 将返回零。
+TextDocument.leading
+    → 文本图层的行间距。 若 TextDocument.autoLeading 为 true 则返回零。
+TextDocument.leadingType
+    → 文本图层的段落行距类型选项。 若该属性存在混合值，将返回 undefined。
+TextDocument.ligature
+    → 文本图层的连字选项。 该值仅反映文本图层中的第一个字符。
+TextDocument.lineJoinType
+    → 文本图层描边的线段连接类型选项。 该值仅反映文本图层中的第一个字符。
+TextDocument.lineOrientation
+    → 文本图层的行方向（水平 / 垂直），影响图层中所有文字的排版方式。
+TextDocument.noBreak
+    → 文本图层的不断行属性。 该值仅反映文本图层中的第一个字符。
+TextDocument.paragraphCount
+    → 返回文本图层中的段落数量（始终大于等于 1）。
+TextDocument.pointText
+    → 若文本图层为点文本（无边界）则返回 true，否则返回 false。
+TextDocument.smallCaps
+    → 若文本图层启用小型大写字母则返回 true，否则返回 false。要设置此值，请使用 After Effects 24.0 添加的 TextDocument.fontCapsOption。 该值仅反映文本图层中的第一个字符。
+TextDocument.spaceAfter
+    → 文本图层的段后间距选项。 若该属性存在混合值，将返回 undefined。
+TextDocument.spaceBefore
+    → 文本图层的段落前间距选项。 如果该属性具有混合值，则读取时为 undefined。
+TextDocument.startIndent
+    → 文本图层的段落首行缩进选项。 如果该属性具有混合值，则读取时为 undefined。
+TextDocument.strokeColor
+    → 文本图层的描边颜色，以 [r, g, b] 浮点数值数组表示。例如，在 8-bpc 项目中，红色值 255 对应 1.0；在 32-bpc 项目中，超亮蓝色值可以是 3.2 之类的数值。 如果 applyStroke 不为 true，读取时会抛出异常。
+TextDocument.strokeOverFill
+    → 指示文本图层填充和描边的渲染顺序。当为 true 时，描边显示在填充上方。 如果文本图层在字符面板中设置为” 所有描边在所有填充之上” 或” 所有填充在所有描边之上”，则文本图层可以覆盖每个字符的属性设置。因此此处返回的值可能与字符上设置的实际属性值不同。可以通过文本图层的” 更多选项” 下的” 填充和描边” 属性（使用 TextLayer.text (“ADBE Text More Options”)(“ADBE Text Render Order”)）来设置填充 / 描边的渲染顺序。
+TextDocument.strokeWidth
+    → 文本图层的描边粗细（以像素为单位）。 该值仅反映文本图层中的第一个字符。
+TextDocument.subscript
+    → 如果文本图层启用了下标则为 true；否则为 false。要设置此值，请使用 After Effects 24.0 新增的 TextDocument.fontBaselineOption。 该值仅反映文本图层中的第一个字符。
+TextDocument.superscript
+    → 如果文本图层启用了上标则为 true；否则为 false。要设置此值，请使用 After Effects 24.0 新增的 TextDocument.fontBaselineOption。 该值仅反映文本图层中的第一个字符。
+TextDocument.text
+    → 文本图层源文本属性的文本值。
+TextDocument.tracking
+    → 文本图层字符间的间距。 该值仅反映文本图层中的第一个字符。
+TextDocument.tsume
+    → 文本图层的 tsume 值（标准化百分比，范围 0.0 -> 1.0）。 该值仅反映文本图层中的第一个字符。
+TextDocument.verticalScale
+    → 文本图层的垂直缩放（以像素为单位）。 该值仅反映文本图层中的第一个字符。
+
+【方法】
+TextDocument.characterRange()
+    → 签名: textDocument.characterRange(characterStart, [signedCharacterEnd])
+    → 参数: 如果参数会导致无效范围，则抛出异常。 无法创建跨越 TextDocument 对象 中最后一个回车符的 CharacterRange 对象。
+    → 创建并返回针对此 TextDocument 的 CharacterRange 对象，用于访问指定字符范围内的属性。
+    → 返回: CharacterRange 对象 的实例
+TextDocument.composedLineCharacterIndexesAt()
+    → 签名: textDocument.composedLineCharacterIndexesAt(characterIndex)
+    → 从指定字符索引返回其所在组合行的字符索引边界。
+    → 返回: 通用对象；键 start 将设为排版行起始的文本索引（大于或等于零），键 end 将设为排版行结束的文本索引（大于起始值，或如果是最后一个排版行则等于起始值）。如果计算的起始和结束超出当前 TextDocument 对象的边界，则将键 start 和 end 都设为 -1。
+TextDocument.composedLineRange()
+    → 签名: textDocument.composedLineRange(composedLineIndexStart, [signedComposedLineIndexEnd])
+    → 参数: 如果参数会导致无效范围，则抛出异常。 请注意排版行是静态的，后续对 TextDocument 对象 实例的更改如果导致其长度变化，可能会使排版行数据无效。
+    → 创建并返回针对此 TextDocument 的 ComposedLineRange 对象。
+    → 返回: ComposedLineRange 对象 的实例
+TextDocument.paragraphCharacterIndexesAt()
+    → 签名: textDocument.paragraphCharacterIndexesAt(characterIndex)
+    → 从指定字符索引返回其所在段落的字符索引边界。
+    → 返回: 通用对象； 键 start 将设为段落起始的文本索引（大于或等于零）。 键 end 将设为段落结束的文本索引（大于起始值，或如果是最后一个段落则等于起始值）。
+TextDocument.paragraphRange()
+    → 签名: textDocument.paragraphRange(paragraphIndexStart, [signedParagraphIndexEnd])
+    → 参数: 如果参数会导致无效范围，则抛出异常。
+    → 创建并返回针对此 TextDocument 的 ParagraphRange 对象。
+    → 返回: ParagraphRange 对象 的实例
+TextDocument.resetCharStyle()
+    → 将文本图层的字符样式重置为默认值。
+    → 返回: 无。
+TextDocument.resetParagraphStyle()
+    → 将文本图层的段落样式重置为默认值。
+    → 返回: 无。
+
+=====================
+## ImportOptions 对象（导入选项）
+【属性】
+ImportOptions.file
+    → 要导入的文件。如果在构造函数中设置了文件，则可以通过此属性访问它。
+ImportOptions.forceAlphabetical
+    → 当设置为 true 时，效果与在 “文件> 导入 > 文件” 对话框中设置 “强制按字母顺序排列” 选项相同。
+ImportOptions.importAs
+    → 导入文件作为源的对象类型。在设置之前，请使用 canImportAs 检查给定文件是否可以作为给定对象类型的源导入。
+ImportOptions.rangeEnd
+    → 设置要导入的序列的结束剪辑范围。
+ImportOptions.rangeStart
+    → 设置要导入的序列的起始剪辑范围。
+ImportOptions.sequence
+    → 当设置为 true 时，导入序列；否则，导入单个文件。
+
+【方法】
+ImportOptions.canImportAs()
+    → 签名: importOptions.canImportAs(type)
+    → 参数: type 为导入目标类型（ImportAsType 枚举值）。
+    → 报告文件是否可以作为特定对象类型的源进行导入。
+    → 返回: 布尔值。
+ImportOptions.isFileNameNumbered()
+    → 签名: importOptions.isFileNameNumbered(file)
+    → 参数: file 为要检查的 Extendscript File 对象。
+    → 报告文件名中是否包含数字（用于判断是否为序列文件）。
+    → 返回: 对象，包含两个键： * isNumbered: 布尔值；文件名是否包含任何数字， * num: 整数；文件名中找到的数字。当 isNumbered 为 false 时返回 0。
+
+=====================
+## KeyframeEase 对象（关键帧缓动）
+【属性】
+KeyframeEase.influence
+    → 关键帧的影响值，如关键帧速度对话框中所示。
+KeyframeEase.speed
+    → 关键帧的速度值。单位取决于关键帧的类型，并显示在关键帧速度对话框中。
+
+=====================
+## MarkerValue 对象（标记值）
+【属性】
+MarkerValue.chapter
+    → 此标记的文本章节链接。章节链接会跳转到 QuickTime 电影或其他支持章节标记的格式中的章节。
+MarkerValue.comment
+    → 此标记的文本注释。此注释会显示在时间轴面板中图层标记旁边。
+MarkerValue.cuePointName
+    → Flash 视频提示点名称，如标记对话框中所示。
+MarkerValue.duration
+    → 标记的持续时间（以秒为单位）。持续时间在时间轴面板中显示为从标记位置延伸的短条。
+MarkerValue.eventCuePoint
+    → 当为 true 时，Flash 视频提示点用于事件；否则，用于导航。
+MarkerValue.frameTarget
+    → 此标记的文本帧目标。与 URL 值一起，此目标指向网页中的特定帧。
+MarkerValue.url
+    → 此标记的 URL。此 URL 是网页的自动链接。
+MarkerValue.label
+    → 合成或图层标记的标签颜色。颜色由其编号表示（0 表示无颜色，1 到 16 表示标签首选项中的预设颜色之一）。无法通过编程方式设置自定义标签颜色。 在 After Effects 16.0 或更高版本中可用。
+MarkerValue.protectedRegion
+    → 合成标记对话框中 “受保护区域” 选项的状态。当为 true 时，合成标记表现为受保护区域。对于嵌套合成图层上的受保护区域标记，也会返回 true，但通常不适用于图层标记。 在 After Effects 16.0 或更高版本中可用。
+
+【方法】
+MarkerValue.getParameters()
+    → 获取此标记的自定义参数（可在标记对话框的"参数"选项卡中查看）。
+    → 返回: 一个对象，其属性与每个参数名称匹配，包含该参数的值。
+MarkerValue.setParameters()
+    → 签名: MarkerValue.setParameters(parameters)
+    → 参数: parameters 为键值对对象，设置标记的自定义参数。
+    → 设置此标记的自定义参数（可在标记对话框的"参数"选项卡中查看）。
+    → 返回: 无。
+
+=====================
+## Preferences 对象（首选项）
+【方法】
+Preferences.deletePref()
+    → 签名: Preferences.deletePref(section, key[, type])
+    → 参数: section 为首选项节名；key 为键名；type 可选，为 PREFType 枚举值。
+    → 删除指定的首选项项。
+    → 返回: 无。
+Preferences.getPrefAsBool()
+    → 从首选项文件中检索首选项值，并将其解析为布尔值。
+    → 返回: 布尔值。
+Preferences.getPrefAsFloat()
+    → 从首选项文件中检索首选项值，并将其解析为浮点数。
+    → 返回: 浮点数。
+Preferences.getPrefAsLong()
+    → 从首选项文件中检索首选项值，并将其解析为长整型。
+    → 返回: 长整型。
+Preferences.getPrefAsString()
+    → 从首选项文件中检索首选项值，并将其解析为字符串。
+    → 返回: 字符串。
+Preferences.havePref()
+    → 检查指定的首选项项是否存在且有值。
+    → 返回: 布尔值。
+Preferences.reload()
+    → 从磁盘重新加载首选项。
+    → 返回: 无。
+Preferences.savePrefAsBool()
+    → 签名: Preferences.savePrefAsBool(section, key, value)
+    → 参数: section 节名；key 键名；value 布尔值。
+    → 将布尔值保存到首选项。
+    → 返回: 无。
+Preferences.savePrefAsFloat()
+    → 签名: Preferences.savePrefAsFloat(section, key, value)
+    → 参数: section 节名；key 键名；value 浮点数。
+    → 将浮点数保存到首选项。
+    → 返回: 无。
+Preferences.savePrefAsLong()
+    → 签名: Preferences.savePrefAsLong(section, key, value)
+    → 参数: section 节名；key 键名；value 长整型。
+    → 将长整型保存到首选项。
+    → 返回: 无。
+Preferences.savePrefAsString()
+    → 签名: Preferences.savePrefAsString(section, key, value)
+    → 参数: section 节名；key 键名；value 字符串。
+    → 将字符串保存到首选项。
+    → 返回: 无。
+Preferences.saveToDisk()
+    → 将当前内存中的首选项保存到磁盘。
+    → 返回: 无。
+
+=====================
+## Settings 对象（设置）
+【方法】
+Settings.getSetting()
+    → 签名: Settings.getSetting(section, key)
+    → 参数: section 为设置节名；key 为键名。
+    → 从首选项文件中检索脚本设置项的值。
+    → 返回: 字符串。
+Settings.haveSetting()
+    → 签名: Settings.haveSetting(section, key)
+    → 参数: section 为设置节名；key 为键名。
+    → 检查指定的脚本设置项是否存在且有值。
+    → 返回: 布尔值。
+Settings.saveSetting()
+    → 签名: Settings.saveSetting(section, key, value)
+    → 参数: section 为设置节名；key 为键名；value 为字符串值。
+    → 将字符串值保存到设置中。
+    → 返回: 无。
+
+=====================
+## Shape 对象（形状）
+【属性】
+Shape.closed
+    → 当为 true 时，第一个和最后一个顶点连接以形成闭合曲线。当为 false 时，不绘制闭合段。
+Shape.featherInterps
+    → 包含每个羽化点的半径插值类型的数组（0 表示非 Hold 羽化点，1 表示 Hold 羽化点）。
+Shape.featherRadii
+    → 包含每个羽化点的半径（羽化量）的数组；内部羽化点具有负值。
+Shape.featherRelCornerAngles
+    → 包含每个羽化点的相对角度百分比的数组，该角度是遮罩路径上拐角处曲线外部羽化边界两侧法线之间的百分比。对于不在拐角处的羽化点，角度值为 0%。
+Shape.featherRelSegLocs
+    → 包含每个羽化点在其遮罩路径段（顶点之间的遮罩路径部分，从 0 开始编号）上的相对位置（从 0 到 1）的数组。
+Shape.featherSegLocs
+    → 包含每个羽化点的遮罩路径段编号（顶点之间的遮罩路径部分，从 0 开始编号）的数组。
+Shape.featherTensions
+    → 包含每个羽化点的张力量的数组，从 0（0% 张力）到 1（100% 张力）。
+Shape.featherTypes
+    → 包含每个羽化点方向的数组，0（外部羽化点）或 1（内部羽化点）。
+Shape.inTangents
+    → 与形状顶点关联的传入切线向量或方向手柄。将每个向量指定为两个浮点值的数组，并将这些向量收集到与 vertices 数组长度相同的数组中。 每个切线值默认为 [0,0]。当遮罩形状不是 RotoBezier 时，这将导致直线段。
+Shape.outTangents
+    → 与形状顶点关联的传出切线向量或方向手柄。将每个向量指定为两个浮点值的数组，并将这些向量收集到与 vertices 数组长度相同的数组中。 每个切线值默认为 [0,0]。当遮罩形状不是 RotoBezier 时，这将导致直线段。
+Shape.vertices
+    → 形状的锚点。将每个点指定为两个浮点值的数组，并将这些点对收集到完整点集的数组中。
+
+=====================
+## View 对象（视图）
+【属性】
+View.active
+    → 当为 true 时，表示查看器面板是否被聚焦，并因此位于最前面。
+View.options
+    → 此视图的选项对象
+
+【方法】
+View.setActive()
+    → 激活此视图面板，将其置于最前。
+    → 返回: 布尔值，表示视图面板是否被激活。
+
+=====================
+## Viewer 对象（查看器）
+【属性】
+Viewer.active
+    → 当为 true 时，表示查看器面板是否被聚焦，从而位于最前面。
+Viewer.activeViewIndex
+    → 当前活动的 View 对象 在 Viewer.views 数组中的索引。
+Viewer.maximized
+    → 当为 true 时，表示查看器面板是否处于最大化状态。
+Viewer.views
+    → 与此查看器关联的所有视图。
+Viewer.type
+    → 查看器面板中的内容类型。
+
+【方法】
+Viewer.setActive()
+    → 将查看器面板移至最前并使其获得焦点。
+    → 返回: 布尔值，表示查看器面板是否被激活。
+
+=====================
+## ViewOptions 对象（视图选项）
+【属性】
+ViewOptions.channels
+    → 通道菜单的状态。
+ViewOptions.checkerboards
+    → 当为 true 时，当前视图中启用棋盘格（透明网格）。
+ViewOptions.exposure
+    → 当前视图的曝光值。
+ViewOptions.fastPreview
+    → 快速预览菜单的状态。这是一个使用枚举值的可读 / 写属性： 如果您尝试在图层或素材面板中获取或设置该属性的值，您将收到错误消息。
+ViewOptions.guidesLocked
+    → 当为 true 时，表示视图中的参考线已锁定。
+ViewOptions.guidesSnap
+    → 当为 true 时，表示在视图中拖动图层时会吸附到参考线。
+ViewOptions.guidesVisibility
+    → 当为 true 时，表示视图中的参考线可见。
+ViewOptions.rulers
+    → 当为 true 时，表示视图中显示标尺。
+ViewOptions.zoom
+    → 设置视图的当前缩放值，作为 1% (0.01) 到 1600% (16) 之间的归一化百分比。

@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  # 独立作业：release-check 必须在「没有 node_modules」的干净检出租上跑
+  # （它检查公开树零二进制 / 不含 node_modules；与 lint 作业共用 runner 时会装上依赖而误报）
+  release-tree-check:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Release tree check (no vendor / no binaries / notices complete)
+        run: node tools/release-check.js --public . --public-only
+
+  lint-and-audits:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (eslint, exit 0 required)
+        run: npm run lint
+
+      - name: Theme hardcoded-color audit
+        run: npm run audit:theme
+
+      - name: Family-extinct audit
+        run: npm run audit:family

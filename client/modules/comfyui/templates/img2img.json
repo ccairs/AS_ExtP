@@ -1,0 +1,30 @@
+{
+    "id": "img2img",
+    "name": "图生图",
+    "description": "基于参考图片生成新图片；本地 checkpoint 与受支持的图像扩散模型（ANIMA / Qwen-Image / Krea 2）均可选（自动配置文本编码器、VAE 与推荐采样参数；Qwen-Image 族支持输入图 + 多张参考图）",
+    "category": "image",
+    "mode": "img2img",
+    "modelSource": "mixed",
+    "parameters": [
+        { "key": "prompt", "label": "正向提示词", "type": "textarea", "required": true },
+        { "key": "negative_prompt", "label": "负向提示词", "type": "textarea", "default": "" },
+        { "key": "denoise", "label": "重绘幅度", "type": "number", "default": 0.7, "min": 0.0, "max": 1.0, "step": 0.05 },
+        { "key": "steps", "label": "步数", "type": "number", "default": 20, "min": 1, "max": 150 },
+        { "key": "cfg", "label": "CFG", "type": "number", "default": 7.0, "min": 1, "max": 30, "step": 0.5 },
+        { "key": "sampler", "label": "采样器", "type": "select", "choices": ["euler", "er_sde", "euler_ancestral", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_sde", "dpmpp_2s_ancestral", "heun", "lms", "res_multistep", "ddim", "uni_pc"], "default": "euler" },
+        { "key": "scheduler", "label": "调度器", "type": "select", "choices": ["normal", "simple", "karras", "exponential", "sgm_uniform", "ddim_uniform", "beta", "linear_quadratic"], "default": "normal" },
+        { "key": "seed", "label": "种子", "type": "number", "default": -1, "min": -1, "max": 2147483647 },
+        { "key": "input_image", "label": "参考图片", "type": "image", "required": true },
+        { "key": "reference_images", "label": "更多参考图（Qwen-Image 多图参考，可选）", "type": "image", "multiple": true, "maxCount": 8 }
+    ],
+    "workflow": {
+        "1": { "class_type": "CheckpointLoaderSimple", "inputs": { "ckpt_name": "v1-5-pruned-emaonly.safetensors" } },
+        "2": { "class_type": "LoadImage", "inputs": { "image": "{{input_image}}" } },
+        "3": { "class_type": "VAEEncode", "inputs": { "pixels": ["2", 0], "vae": ["1", 2] } },
+        "4": { "class_type": "KSampler", "inputs": { "model": ["1", 0], "positive": ["7", 0], "negative": ["8", 0], "latent_image": ["3", 0], "seed": "{{seed}}", "steps": "{{steps}}", "cfg": "{{cfg}}", "sampler_name": "{{sampler}}", "scheduler": "{{scheduler}}", "denoise": "{{denoise}}" } },
+        "5": { "class_type": "VAEDecode", "inputs": { "samples": ["4", 0], "vae": ["1", 2] } },
+        "6": { "class_type": "SaveImage", "inputs": { "images": ["5", 0], "filename_prefix": "ComfyUI" } },
+        "7": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{prompt}}", "clip": ["1", 1] } },
+        "8": { "class_type": "CLIPTextEncode", "inputs": { "text": "{{negative_prompt}}", "clip": ["1", 1] } }
+    }
+}

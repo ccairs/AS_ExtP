@@ -1,0 +1,1200 @@
+/* 面板与 body 采用 flex 纵向布局并限制高度，
+  使 .provider-list-compact 在内部纵向滚动（与 skill/mcp 管理面板一致） */
+#modelManagerPanel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#modelManagerBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#modelManagerBody .model-manager-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--app-bg);
+}
+
+#modelManagerBody .provider-list-header {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+#modelManagerBody .provider-list-title {
+  font-weight: 500;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+#modelManagerBody .model-manager-status {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1300;
+  min-width: 220px;
+  max-width: min(520px, 82vw);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .38);
+  pointer-events: none;
+}
+
+#modelManagerBody .model-manager-status.success {
+  color: var(--signal-green);
+  border-color: var(--signal-green-soft);
+  background: var(--signal-green-soft);
+}
+
+#modelManagerBody .model-manager-status.error {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+#modelManagerBody .model-manager-status.info {
+  color: var(--text-muted);
+}
+
+#modelManagerBody .provider-list-compact {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+}
+
+#modelManagerBody .provider-list-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+#modelManagerBody .provider-row-card {
+  position: relative;
+  min-height: 44px;
+  padding: 8px 10px 8px 12px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  display: grid;
+  grid-template-columns: minmax(110px, 180px) minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+}
+
+#modelManagerBody .provider-row-card:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+
+#modelManagerBody .provider-row-card.active-provider {
+  background: linear-gradient(90deg, var(--accent-soft), var(--surface-2) 55%);
+  border-color: rgba(var(--accent-rgb), .32);
+}
+
+#modelManagerBody .provider-row-card.active-provider::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), .22);
+}
+
+/* 视觉代理条目：高亮为视觉代理主题色（默认主题为亮蓝，其它主题各自配色）。
+   定义在 active-provider 之后：同时为默认平台+视觉代理时，视觉代理高亮优先。 */
+#modelManagerBody .provider-row-card.vision-proxy {
+  background: linear-gradient(90deg, rgba(var(--vision-proxy-rgb), .16), var(--surface-2) 55%);
+  border-color: rgba(var(--vision-proxy-rgb), .45);
+}
+
+#modelManagerBody .provider-row-card.vision-proxy::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--vision-proxy);
+  box-shadow: 0 0 10px rgba(var(--vision-proxy-rgb), .35);
+}
+
+#modelManagerBody .provider-card-main {
+  display: contents;
+}
+
+#modelManagerBody .provider-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: none;
+}
+
+#modelManagerBody .provider-name {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#modelManagerBody .provider-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+#modelManagerBody .provider-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+#modelManagerBody .provider-badge.builtin {
+  background: var(--signal-green-soft);
+  color: var(--signal-green);
+}
+
+#modelManagerBody .provider-badge.custom {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+#modelManagerBody .provider-card-model {
+  display: grid;
+  grid-template-columns: 40px minmax(132px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+#modelManagerBody .provider-badge.vision {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+#modelManagerBody .provider-badge.vision-proxy {
+  background: rgba(var(--vision-proxy-rgb), .16);
+  color: var(--vision-proxy);
+}
+
+#modelManagerBody .provider-badge.video {
+  background: rgba(var(--accent-purple-rgb), .12);
+  color: var(--accent-purple, #8f6dce);
+}
+
+#modelManagerBody .provider-model-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+#modelManagerBody .provider-model-label {
+    min-width: 46px;
+  color: var(--text-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+#modelManagerBody .provider-model-select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  height: 24px;
+  padding: 0 24px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--input-bg);
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+#modelManagerBody .provider-model-select:hover,
+#modelManagerBody .provider-model-select:focus {
+  border-color: var(--accent);
+  background: var(--surface-3);
+  outline: none;
+}
+
+#modelManagerBody .provider-row-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+#modelManagerBody .provider-row-card:hover .provider-row-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#modelManagerBody .provider-row-actions .btn.compact {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+#modelManagerBody .provider-row-card.active-provider .provider-row-actions .btn[data-action="activate"] {
+  border-color: var(--signal-green-soft);
+  background: var(--signal-green-soft);
+  color: var(--signal-green);
+}
+
+#providerEditorModal .modal-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#providerEditorModal .modal-title {
+  font-weight: 500;
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+#providerEditorModal .modal-body {
+  padding: 12px 14px;
+}
+
+#providerEditorModal .editor-section {
+  margin-bottom: 10px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+}
+
+#providerEditorModal .editor-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-main);
+  margin-bottom: 9px;
+  font-weight: 600;
+}
+
+#providerEditorModal .editor-section-title::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+#providerEditorModal .editor-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 9px 10px;
+}
+
+/* 高级选项：默认折叠的可展开区块 */
+#providerEditorModal .advanced-options .editor-section-title.collapsible {
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+}
+#providerEditorModal .advanced-options .collapse-icon {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+#providerEditorModal .advanced-options .editor-section-title.collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+#providerEditorModal .advanced-options-content {
+  display: block;
+  padding-top: 10px;
+}
+#providerEditorModal .advanced-options-content.hidden {
+  display: none;
+}
+
+#providerEditorModal .modal-row {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+#providerEditorModal .modal-row.wide {
+  grid-column: 1 / -1;
+}
+
+#providerEditorModal .modal-row label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+#providerEditorModal .modal-row input,
+#providerEditorModal .modal-row select,
+#providerEditorModal .modal-row .text-input {
+  width: 100%;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+/* 自定义请求头：多行文本。定高 28px 规则不适用（多行会被裁切），改为最小高度 + 纵向拉伸；
+   边框/底色/文字色沿用 panel.css 的通用 textarea 规则，不重复声明 */
+#providerEditorModal .modal-row textarea {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: monospace;
+  line-height: 1.5;
+}
+
+/* 端点路径：下拉框 + 自定义输入框并排（输入框在右边） */
+#providerEditorModal .modal-row.endpoint-row .endpoint-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#providerEditorModal .modal-row.endpoint-row .endpoint-controls select {
+  flex: 0 0 auto;
+  width: 200px;
+}
+/* 下拉框按钮与自定义输入框高度统一（CEP 下 select 被 customSelect 替换成 .cs-btn） */
+#providerEditorModal .modal-row.endpoint-row .endpoint-controls .cs-btn {
+  height: 34px;
+  box-sizing: border-box;
+}
+#providerEditorModal .modal-row.endpoint-row .endpoint-controls input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--btn-text);
+  box-sizing: border-box;
+}
+
+/* 上传方式开关：内联布局，避免上方 .modal-row label 的 block 样式干扰 .toggle-wrap */
+#providerEditorModal .modal-row.upload-mode-row .toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+#providerEditorModal .modal-row.upload-mode-row .toggle-wrap .toggle-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+#providerEditorModal .api-key-row {
+  padding: 8px;
+  border: 1px solid rgba(var(--accent-rgb), .18);
+  border-radius: 7px;
+  background: rgba(var(--accent-rgb), .05);
+}
+
+/* API Key 明文/密文切换 */
+#providerEditorModal .pwd-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+#providerEditorModal .pwd-wrap input {
+  padding-right: 32px;
+}
+#providerEditorModal .pwd-wrap .toggle-pwd {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+#providerEditorModal .pwd-wrap .toggle-pwd:hover {
+  color: var(--text-main);
+}
+#providerEditorModal .pwd-wrap .toggle-pwd .eye-off {
+  display: none;
+}
+#providerEditorModal .pwd-wrap .toggle-pwd.visible .eye-open {
+  display: none;
+}
+#providerEditorModal .pwd-wrap .toggle-pwd.visible .eye-off {
+  display: inline-flex;
+}
+
+#providerEditorModal .editor-model-list {
+  max-height: 170px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+#providerEditorModal .editor-model-empty {
+  padding: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+#providerEditorModal .editor-model-row {
+  min-height: 34px;
+  padding: 6px 8px;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  transition: background .15s ease, border-color .15s ease;
+}
+
+#providerEditorModal .editor-model-row:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+
+#providerEditorModal .editor-model-main {
+  flex: 1;
+  min-width: 0;
+}
+
+#providerEditorModal .editor-model-name {
+  color: var(--text-main);
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#providerEditorModal .editor-model-row .btn.compact {
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+#providerEditorModal .editor-model-row .btn.compact.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+#discoveryDrawerMask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  z-index: 9;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+#discoveryDrawerMask.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+#discoveryDrawer.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 430px;
+  max-width: 72%;
+  height: 100%;
+  background: var(--app-bg);
+  border-left: 1px solid var(--border);
+  z-index: 10;
+  transform: translateX(104%);
+  opacity: 0;
+  transition: transform 0.22s ease, opacity 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -18px 0 36px rgba(0, 0, 0, .35);
+}
+
+#discoveryDrawer.drawer.open {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+#discoveryDrawer .drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 9px;
+  /* 尺寸三项必须显式复位：agent.css 的全局 .drawer-body 是给 Agent 左右抽屉用的，
+     把 width/min-width/max-width 全钉在 var(--drawer-width, 320px)。本抽屉的 body 复用
+     了同名 class，未声明这三项就继承到 320px —— 430px 抽屉里模型列表只铺到约 2/3 宽，
+     右侧空出一截。作用域规则（含 id）优先级更高，在这里复位即可铺满抽屉 */
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
+#modelManagerBody .hidden {
+  display: none !important;
+}
+
+#providerEditorModal .modal.wide {
+  position: relative;
+  overflow: hidden;
+  width: 720px;
+  max-width: 92vw;
+}
+
+/* 弹窗移至 body 直接子元素（避免 #modelManagerBody/#moduleView 祖先链的 stacking context
+   干扰 backdrop-filter，CEP/CEF 中 position:fixed 元素在 stacking context 内采样异常） */
+#providerEditorModal.modal-mask.open {
+  display: flex;
+  opacity: 1;
+}
+
+#providerEditorModal.modal-mask.open .modal {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+#providerEditorModal .modal-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1);
+}
+
+#providerEditorModal .modal-footer-spacer {
+  flex: 1;
+}
+
+#providerEditorModal .modal-close,
+#discoveryDrawer .drawer-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  transition: color 0.15s ease;
+}
+
+#providerEditorModal .modal-close:hover,
+#discoveryDrawer .drawer-close:hover {
+  color: var(--text-main);
+}
+
+#discoveryDrawer .drawer-toolbar,
+#discoveryDrawer .drawer-controls {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--surface-1);
+}
+
+#discoveryDrawer .drawer-toolbar {
+  justify-content: space-between;
+}
+
+#discoveryDrawer .drawer-controls .text-input {
+  flex: 1;
+  height: 26px;
+  padding: 0 8px;
+}
+
+/* 工具栏按钮：搜索框左侧伸展，操作按钮右对齐（DOM 顺序：输入框 → 按钮） */
+#discoveryDrawer .drawer-controls .btn {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  font-size: 12px;
+  height: 26px;
+  line-height: 14px;
+  display: inline-flex;
+  align-items: center;
+}
+
+#discoveryDrawer .drawer-status {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+#discoveryDrawer .drawer-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+#discoveryDrawer .discovery-row {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+#discoveryDrawer .discovery-row:hover {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+
+#discoveryDrawer .discovery-model-check {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#discoveryDrawer .discovery-checkmark {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  flex-shrink: 0;
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+#discoveryDrawer .discovery-model-check:checked + .discovery-checkmark {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--surface-2);
+}
+
+#discoveryDrawer .discovery-row-main {
+  flex: 1;
+  min-width: 0;
+}
+
+#discoveryDrawer .discovery-row-name {
+  color: var(--text-main);
+  font-family: monospace;
+  font-weight: 500;
+  font-size: 13px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 行内「导入」按钮：与编辑弹窗模型行的紧凑按钮保持一致（右对齐） */
+#discoveryDrawer .discovery-row .discovery-import-one {
+  flex-shrink: 0;
+  height: 22px;
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+/* 已导入态：置灰禁用（无全局 :disabled 样式，需自行定义） */
+#discoveryDrawer .discovery-row .discovery-import-one.imported {
+  color: var(--text-muted);
+  background: var(--surface-3);
+  border-color: var(--accent);
+  cursor: default;
+  opacity: 0.8;
+}
+
+/* ── 平台右键菜单（挂到 body，用全局变量）── */
+.provider-context-menu {
+  position: fixed;
+  z-index: 1400;
+  min-width: 168px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+}
+
+.provider-context-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-main);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.provider-context-item:hover {
+  background: var(--surface-3);
+}
+
+.provider-context-item.disabled {
+  color: var(--text-muted);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.provider-context-item.disabled:hover {
+  background: transparent;
+}
+
+.provider-context-item.danger {
+  color: var(--danger);
+}
+
+.provider-context-item.danger:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.provider-context-item.accent {
+  color: var(--vision-proxy, var(--accent));
+}
+
+.provider-context-item.accent:hover {
+  background: rgba(var(--vision-proxy-rgb, 251, 191, 36), .12);
+  color: var(--vision-proxy, var(--accent));
+}
+
+.provider-context-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
+}
+
+/* ===== 新增模型弹窗（手动添加模型，无需依赖 discovery 接口）===== */
+#addModelModal.modal-mask.open {
+  display: flex;
+  opacity: 1;
+}
+#addModelModal .modal {
+  width: min(420px, 92vw);
+}
+#addModelModal.modal-mask.open .modal {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+#addModelModal .modal-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#addModelModal .modal-title {
+  font-weight: 500;
+  color: var(--text-main);
+  font-size: 14px;
+}
+#addModelModal .modal-body {
+  padding: 12px 14px;
+  gap: 0;
+}
+#addModelModal .modal-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1);
+}
+#addModelModal .modal-footer-spacer {
+  flex: 1;
+}
+#addModelModal .modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  transition: color 0.15s ease;
+}
+#addModelModal .modal-close:hover {
+  color: var(--text-main);
+}
+#addModelModal .modal-row {
+  margin-bottom: 2px;
+}
+#addModelModal .modal-row label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+#addModelModal .modal-row input[type="text"] {
+  width: 100%;
+  height: 28px;
+  box-sizing: border-box;
+}
+
+/* 新增模型弹窗：模型能力复选框（复用能力行样式，作用域限定到 #addModelModal） */
+#addModelModal .add-model-capabilities {
+  margin-top: 10px;
+}
+#addModelModal .add-model-capabilities-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+#addModelModal .add-model-capabilities-list {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+#addModelModal .capabilities-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+#addModelModal .capabilities-edit-row:hover {
+  background: var(--surface-3);
+}
+#addModelModal .capabilities-edit-row + .capabilities-edit-row {
+  border-top: 1px solid var(--border);
+}
+#addModelModal .capabilities-edit-ico {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: var(--surface-3);
+}
+#addModelModal .capabilities-edit-ico.tone-blue {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .1);
+}
+#addModelModal .capabilities-edit-ico.tone-purple {
+  color: var(--accent-purple, #8f6dce);
+  background: rgba(var(--accent-purple-rgb), .12);
+}
+#addModelModal .capabilities-edit-ico.tone-green {
+  color: var(--signal-green);
+  background: var(--signal-green-soft);
+}
+#addModelModal .capabilities-edit-ico.tone-orange {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+#addModelModal .capabilities-edit-ico.tone-cyan {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, .12);
+}
+#addModelModal .capabilities-edit-ico.tone-violet {
+  color: var(--reason);
+  background: rgba(var(--reason-rgb),.12);
+}
+#addModelModal .capabilities-edit-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+#addModelModal .capabilities-edit-name {
+  font-size: 12px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+#addModelModal .capabilities-edit-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 上传文件 URL 的说明文案：勾选「作为文件引用上传」但未填 URL 时，平台不会启用文件上传 */
+#providerEditorModal .upload-url-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+#addModelModal .capabilities-edit-row > .toggle-wrap {
+  flex-shrink: 0;
+}
+
+/* ===== 编辑模型能力弹窗 ===== */
+#editModelCapabilitiesModal.modal-mask.open {
+  display: flex;
+  opacity: 1;
+}
+#editModelCapabilitiesModal .modal {
+  width: min(400px, 92vw);
+}
+#editModelCapabilitiesModal.modal-mask.open .modal {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+#editModelCapabilitiesModal .modal-head {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+#editModelCapabilitiesModal .modal-title {
+  font-weight: 500;
+  color: var(--text-main);
+  font-size: 13px;
+}
+#editModelCapabilitiesModal .modal-body {
+  padding: 10px 12px;
+}
+#editModelCapabilitiesModal .modal-footer {
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-1);
+}
+#editModelCapabilitiesModal .modal-footer-spacer {
+  flex: 1;
+}
+#editModelCapabilitiesModal .modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  font-size: 16px;
+  transition: color 0.15s ease;
+}
+#editModelCapabilitiesModal .modal-close:hover {
+  color: var(--text-main);
+}
+
+/* 模型信息卡片 */
+#editModelCapabilitiesModal .capabilities-model-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(var(--accent-rgb), .2);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), .06), rgba(var(--accent-rgb), .02));
+}
+#editModelCapabilitiesModal .capabilities-model-ico {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .1);
+}
+#editModelCapabilitiesModal .capabilities-model-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+#editModelCapabilitiesModal .capabilities-model-id {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#editModelCapabilitiesModal .capabilities-model-provider {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 能力分组 */
+#editModelCapabilitiesModal .capabilities-edit-group {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+#editModelCapabilitiesModal .capabilities-edit-group-title {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .4px;
+  color: var(--text-muted);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 能力行：图标 + 名称/提示 + 开关 */
+#editModelCapabilitiesModal .capabilities-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+#editModelCapabilitiesModal .capabilities-edit-row:hover {
+  background: var(--surface-3);
+}
+#editModelCapabilitiesModal .capabilities-edit-row + .capabilities-edit-row {
+  border-top: 1px solid var(--border);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--text-muted);
+  background: var(--surface-3);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-blue {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), .1);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-purple {
+  color: var(--accent-purple, #8f6dce);
+  background: rgba(var(--accent-purple-rgb), .12);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-green {
+  color: var(--signal-green);
+  background: var(--signal-green-soft);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-orange {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-cyan {
+  color: #4fc3f7;
+  background: rgba(79, 195, 247, .12);
+}
+#editModelCapabilitiesModal .capabilities-edit-ico.tone-violet {
+  color: var(--reason);
+  background: rgba(var(--reason-rgb),.12);
+}
+#editModelCapabilitiesModal .capabilities-edit-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+#editModelCapabilitiesModal .capabilities-edit-name {
+  font-size: 12px;
+  color: var(--text-main);
+  font-weight: 500;
+}
+#editModelCapabilitiesModal .capabilities-edit-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 行内开关：复用全局 .toggle-wrap 组件。
+   `.capabilities-edit-row` 是 label，内部再套一层 .toggle-wrap 避免外层 flex 干扰开关内联布局。 */
+#editModelCapabilitiesModal .capabilities-edit-row > .toggle-wrap {
+  flex-shrink: 0;
+}
+
+/* 思考自定义参数框：挂在「思考」能力行下方（开关打开时才显示），
+   缩进对齐该行文案——图标 22px + gap 8px + 行内左内边距 10px = 40px */
+#editModelCapabilitiesModal .capabilities-thinking-custom {
+  border-top: 1px solid var(--border);
+  padding: 8px 10px 10px 40px;
+  background: rgba(var(--reason-rgb),.04);
+}
+#editModelCapabilitiesModal .capabilities-thinking-hint {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  word-break: break-all;
+}
+#editModelCapabilitiesModal .capabilities-thinking-custom textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 56px;
+  resize: vertical;
+  font-family: var(--font-mono, Consolas, monospace);
+  font-size: 11px;
+}
+

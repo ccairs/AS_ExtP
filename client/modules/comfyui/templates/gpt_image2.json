@@ -1,0 +1,112 @@
+{
+    "id": "gpt_image2",
+    "name": "GPT Image 2",
+    "description": "OpenAI GPT Image（gpt-image-2 / 1.5 / 1），需要 ComfyUI 账户积分或 API Key",
+    "category": "image",
+    "mode": "txt2img",
+    "cloud": true,
+    "parameters": [
+        { "key": "prompt", "label": "提示词", "type": "textarea", "required": true },
+        { "key": "model", "label": "模型", "type": "select", "choices": ["gpt-image-2", "gpt-image-1.5", "gpt-image-1"], "default": "gpt-image-2" },
+        { "key": "model.quality", "label": "质量", "type": "select", "choices": ["low", "medium", "high"], "default": "low" },
+        { "key": "model.size", "label": "尺寸", "type": "select", "choices": ["auto", "1024x1024", "1024x1536", "1536x1024", "2048x2048", "2048x1152", "1152x2048", "3840x2160", "2160x3840", "Custom"], "default": "auto" },
+        { "key": "model.custom_width", "label": "自定义宽度", "type": "number", "default": 1024, "min": 1024, "max": 3840, "step": 16 },
+        { "key": "model.custom_height", "label": "自定义高度", "type": "number", "default": 1024, "min": 1024, "max": 3840, "step": 16 },
+        { "key": "model.background", "label": "背景", "type": "select", "choices": ["auto", "opaque", "transparent"], "default": "auto" },
+        { "key": "n", "label": "生成数量", "type": "number", "default": 1, "min": 1, "max": 8, "step": 1 },
+        { "key": "seed", "label": "种子", "type": "number", "default": 0, "min": 0, "max": 2147483647 },
+        { "key": "reference_image", "label": "参考图片(可选)", "type": "image", "multiple": true, "maxCount": 10 }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "OpenAIGPTImageNodeV2",
+            "inputs": {
+                "prompt": "{{prompt}}",
+                "model": "{{model}}",
+                "model.size": "{{model.size}}",
+                "model.custom_width": "{{model.custom_width}}",
+                "model.custom_height": "{{model.custom_height}}",
+                "model.background": "{{model.background}}",
+                "model.quality": "{{model.quality}}",
+                "n": "{{n}}",
+                "model.images.image_1": ["ref_image_loader_1", 0],
+                "model.images.image_2": ["ref_image_loader_2", 0],
+                "model.images.image_3": ["ref_image_loader_3", 0],
+                "model.images.image_4": ["ref_image_loader_4", 0],
+                "model.images.image_5": ["ref_image_loader_5", 0],
+                "model.images.image_6": ["ref_image_loader_6", 0],
+                "model.images.image_7": ["ref_image_loader_7", 0],
+                "model.images.image_8": ["ref_image_loader_8", 0],
+                "model.images.image_9": ["ref_image_loader_9", 0],
+                "model.images.image_10": ["ref_image_loader_10", 0],
+                "seed": "{{seed}}"
+            }
+        },
+        "2": {
+            "class_type": "PreviewImage",
+            "inputs": {
+                "images": ["1", 0]
+            }
+        },
+        "ref_image_loader_1": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_1}}"
+            }
+        },
+        "ref_image_loader_2": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_2}}"
+            }
+        },
+        "ref_image_loader_3": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_3}}"
+            }
+        },
+        "ref_image_loader_4": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_4}}"
+            }
+        },
+        "ref_image_loader_5": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_5}}"
+            }
+        },
+        "ref_image_loader_6": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_6}}"
+            }
+        },
+        "ref_image_loader_7": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_7}}"
+            }
+        },
+        "ref_image_loader_8": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_8}}"
+            }
+        },
+        "ref_image_loader_9": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_9}}"
+            }
+        },
+        "ref_image_loader_10": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_10}}"
+            }
+        }
+    }
+}

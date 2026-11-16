@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AS_ExtP</title>
+    <link rel="stylesheet" href="shared/styles/common.css">
+    <link rel="stylesheet" href="modules/agent/agent.css">
+    <link rel="stylesheet" href="vendor/prism/prism-tomorrow.min.css">
+    <link rel="stylesheet" href="modules/comfyui/comfyui.css">
+    <link rel="stylesheet" href="modules/assets/assets.css">
+    <link rel="stylesheet" href="modules/ae-tools/ae-tools.css">
+    <link rel="stylesheet" href="modules/memory/memory.css">
+    <link rel="stylesheet" href="modules/model-manager/model-manager.css">
+    <link rel="stylesheet" href="shared/styles/panel.css">
+    <link rel="stylesheet" href="features/deepseekPet/pet.css">
+    <link rel="stylesheet" href="features/quickBar/quickBar.css">
+</head>
+<body>
+    <div class="boot-sequence" id="bootSequence" aria-hidden="true">
+        <div class="boot-phase" data-phase="1">
+            <div class="boot-line">AS_ExtP · AE LLM TOOLKIT</div>
+            <div class="boot-line">BOOTSTRAPPING EXTENSION CORE...</div>
+            <div class="boot-bar"><div class="boot-bar-fill" id="bootBarFill"></div></div>
+            <div class="boot-status" id="bootStatusLine">准备启动…</div>
+        </div>
+        <div class="boot-phase" data-phase="2">
+            <div class="boot-line">BRIDGE SERVICE ONLINE</div>
+            <div class="boot-line">TOOL REGISTRY READY</div>
+            <div class="boot-line">LLM CHANNEL NOMINAL</div>
+            <div class="boot-line tac-gold">ALL SYSTEMS ACTIVE</div>
+        </div>
+    </div>
+
+    <!-- Bridge 未就绪阻塞覆盖层 -->
+    <div class="boot-block-overlay" id="bridgeFailOverlay" aria-hidden="true">
+        <div class="boot-block-card">
+            <div class="boot-block-icon">&#x26A0;</div>
+            <div class="boot-block-title">Bridge 服务未启动</div>
+            <div class="boot-block-msg">
+                <p>扩展依赖的本地桥接服务未能自动启动。</p>
+                <p style="margin-top:8px;color:rgba(251,191,36,.8);">请检查 AE 首选项：</p>
+                <p style="font-size:11px;color:var(--text-muted);">编辑 → 首选项 → 脚本和表达式 → 勾选「<b>允许脚本写入文件和访问网络</b>」→ 重启 AE</p>
+            </div>
+            <div class="boot-block-actions">
+                <button class="btn" id="bridgeRetryBtn">&#x21BB; 重新检测</button>
+                <button class="btn secondary" id="bridgeSkipBtn">&#x25B6; 跳过（功能受限）</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bridge 跳过二次确认覆盖层（启动失败页/断线页共用）。
+         z-index 必须高于两个阻断页（类默认 9999 / 断线页 10001）——10000 会被断线页压在下面，
+         从断线页点「跳过」时确认层被遮挡点不到。
+         文案按「桥独占能力」列清单（写具体，不写"部分功能"）：
+         联网搜索/读取网页（webSearchTool→/api/web-search、readUrlTool→/api/fetch-page）、
+         外部客户端接入（/mcp、/ext-ws）、视频预览与转码（/api/ffmpeg-*）、
+         文档解析（/api/parse-doc*）、图片读取与系统剪贴板（/api/read-image、/api/clipboard-image，
+         剪贴板粘贴有浏览器通道回退）、技能商店与下载（/api/skill-store、/api/download-url）、
+         ComfyUI 官方模板库搜索（/api/comfy-templates）。
+         「不受影响」行仅列已核实项：AI 对话（面板直连模型服务）、AE 操作（CSInterface
+         evalScript 直连）、记忆/会话/文件读写（AEFS 通道失败自动回退 cep.fs/ExtendScript，
+         见 aefs.js 头注）、本地 ComfyUI 生成（直连 ComfyUI 服务）。 -->
+    <div class="boot-block-overlay" id="bridgeSkipConfirmOverlay" aria-hidden="true" style="z-index:10002;">
+        <div class="boot-block-card">
+            <div class="boot-block-icon">&#x26A0;</div>
+            <div class="boot-block-title">继续跳过 Bridge 服务？</div>
+            <div class="boot-block-msg">
+                <p>跳过期间不可用：联网搜索、外接（MCP）、视频预览/转码、文档解析、图片读取、技能商店/模板库。</p>
+                <p style="margin-top:6px;">本地对话、AE 操作、文件保存不受影响。</p>
+            </div>
+            <div class="boot-block-actions">
+                <button class="btn" id="skipConfirmBackBtn">&#x2190; 返回检测</button>
+                <button class="btn secondary" id="skipConfirmOkBtn">&#x26A0; 继续跳过</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bridge 运行时断线覆盖层（与阻断页同风格） -->
+    <div class="boot-block-overlay" id="bridgeDisconnectOverlay" aria-hidden="true" style="z-index:10001;">
+        <div class="boot-block-card">
+            <div class="boot-block-icon">&#x26A0;</div>
+            <div class="boot-block-title">Bridge 服务已断开</div>
+            <div class="boot-block-msg">
+                <p>扩展运行时本地桥接服务已断开，部分功能可能异常或不可用。</p>
+                <p style="margin-top:8px;color:rgba(251,191,36,.8);">已自动尝试恢复，若持续断开请重启 AE。</p>
+            </div>
+            <div class="boot-block-actions">
+                <button class="btn" id="disconnectRetryBtn">&#x21BB; 重新检测</button>
+                <button class="btn secondary" id="disconnectSkipBtn">&#x25B6; 跳过（功能受限）</button>
+            </div>
+        </div>
+    </div>
+
+    <img class="bg-overlay-layer" id="bgOverlayLayer" aria-hidden="true" alt="">
+    <div class="app">
+        <div class="hud-module-grid" aria-hidden="true"></div>
+        <div id="homeView" class="view">
+            <div class="topbar">
+                <div class="left-group">
+                    <div class="cube-icon" id="cubeIcon"></div>
+                    <div class="title">主面板</div>
+                </div>
+                <div class="btn-row">
+                    <span class="sharp-tag" id="sysTag" title="Bridge 状态：检测中"><span class="diamond-dot" id="sysTagDot"></span><span id="sysTagText">SYS --</span></span>
+                    <button class="btn" id="openGlobalSettingsBtn">⚙ 全局设置</button>
+                </div>
+            </div>
+            <div class="home-content ae-scrollbar">
+                <div id="moduleCardList" class="module-card-list"></div>
+            </div>
+        </div>
+
+        <div id="moduleView" class="view hidden">
+            <div class="topbar">
+                <div class="left-group">
+                    <button class="btn secondary" id="backToHomeBtn">返回主面板</button>
+                    <div class="cube-icon" id="moduleCubeIcon"></div>
+                    <div class="title" id="moduleViewTitle">模块</div>
+                </div>
+                <div class="btn-row">
+                    <span class="sharp-tag" id="sigTag" title="Bridge 状态：检测中"><span class="diamond-dot" id="sigTagDot" style="width:5px;height:5px;"></span><span id="sigTagText">SIG --</span></span>
+                    <button class="btn" id="openSettingsBtn">⚙ 模块设置</button>
+                    <button class="btn secondary" id="refreshModuleBtn">↻ 刷新</button>
+                </div>
+            </div>
+
+            <div class="module-content">
+                <div id="agentPanel" class="llm-unified-layout" data-module-panel>
+                    <!-- token-stats 占位节点：JS 初始化时被移动到 .agent-current-model-bar 末尾 -->
+                    <div class="ae-agent-token-stats" id="aeAgentTokenStats" style="display:none;">↑-- ↓-- <span class="ae-agent-token-cache">缓存--</span></div>
+                    <div class="panel llm-unified-panel">
+                        <div class="panel-body llm-unified-body">
+                            <div class="drawer-shell left collapsed" id="scriptListDrawer">
+                                <div class="drawer-body">
+                                    <div class="script-list-shell" id="scriptListShell">
+                                        <!-- 团队模式左抽屉 tab 条：「计划 | 团队任务」。
+                                             默认 hidden：只在团队模式开启时显示（显隐的判据在
+                                             app/teamUI.js 的 resolveDrawerRouting，DOM 写入经
+                                             applyDrawerRouting；app/main.js 的 refreshList 调它）。
+                                             「团队任务」tab 与下面的 #scriptTree（计划区）互斥显示。 -->
+                                        <div class="team-drawer-tabs" id="teamDrawerTabs" hidden>
+                                            <button type="button" class="team-drawer-tab is-active" id="teamDrawerTabPlan" data-tab="plan">计划</button>
+                                            <button type="button" class="team-drawer-tab" id="teamDrawerTabTeam" data-tab="team">团队任务</button>
+                                        </div>
+                                        <div class="script-tree-toolbar" id="scriptTreeToolbar">
+                                            <div class="script-tree-search">
+                                                <input type="text" id="scriptSearch" class="text-input" placeholder="搜索脚本...">
+                                                <button id="scriptSearchClear" class="search-clear-btn" title="清除搜索">✕</button>
+                                            </div>
+                                            <div class="script-tree-actions">
+                                                <button id="scriptNewFileBtn" class="btn compact" title="新建脚本">+📄</button>
+                                                <button id="scriptNewFolderBtn" class="btn compact" title="新建文件夹">+📁</button>
+                                                <button id="scriptBatchDeleteBtn" class="danger-btn compact" title="批量删除选中" disabled>🗑</button>
+                                                <button id="scriptBatchMoveBtn" class="btn compact" title="移动到..." disabled>📂</button>
+                                            </div>
+                                        </div>
+                                        <div class="script-tree ae-scrollbar" id="scriptTree"></div>
+                                        <!-- 团队任务面板：**运行态行即切换入口**（点行就切、不设独立入口）+ 运行态段
+                                             （三条 lane 各一行：名称 + 状态点 + 当前动作 + 耗时 + 子 Agent 数，
+                                             正在跑的置顶高亮，当前 lane 行高亮）。行由 app/teamUI.js 渲染
+                                             （任务板渲染的单一落点），此处只给容器骨架。
+                                             默认 hidden（团队模式未开时不出现）。 -->
+                                        <div class="team-task-panel" id="teamTaskPanel" hidden>
+                                            <div class="team-board-section">
+                                                <div class="team-board-title">运行态<span class="team-board-title-hint">点击行切换 Agent</span></div>
+                                                <div class="team-board-lanes" id="teamBoardLanes"></div>
+                                                <div class="team-board-hint" id="teamBoardHint" hidden></div>
+                                            </div>
+                                            <!-- 工作区文件段：计划书 / 文字分镜两行，
+                                                 点击行在右侧弹悬浮窗按 markdown 显示。行由 app/teamUI.js
+                                                 按工作区文件表渲染（#teamBoardFiles 只是容器，静态骨架）。 -->
+                                            <div class="team-board-section">
+                                                <div class="team-board-title">工作区文件<span class="team-board-title-hint">点击行查看</span></div>
+                                                <div class="team-board-files" id="teamBoardFiles"></div>
+                                            </div>
+                                        </div>
+                                        </div>
+                                        <!-- 外接模式左列行分隔条（脚本树/效果库调高，仅 .ext-mode-active 显示） -->
+                                        <div class="ext-row-resizer" id="extLeftResizer" title="拖拽调整脚本树/效果库高度"></div>
+                                        <div class="shader-left-panel" id="shaderLeftPanel" style="display:none;">
+                                        <div class="shader-preview-stage" id="shaderPreviewStage">
+                                            <canvas id="shaderPreviewCanvas"></canvas>
+                                            <button type="button" class="shader-preview-pause" id="shaderPreviewPauseBtn" title="暂停预览">⏸</button>
+                                            <button type="button" class="shader-preview-reset" id="shaderPreviewResetBtn" title="重置时间（uTime 归零）">↺</button>
+                                            <button type="button" class="shader-preview-camera" id="shaderPreviewCamResetBtn" title="重置相机视角（左键旋转 · 右键推拉 · 中键平移）">◎</button>
+                                            <div class="shader-preview-msg" id="shaderPreviewMsg">实时预览：提交代码后自动渲染</div>
+                                        </div>
+                                        <div class="shader-list-resizer" id="shaderListResizer" title="拖拽调整预览/列表高度"></div>
+                                        <!-- 效果库头部：团队模式下与列表一起被 shaderUI 搬进右抽屉的
+                                             「效果库」页，故给它一个 id 当搬移锚点（原样留在左列时
+                                             位置/样式逐字不变）。 -->
+                                        <div class="shader-library-head" id="shaderLibraryHead">
+                                            <span id="shaderLibTitle">效果库</span>
+                                            <span class="shader-lib-actions">
+                                                <button type="button" class="danger-btn" id="shaderBatchDeleteBtn" title="删除选中的效果（单击选中 · Ctrl 反选 · Shift 连选）" disabled>🗑</button>
+                                                <button type="button" class="btn compact" id="shaderRefreshLibBtn" title="刷新列表">刷新</button>
+                                            </span>
+                                        </div>
+                                        <div class="shader-library-list ae-scrollbar" id="shaderLibraryList"></div>
+                                    </div>
+                                    <div class="drawer-resizer right" id="scriptListResizer" title="拖拽调整脚本列表宽度"></div>
+                                </div>
+                                <button class="drawer-toggle left" id="scriptListToggle" title="展开脚本列表">▶</button>
+                            </div>
+
+                            <div class="llm-center-chat">
+                                <div class="llm-chat-topbar">
+                                    <div class="btn-row">
+                                        <div class="runtime-mode-switch" id="runtimeModeSwitch" title="工作模式（脚本/Agent/Shader/外接/团队）" data-mode-index="0">
+                                            <div class="mode-track">
+                                                <span class="mode-marks" aria-hidden="true">
+                                                    <span class="mode-mark"></span>
+                                                    <span class="mode-mark"></span>
+                                                    <span class="mode-mark"></span>
+                                                    <span class="mode-mark"></span>
+                                                    <span class="mode-mark"></span>
+                                                </span>
+                                                <span class="mode-knob" aria-hidden="true"></span>
+                                            </div>
+                                            <span class="mode-current-label">脚本</span>
+                                        </div>
+                                    </div>
+                                    <div class="btn-row">
+                                        <button class="btn" id="saveBtn">保存脚本</button>
+                                        <button class="btn run" id="runBtn">运行脚本</button>
+                                        <button class="btn secondary" id="refreshScriptListBtn">刷新列表</button>
+                                        <button class="btn secondary" id="clearConversationBtn">清空对话</button>
+                                    </div>
+                                </div>
+
+                                <!-- 外接模式面板（EXT-MCP，六功能区布局：中列=GLSL 预览图+管理台） -->
+                                <div id="extModePanel" style="display:none;">
+                                    <div class="ext-glsl-stage" id="extGlslStage">
+                                        <!-- 外接模式下 #shaderPreviewStage（canvas 预览图）由 external/view.js 移入此处 -->
+                                    </div>
+                                    <!-- 外接模式中列行分隔条（GLSL 预览图/管理台调高） -->
+                                    <div class="ext-row-resizer" id="extMidResizer" title="拖拽调整预览图/管理台高度"></div>
+                                    <div class="ext-console" id="extConsole">
+                                        <div class="ext-status-card" id="extStatusCard"></div>
+                                        <div class="ext-tabs" id="extTabs">
+                                            <button type="button" class="ext-tab active" data-tab="log">调用日志</button>
+                                            <button type="button" class="ext-tab" data-tab="review">审阅队列</button>
+                                            <button type="button" class="ext-tab" data-tab="settings">设置</button>
+                                        </div>
+                                        <div class="ext-tab-pane ext-log-pane" id="extTabLog"></div>
+                                        <div class="ext-tab-pane" id="extTabReview" hidden></div>
+                                        <div class="ext-tab-pane" id="extTabSettings" hidden></div>
+                                    </div>
+                                </div>
+
+                                <div class="ae-agent-topbar" id="aeAgentStatusPanel">
+                                    <div class="status-loader-wrapper" aria-hidden="true">
+                                        <span class="loader-letter">A</span>
+                                        <span class="loader-letter">G</span>
+                                        <span class="loader-letter">E</span>
+                                        <span class="loader-letter">N</span>
+                                        <span class="loader-letter">T</span>
+                                        <div class="loader"></div>
+                                    </div>
+                                    <div id="status" class="status-inline"></div>
+                                    <div id="aeAgentInlineStatus" class="ae-agent-inline-status status-inline"></div>
+                                </div>
+                                <div class="ae-agent-message-wrap">
+                                    <div id="aeAgentMessageList" class="ae-agent-message-list"></div>
+                                    <button type="button" id="aeAgentScrollBottomBtn" class="ae-agent-scroll-bottom-btn" title="滚动到底部" aria-label="滚动到底部">
+                                        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 5.5L8 10l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    </button>
+                                    <div id="aeAgentInputLoading" class="ae-agent-input-loading" aria-hidden="true">
+                                        <span class="ae-agent-input-loading-spinner"></span>
+                                    </div>
+                                    <div id="aeAgentInjectChips" class="ae-agent-inject-chips" style="display:none;"></div>
+                                </div>
+                                <!-- 团队模式：四条 lane 各自的消息区。默认 hidden，团队开关打开后
+                                     由 teamUI 按当前 lane 显隐；单 Agent 路径完全不使用这些节点
+                                     （未开启团队时行为与改动前一致）。每条 lane 自带消息区/滚动按钮/
+                                     用量节点——共用单例会让「哪条 lane 在跑」显示错。
+                                     **状态栏不在这里**：各条 lane 的
+                                     状态文案统一写上面那条单例 #aeAgentStatusPanel，lane 内不再各带一条
+                                     一模一样的顶栏（那是「提示栏多出一条」的来源，也白占 44px 聊天高度）。
+                                     团队模式下的外接、脚本区运行等通道仍走上面单 Agent 区。 -->
+                                <div class="ae-agent-lane" id="aeAgentLane_director" data-lane="director" hidden>
+                                    <div class="ae-agent-message-wrap">
+                                        <div id="aeAgentMessageList_director" class="ae-agent-message-list"></div>
+                                        <button type="button" id="aeAgentScrollBottomBtn_director" class="ae-agent-scroll-bottom-btn" title="滚动到底部" aria-label="滚动到底部">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 5.5L8 10l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="ae-agent-token-stats" id="aeAgentTokenStats_director" style="display:none;">↑-- ↓-- <span class="ae-agent-token-cache">缓存--</span></div>
+                                </div>
+                                <div class="ae-agent-lane" id="aeAgentLane_ae-exec" data-lane="ae-exec" hidden>
+                                    <div class="ae-agent-message-wrap">
+                                        <div id="aeAgentMessageList_ae-exec" class="ae-agent-message-list"></div>
+                                        <button type="button" id="aeAgentScrollBottomBtn_ae-exec" class="ae-agent-scroll-bottom-btn" title="滚动到底部" aria-label="滚动到底部">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 5.5L8 10l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="ae-agent-token-stats" id="aeAgentTokenStats_ae-exec" style="display:none;">↑-- ↓-- <span class="ae-agent-token-cache">缓存--</span></div>
+                                </div>
+                                <div class="ae-agent-lane" id="aeAgentLane_glsl" data-lane="glsl" hidden>
+                                    <div class="ae-agent-message-wrap">
+                                        <div id="aeAgentMessageList_glsl" class="ae-agent-message-list"></div>
+                                        <button type="button" id="aeAgentScrollBottomBtn_glsl" class="ae-agent-scroll-bottom-btn" title="滚动到底部" aria-label="滚动到底部">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 5.5L8 10l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="ae-agent-token-stats" id="aeAgentTokenStats_glsl" style="display:none;">↑-- ↓-- <span class="ae-agent-token-cache">缓存--</span></div>
+                                </div>
+                                <div class="ae-agent-lane" id="aeAgentLane_asset-gen" data-lane="asset-gen" hidden>
+                                    <div class="ae-agent-message-wrap">
+                                        <div id="aeAgentMessageList_asset-gen" class="ae-agent-message-list"></div>
+                                        <button type="button" id="aeAgentScrollBottomBtn_asset-gen" class="ae-agent-scroll-bottom-btn" title="滚动到底部" aria-label="滚动到底部">
+                                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 5.5L8 10l4.5-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="ae-agent-token-stats" id="aeAgentTokenStats_asset-gen" style="display:none;">↑-- ↓-- <span class="ae-agent-token-cache">缓存--</span></div>
+                                </div>
+                                <div class="ae-agent-message-resizer" id="aeAgentMessageResizer" title="拖拽调整聊天框高度"></div>
+                                <div class="ae-agent-toolbar">
+                                    <button type="button" class="ae-agent-tool-btn" id="aeAgentSlashBtn" title="输入 / 命令" aria-label="输入斜杠命令">/</button>
+                                    <button type="button" class="ae-agent-tool-btn" id="aeAgentUploadBtn" title="添加文件到对话" aria-label="添加文件">
+                                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M8 11V4"/>
+                                            <path d="M4.5 7.5 8 4l3.5 3.5"/>
+                                            <path d="M2 12.5h12"/>
+                                        </svg>
+                                    </button>
+                                    <div id="aeAgentFileChips" class="ae-agent-file-chips"></div>
+                                    <div class="ae-agent-ae-state" id="aeAgentAeState">
+                                        <span class="ae-agent-ae-state-label">当前选中</span>
+                                        <span class="ae-agent-ae-state-hover">点击引用</span>
+                                    </div>
+                                    <div class="ae-agent-perm-slider" id="aeAgentPermSlider" title="工具执行权限：自动（全部执行）/ 平衡（危险工具确认）/ 保守（仅只读自动）">
+                                        <span class="perm-slider-label">权限</span>
+                                        <div class="thinking-slot" id="permissionModeSlot">
+                                            <div class="thinking-strip" id="permissionModeStrip">
+                                                <span class="thinking-strip-item" data-val="auto">自动</span>
+                                                <span class="thinking-strip-item" data-val="balanced">平衡</span>
+                                                <span class="thinking-strip-item" data-val="conservative">保守</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ae-agent-thinking-slider" id="aeAgentThinkingSlider" title="点击切换思考等级">
+                                        <span class="thinking-slider-label">思考</span>
+                                        <div class="thinking-slot" id="reasoningEffortSlot">
+                                            <div class="thinking-strip" id="reasoningEffortStrip">
+                                                <span class="thinking-strip-item" data-val="low">LOW</span>
+                                                <span class="thinking-strip-item" data-val="medium">MEDIUM</span>
+                                                <span class="thinking-strip-item" data-val="high">HIGH</span>
+                                                <span class="thinking-strip-item" data-val="xhigh">XHIGH</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="ae-agent-input-wrap" id="aeAgentInputWrap">
+                                    <div class="ctx-bar-wrap" id="ctxRingWrap" title="上下文用量">
+                                        <div class="ctx-bar" id="ctxBar"></div>
+                                    </div>
+                                    <div id="chatInputParticleStage"><canvas id="particleCanvas" class="particle-canvas"></canvas></div>
+                                    <div class="ae-agent-drop-hint" id="aeAgentDropHint">
+                                        <span class="ae-agent-drop-hint-icon">📥</span>
+                                        <span class="ae-agent-drop-hint-title">释放以添加文件</span>
+                                        <span class="ae-agent-drop-hint-sub">支持文件 · 文件夹 · 图片</span>
+                                    </div>
+                                    <!-- 提问面板（askUser）：问答期间整块替换普通输入区（#aeAgentInputArea 隐藏），
+                                         结算后收起、输入区恢复。面板是静态共享元素，由 view.js 只做显隐与内容填充；
+                                         提问不再画进消息流（历史只留一行结果记录，见 renderMessages）。
+                                         三段式：状态条（图标/标题/多选徽标/操作提示）+ 问题与选项 + 输入行；
+                                         data-multi 由 view.js 按本次提问切换，CSS 据此把选项画成单选圆点/多选方框。 -->
+                                    <div class="ae-agent-ask-panel" id="aeAgentAskPanel" hidden data-multi="false" role="group" aria-label="需要你的回答">
+                                        <div class="ae-agent-ask-head">
+                                            <span class="ae-agent-ask-icon" aria-hidden="true">?</span>
+                                            <span class="ae-agent-ask-title">需要你的回答</span>
+                                            <span class="ae-agent-ask-mode" id="aeAgentAskMode" hidden>可多选</span>
+                                            <span class="ae-agent-ask-hint" id="aeAgentAskHint"></span>
+                                        </div>
+                                        <div class="ae-agent-ask-body">
+                                            <div class="ae-agent-ask-question" id="aeAgentAskQuestion"></div>
+                                            <div class="ae-agent-ask-options" id="aeAgentAskOptions" hidden></div>
+                                        </div>
+                                        <div class="ae-agent-ask-row">
+                                            <textarea id="aeAgentAskInput" rows="1" placeholder="也可直接输入回答（Ctrl+Enter 提交）…"></textarea>
+                                            <div class="ae-agent-ask-actions">
+                                                <button type="button" class="ae-agent-ask-submit" id="aeAgentAskSubmit" title="Ctrl+Enter 提交">回答</button>
+                                                <button type="button" class="ae-agent-ask-cancel" id="aeAgentAskCancel" title="Esc 取消">取消</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="ae-agent-input-area" id="aeAgentInputArea">
+                                        <textarea id="aeAgentInput" placeholder="输入 AE 需求，例如：创建一个红色固态层并置顶（Enter发送，Ctrl+Enter/Shift+Enter换行）"></textarea>
+                                        <div id="aeAgentCodeChipOverlay" class="ae-agent-input-overlay" aria-hidden="true"></div>
+                                    </div>
+                                    <!-- 发送 / 全部停止（团队模式）：两颗**独立**按钮，中间留缝
+                                          （不要贴着、字分两行、换个颜色）。
+                                          上 = 发送（busy 时变「停止」，作用域=当前 lane），
+                                          下 = 全部停止（作用域=三条 lane，琥珀告警色，两行字）。
+                                          团队关闭时只显示上面那颗，外观与行为与改动前逐字一致。 -->
+                                    <div class="ae-agent-send-stack" id="aeAgentSendStack">
+                                        <button class="btn run" id="aeAgentSendBtn">发送</button>
+                                        <button type="button" class="ae-agent-send-stopall" id="aeAgentStopAllBtn" hidden
+                                                title="停止全部四条 Agent（导演 / AE 执行 / Shader 执行 / 美术执行）">
+                                            <span class="ae-agent-stopall-line">全部</span>
+                                            <span class="ae-agent-stopall-line">停止</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="drawer-shell right collapsed" id="scriptPreviewDrawer">
+                                <button class="drawer-toggle right" id="scriptPreviewToggle" title="展开代码预览">◀</button>
+                                <div class="drawer-body">
+                                    <!-- 团队模式：右抽屉上半 = shader 实时预览，下半 = shader 代码栏。
+                                         外接模式把 #shaderPreviewStage 移到中列 #extGlslStage，团队模式则移到
+                                         这个容器里（shaderUI.showTeamLayout 移入 / hideTeamLayout 移回左列原位）
+                                         ——中心列留给聊天流，shader 工作面（预览 + 代码）整体收进右抽屉。
+                                         显隐由 .team-mode-active 的 CSS 驱动（不写内联 display）。 -->
+                                    <div class="shader-team-stage" id="shaderTeamStage"></div>
+                                    <!-- 团队模式右列行分隔条（预览/代码调高，仅 .team-mode-active 显示） -->
+                                    <div class="shader-team-resizer" id="shaderTeamResizer" title="拖拽调整预览/代码高度"></div>
+                                    <!-- 团队模式右抽屉下半的**并列 tab**：
+                                         两颗页签 = GLSL 代码 / 效果库。页签状态写在 data-active 上，两个页的
+                                         显隐由 agent.css 按它切（页与条是兄弟节点，用 ~ 选择器；不写内联 display，
+                                         规则全挂在 .team-mode-active 下 ⇒ 离开团队不残留）。
+                                         效果库的两件（#shaderLibraryHead + #shaderLibraryList）由
+                                         shaderUI.showTeamLayout 搬进 #shaderTeamLibPane、hideTeamLayout 搬回左列。 -->
+                                    <div class="shader-team-tabs" id="shaderTeamTabs" data-active="code">
+                                        <button type="button" class="shader-team-tab active" data-tab="code">GLSL 代码</button>
+                                        <button type="button" class="shader-team-tab" data-tab="library">效果库</button>
+                                    </div>
+                                    <div class="shader-right-panel" id="shaderRightPanel" style="display:none;">
+                                        <div class="shader-toolbar">
+                                            <span id="shaderCompileStatus" class="shader-compile-status">未编译</span>
+                                            <span class="shader-toolbar-spacer"></span>
+                                            <button type="button" class="btn compact" id="shaderSaveBtn" title="保存到效果库">保存</button>
+                                        </div>
+                                        <div class="shader-uniforms" id="shaderUniforms">
+                                            <div class="shader-uniforms-head" id="shaderUniformsToggle">参数（默认值）<span class="caret">▾</span></div>
+                                            <div class="shader-uniforms-body" id="shaderUniformsBody"></div>
+                                        </div>
+                                        <div id="shaderCodeWrap">
+                                            <pre id="shaderHighlight" class="code-overlay" aria-hidden="true"><code id="shaderHighlightCode"></code></pre>
+                                            <textarea id="shaderCodePreview" class="code-editor" placeholder="GLSL 代码显示在这里，可直接编辑" spellcheck="false"></textarea>
+                                        </div>
+                                    </div>
+                                    <!-- 团队模式「效果库」页：骨架**必须留空**——效果库的两件由
+                                         shaderUI.showTeamLayout 搬进来，离开团队时搬回左列。默认不显示
+                                         （.shader-team-lib-pane{display:none}，只有团队模式 + 效果库页才 flex）。 -->
+                                    <div class="shader-team-lib-pane" id="shaderTeamLibPane"></div>
+                                    <div id="scriptPreviewWrap">
+                                        <!-- 预览区双栏（编辑/产物 tab）——悬浮件（lock/errorCard/prismStatus）留 wrap 层跨 tab 可见 -->
+                                        <div id="prismStatus" style="position:absolute;top:2px;right:2px;font-size:10px;color:#666;z-index:100;display:none;"></div>
+                                        <div class="preview-tabs" id="scriptPreviewTabs">
+                                            <button type="button" class="preview-tab active" data-pane="edit">编辑</button>
+                                            <button type="button" class="preview-tab" data-pane="product">产物</button>
+                                        </div>
+                                        <div class="preview-pane" id="previewEditPane">
+                                            <pre id="scriptHighlight" class="code-overlay" aria-hidden="true"><code id="scriptHighlightCode"></code></pre>
+                                            <textarea id="scriptPreview" class="code-editor" placeholder="生成的脚本会显示在这里，可直接编辑" spellcheck="false"></textarea>
+                                        </div>
+                                        <div class="preview-pane" id="previewProductPane" hidden>
+                                            <pre id="scriptProductView" class="code-overlay product-view"><code id="scriptProductCode"></code></pre>
+                                        </div>
+                                        <div id="previewLockMask" class="preview-lock-mask">正在生成脚本，预览区暂不可编辑</div>
+                                        <div id="runErrorCard" class="run-error-card" hidden>
+                                            <div class="run-error-card-header">
+                                                <span id="runErrorCardTitle" class="run-error-card-title">脚本运行失败</span>
+                                                <button type="button" id="runErrorCardClose" class="run-error-card-close" aria-label="关闭">×</button>
+                                            </div>
+                                            <div id="runErrorCardBody" class="run-error-card-body"></div>
+                                            <div class="run-error-card-actions">
+                                                <button type="button" id="runErrorCardCancel" class="btn">取消</button>
+                                                <button type="button" id="runErrorCardFeedback" class="btn run">反馈</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- 外接模式右列行分隔条（脚本/GLSL 代码预览调高，仅 .ext-mode-active 显示） -->
+                                    <div class="ext-row-resizer" id="extRightResizer" title="拖拽调整脚本/GLSL 代码预览高度"></div>
+                                    <div class="drawer-resizer left" id="scriptPreviewResizer" title="拖拽调整代码预览宽度"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="skillManagerPanel" class="hidden" data-module-panel>
+                    <div id="skillMgmtBody"></div>
+                </div>
+
+                <div id="mcpManagerPanel" class="hidden" data-module-panel>
+                    <div id="mcpMgmtBody"></div>
+                </div>
+
+                <div id="aeToolsPanel" class="hidden" data-module-panel>
+                    <div id="aeToolsBody"></div>
+                </div>
+
+                <div id="comfyuiPanel" class="hidden" data-module-panel>
+                    <div class="comfyui-form-view">
+                        <div class="comfyui-topbar">
+                            <div class="comfyui-status">
+                                <div class="comfyui-status-indicator"></div>
+                                <span class="comfyui-status-text">未连接</span>
+                            </div>
+                            <button class="btn btn-slice comfyui-connect-btn">连接</button>
+                            <select class="comfyui-template-select"></select>
+                            <button class="btn btn-slice secondary comfyui-official-btn" title="从 ComfyUI 官方模板库（600+ 套，持续更新）搜索并添加模板">官方模板</button>
+                            <button class="btn btn-slice secondary comfyui-import-workflow" style="border-style:dashed;">+ 导入</button>
+                            <button class="btn btn-slice secondary comfyui-expand-btn">打开 ComfyUI</button>
+                        </div>
+                        <div class="comfyui-main">
+                            <div class="comfyui-params">
+                                <div class="comfyui-params-form"></div>
+                                <div class="comfyui-actions">
+                                    <button class="btn run comfyui-generate-btn">生成</button>
+                                </div>
+                            </div>
+                            <div class="comfyui-divider"></div>
+                            <div class="comfyui-results"></div>
+                        </div>
+                    </div>
+                    <!-- 画布容器由 canvasIndex mount 动态创建 -->
+                </div>
+                <div id="assetsPanel" class="hidden assets-panel" data-module-panel></div>
+                <div id="memoryPanel" class="hidden" data-module-panel>
+                    <div id="memoryBody"></div>
+                </div>
+                <div id="modelManagerPanel" class="hidden" data-module-panel>
+                    <div id="modelManagerBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hud-top-stripe" aria-hidden="true"></div>
+    <div class="nerv-tactical-corner" aria-hidden="true"></div>
+    <div class="nerv-tactical-corner-right" aria-hidden="true"></div>
+    <div class="hud-waveform-bg" aria-hidden="true">
+        <div class="wf-col" style="height:40px;"></div><div class="wf-col" style="height:20px;"></div><div class="wf-col" style="height:55px;"></div><div class="wf-col" style="height:30px;"></div><div class="wf-col" style="height:45px;"></div><div class="wf-col" style="height:25px;"></div><div class="wf-col" style="height:50px;"></div><div class="wf-col" style="height:35px;"></div><div class="wf-col" style="height:15px;"></div><div class="wf-col" style="height:60px;"></div><div class="wf-col" style="height:30px;"></div><div class="wf-col" style="height:40px;"></div>
+    </div>
+    <div class="hud-status-bar" id="hudStatusBar" aria-hidden="true">
+        <div class="hud-status-left">
+            <span class="hud-dot" id="hudBridgeDot">●</span>
+            <span id="hudBridgeStatus">BRIDGE: <span id="hudBridgeState">检测中</span></span>
+            <span class="hud-sep">|</span>
+            <span id="hudBridgeUptime"></span>
+            <span class="hud-sep">|</span>
+            <span>模块: <span id="hudActiveModule">主面板</span></span>
+        </div>
+        <div class="hud-status-right">
+            <span>CTX: <span id="hudCtxUsage">—</span></span>
+            <span class="hud-sep">|</span>
+            <span id="hudClock">--:--:--</span>
+            <span class="hud-sep">|</span>
+            <span class="hud-all-clear">● ALL CLEAR</span>
+        </div>
+    </div>
+
+    <!-- 数据目录迁移进度（单独一个进度条弹窗；迁移期间显示，结束即隐藏）
+         z-index 高于普通 .modal-mask(100)：迁移时全局设置弹窗仍开着，层级相同会被它盖住
+         （DOM 里它在后面）——实测「进度弹窗被设置面板挡住」即此因。 -->
+    <div class="modal-mask" id="dataDirProgressModal" style="display:none;z-index:10050;">
+        <div class="modal confirm-modal" style="width:min(360px,90vw);">
+            <div class="modal-head"><span>正在迁移数据</span></div>
+            <div class="modal-body">
+                <div id="dataDirProgressText" style="font-size:12px;color:#8b949e;margin-bottom:10px;">准备中…</div>
+                <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;">
+                    <div id="dataDirProgressBar" style="height:100%;width:0%;background:var(--accent,#f0b429);transition:width .15s linear;"></div>
+                </div>
+                <!-- 长时间没有进度事件时的提示（桥可能无响应）；正常迁移时隐藏 -->
+                <div id="dataDirProgressHint" style="display:none;font-size:11px;line-height:1.5;color:var(--warning,#d29922);margin-top:10px;"></div>
+                <!-- 逃生口——桥「可连但不响应」时迁移可能永不返回，这个全屏遮罩
+                     挡着面板且无取消入口，只能杀面板。点「关闭」只收起弹窗（不取消迁移）。
+                     用 house 的 .btn-row（在 .modal-body 内）——与其它 confirm 弹窗的按钮条同款
+                     （上边框 + 深色底 + 右对齐 + 11px 小按钮），不另造类名。 -->
+                <div class="btn-row">
+                    <button class="btn secondary" id="dataDirProgressCloseBtn" type="button">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" id="globalSettingsModal">
+        <div class="modal">
+            <div class="modal-head">
+                <span>全局设置</span>
+                <button class="icon-btn" id="closeGlobalSettingsBtn">关闭</button>
+            </div>
+            <div class="modal-body ae-scrollbar">
+                <div class="row">
+                    <label for="globalThemePreset">主题预设</label>
+                    <div class="path-input-row">
+                        <select id="globalThemePreset">
+                            <option value="default">默认</option>
+                            <option value="eva01">初号机</option>
+                            <option value="eva02">二号机</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                        <button class="btn secondary" id="customThemeBtn" type="button" hidden>编辑颜色</button>
+                    </div>
+                    <span class="theme-draft-hint" id="themeDraftHint" hidden>预览中 · 点「保存」后生效</span>
+                </div>
+                <div class="row">
+                    <label for="globalUiLocale">界面语言</label>
+                    <div class="path-input-row">
+                        <select id="globalUiLocale"></select>
+                        <span class="theme-draft-hint" id="uiLocaleHint">切换后重载面板生效</span>
+                    </div>
+                </div>
+                <div class="row">
+                    <label for="globalDataDir">扩展数据目录</label>
+                    <div class="path-input-row"><input type="text" id="globalDataDir" placeholder="留空使用默认 AppData 位置"><div class="path-btn-group"><button class="btn secondary path-browse-btn" id="browseGlobalDataDirBtn" type="button">浏览</button><button class="btn secondary path-browse-btn" id="openGlobalDataDirBtn" type="button">打开</button></div></div>
+                </div>
+                <div class="row">
+                    <label for="globalHotboxHotkey">热盒快捷键</label>
+                    <div class="path-input-row"><input type="text" id="globalHotboxHotkey" readonly placeholder="Alt+Q（默认）"><div class="path-btn-group"><button class="btn secondary path-browse-btn" id="recordHotboxHotkeyBtn" type="button">录制</button><button class="btn secondary path-browse-btn" id="resetHotboxHotkeyBtn" type="button">默认</button></div></div>
+                </div>
+                <div class="row checkbox-row">
+                    <label for="globalDebugToggleBtn">调试模式</label>
+                    <label class="toggle-wrap">
+                        <input type="checkbox" id="globalDebugToggleBtn" class="switch-input">
+                        <span class="switch-slider" aria-hidden="true"></span>
+                        <span>开启后展示更多状态信息</span>
+                    </label>
+                </div>
+                <div class="row checkbox-row">
+                    <label for="globalLowPerfToggleBtn">低性能模式</label>
+                    <label class="toggle-wrap">
+                        <input type="checkbox" id="globalLowPerfToggleBtn" class="switch-input">
+                        <span class="switch-slider" aria-hidden="true"></span>
+                        <span>降低各模块性能开销，适合配置较低的设备</span>
+                    </label>
+                </div>
+                <div class="row">
+                    <label for="globalSoundVolume">音效音量</label>
+                    <div style="display:flex;align-items:center;gap:8px;flex:1;position:relative;">
+                        <button type="button" id="globalSoundVolumeIndicator" class="vol-indicator" title="长按蓄力，松开发射（蓄力越久音量越高）">
+                            <span class="vol-indicator-icon">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                            </span>
+                            <span class="vol-charge-ring" aria-hidden="true"></span>
+                        </button>
+                        <input type="range" id="globalSoundVolume" min="0" max="100" value="100" step="1" style="flex:1;">
+                        <span id="globalSoundVolumeLabel" style="min-width:36px;text-align:right;color:var(--text-muted);font-size:12px;">100%</span>
+                        <div class="vol-projectile" id="globalSoundVolumeProjectile" aria-hidden="true"></div>
+                    </div>
+                </div>
+                <div class="row">
+                    <label>背景叠加层</label>
+                    <div class="path-input-row" style="flex:1;">
+                        <input type="text" id="globalBgOverlayPath" placeholder="未选择图片" readonly style="flex:1;">
+                        <div class="path-btn-group">
+                            <button class="btn secondary path-browse-btn" id="browseBgOverlayBtn" type="button">浏览</button>
+                            <button class="btn secondary path-browse-btn" id="clearBgOverlayBtn" type="button">清除</button>
+                            <button class="btn secondary path-browse-btn" id="openBgOverlaySettingsBtn" type="button">设置</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn secondary" id="exportDiagLogBtn" type="button" title="把各进程日志打包成一个文件，供反馈问题使用">导出诊断日志</button>
+                    <button class="btn" id="saveGlobalSettingsBtn">保存全局设置</button>
+                    <button class="btn secondary" id="aboutExtensionBtn">关于扩展</button>
+                    <button class="btn secondary" id="openPetSettingsBtn" hidden>桌宠设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" id="customThemeModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-head">
+                <span>自定义主题颜色</span>
+                <button class="icon-btn" id="closeCustomThemeBtn">关闭</button>
+            </div>
+            <div class="modal-body ae-scrollbar" id="customThemePanel">
+                <div class="custom-theme-schemes" id="customThemeSchemeList"></div>
+            </div>
+            <div class="btn-row">
+                <button class="btn secondary" id="resetCustomThemeBtn" style="margin-right:auto;">恢复默认</button>
+                <button class="btn secondary" id="customThemePreviewBtn">按住预览</button>
+                <button class="btn" id="applyCustomThemeBtn">确定</button>
+                <button class="btn secondary" id="cancelCustomThemeBtn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" id="bgOverlaySettingsModal">
+        <div class="modal" style="max-width:420px;">
+            <div class="modal-head">
+                <span>背景叠加层设置</span>
+                <button class="icon-btn" id="closeBgOverlaySettingsBtn">关闭</button>
+            </div>
+            <div class="modal-body ae-scrollbar" style="display:flex;flex-direction:column;gap:12px;">
+                <div class="row" style="flex-direction:column;align-items:stretch;gap:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <label for="globalBgOverlayOpacity" style="font-size:12px;">透明度</label>
+                        <input type="number" id="globalBgOverlayOpacityLabel" min="0" max="100" value="30" style="width:44px;text-align:center;font-size:12px;padding:2px 4px;">%
+                    </div>
+                    <input type="range" id="globalBgOverlayOpacity" min="0" max="100" value="30" step="1" style="width:100%;">
+                </div>
+                <div class="row" style="flex-direction:column;align-items:stretch;gap:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <label for="globalBgOverlayContrast" style="font-size:12px;">对比度</label>
+                        <input type="number" id="globalBgOverlayContrastLabel" min="0" max="200" value="100" style="width:44px;text-align:center;font-size:12px;padding:2px 4px;">%
+                    </div>
+                    <input type="range" id="globalBgOverlayContrast" min="0" max="200" value="100" step="1" style="width:100%;">
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                        <label for="globalBgOverlayBlend" style="font-size:12px;white-space:nowrap;">混合模式</label>
+                        <!-- 「正常」= CSS 默认值（不做混合）；同时让之前存过 'normal' 的用户回填不再显示空白 -->
+                        <select id="globalBgOverlayBlend" style="flex:1;">
+                            <option value="normal">正常</option>
+                            <option value="screen">滤色</option>
+                            <option value="overlay">叠加</option>
+                            <option value="soft-light">柔光</option>
+                            <option value="hard-light">强光</option>
+                            <option value="multiply">正片叠底</option>
+                            <option value="lighten">变亮</option>
+                            <option value="darken">变暗</option>
+                            <option value="color-dodge">颜色减淡</option>
+                            <option value="luminosity">明度</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;display:flex;align-items:center;gap:8px;">
+                        <label for="globalBgOverlayFill" style="font-size:12px;white-space:nowrap;">填充模式</label>
+                        <select id="globalBgOverlayFill" style="flex:1;">
+                            <option value="cover">铺满</option>
+                            <option value="contain">完整显示</option>
+                            <option value="repeat">平铺</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row checkbox-row" style="padding:0;">
+                    <label for="globalBgOverlayGrayscale">黑白滤镜</label>
+                    <label class="toggle-wrap">
+                        <input type="checkbox" id="globalBgOverlayGrayscale" class="switch-input">
+                        <span class="switch-slider" aria-hidden="true"></span>
+                        <span>将叠加层图片转为灰度</span>
+                    </label>
+                </div>
+                <div style="display:flex;gap:12px;">
+                    <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <label for="globalBgOverlayOffsetX" style="font-size:12px;">X轴偏移</label>
+                            <input type="number" id="globalBgOverlayOffsetXLabel" min="-100" max="100" value="0" style="width:44px;text-align:center;font-size:12px;padding:2px 4px;">%
+                        </div>
+                        <input type="range" id="globalBgOverlayOffsetX" min="-100" max="100" value="0" step="1" style="width:100%;">
+                    </div>
+                    <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <label for="globalBgOverlayOffsetY" style="font-size:12px;">Y轴偏移</label>
+                            <input type="number" id="globalBgOverlayOffsetYLabel" min="-100" max="100" value="0" style="width:44px;text-align:center;font-size:12px;padding:2px 4px;">%
+                        </div>
+                        <input type="range" id="globalBgOverlayOffsetY" min="-100" max="100" value="0" step="1" style="width:100%;">
+                    </div>
+                </div>
+                <div class="row" style="flex-direction:column;align-items:stretch;gap:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <label for="globalBgOverlayScale" style="font-size:12px;">缩放</label>
+                        <input type="number" id="globalBgOverlayScaleLabel" min="10" max="400" value="100" style="width:44px;text-align:center;font-size:12px;padding:2px 4px;">%
+                    </div>
+                    <input type="range" id="globalBgOverlayScale" min="10" max="400" value="100" step="1" style="width:100%;">
+                </div>
+                <div class="btn-row" style="justify-content:flex-end;">
+                    <button class="btn secondary" id="bgOverlayPreviewBtn">按住预览</button>
+                    <button class="btn" id="closeBgOverlayDoneBtn">完成</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 首次打开阻隔弹窗：AI 免责声明（features/firstRunDisclaimer.js 驱动；无关闭途径，
+         顶部先选界面语言，展示满 6 秒后输入当前语言对应的确认词放行；确认过一次不再弹） -->
+    <div class="modal-mask disclaimer-mask" id="firstRunDisclaimerModal" role="dialog" aria-modal="true" aria-labelledby="disclaimerTitle">
+        <div class="modal disclaimer-modal">
+            <div class="modal-head">
+                <span id="disclaimerTitle">⚠ AI 免责声明 · 首次使用确认</span>
+            </div>
+            <div class="modal-body">
+                <div class="disclaimer-locale-row">
+                    <label id="disclaimerLocaleLabel" for="disclaimerLocale">界面语言</label>
+                    <select id="disclaimerLocale"></select>
+                </div>
+                <div class="disclaimer-body ae-scrollbar">
+                    <p class="disclaimer-lead">本项目（AS_ExtP）完全由 AI 编写。</p>
+                    <ul>
+                        <li>作者只提出需求并验收结果，<strong>未逐行人工审阅</strong>，不对代码的正确性、安全性或适用性作任何保证。</li>
+                        <li>AI 生成的软件可能出错；本扩展能<strong>操控你电脑上的本地文件</strong>，可能造成 AE 工程损坏、素材丢失，甚至<strong>本地文件被误删或损坏。</strong></li>
+                        <li>请在可恢复的环境中试用，并自行备份工程、素材与重要文件；任何自动修改执行前，请先确认其影响。</li>
+                        <li>本软件按「现状」提供，不附带任何明示或暗示的担保。</li>
+                        <li><strong>因使用或无法使用本软件而产生的任何直接或间接损失，作者概不负责。</strong></li>
+                    </ul>
+                    <p class="disclaimer-foot">继续使用即表示你已阅读、理解并自愿承担全部风险。此确认只在首次打开时出现一次。</p>
+                </div>
+                <div class="disclaimer-gate">
+                    <div class="disclaimer-progress"><div class="disclaimer-progress-fill" id="disclaimerProgressFill"></div></div>
+                    <div class="disclaimer-hint" id="disclaimerHint">请阅读以上内容…</div>
+                    <div class="disclaimer-row">
+                        <input type="text" id="disclaimerInput" class="disclaimer-input" disabled
+                               placeholder="我确认" autocomplete="off" spellcheck="false">
+                        <button class="btn" id="disclaimerConfirmBtn" disabled>确认并进入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" id="settingsModal">
+        <div class="modal">
+            <div class="modal-head">
+                <span>模块设置</span>
+                <button class="icon-btn" id="closeSettingsBtn">关闭</button>
+            </div>
+            <div class="modal-body ae-scrollbar"></div>
+        </div>
+    </div>
+
+    <div class="modal-mask" id="confirmModal">
+        <div class="modal confirm-modal">
+            <div class="modal-head">
+                <span id="confirmTitle">确认</span>
+            </div>
+            <div class="modal-body ae-scrollbar">
+                <p id="confirmMessage"></p>
+                <div class="btn-row" style="justify-content: flex-end;">
+                    <button class="btn secondary" id="confirmCancelBtn">取消</button>
+                    <button class="btn" id="confirmOkBtn">确定</button>
+                </div>
+            </div>
+        </div>
+</div>
+
+<div class="modal-mask" id="aboutModal">
+    <div class="modal about-modal">
+        <div class="modal-head">
+            <span id="aboutTitle">关于</span>
+            <button class="icon-btn" id="closeAboutBtn">关闭</button>
+        </div>
+        <div class="modal-body ae-scrollbar" id="aboutBody">
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="sandboxModal">
+    <div class="modal sandbox-modal">
+        <div class="modal-head">
+            <span>🐱 像素物理沙盒 - Pixel Physics Sandbox</span>
+            <button class="icon-btn" id="closeSandboxBtn">关闭</button>
+        </div>
+        <div class="modal-body">
+            <iframe id="sandboxIframe"></iframe>
+        </div>
+    </div>
+</div>
+
+<div class="cube-backdrop" id="cubeBackdrop"></div>
+<div class="cube-modal" id="cubeModal">
+    <div class="cube-scene" id="cubeScene">
+        <div class="cube-scale-wrapper" id="cubeScaleWrap">
+            <div class="cube-root" id="cubeRoot">
+            <div class="cube-face cube-face-front" data-module="agent">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">Agent 模块</div>
+                <div class="cube-face-sub">Generator</div>
+            </div>
+            <div class="cube-face cube-face-back" data-module="skill-manager">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">Skill 管理</div>
+                <div class="cube-face-sub">Manager</div>
+            </div>
+            <div class="cube-face cube-face-right" data-module="mcp-manager">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">MCP 管理</div>
+                <div class="cube-face-sub">Manager</div>
+            </div>
+            <div class="cube-face cube-face-left" data-module="memory">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">记忆管理</div>
+                <div class="cube-face-sub">Memory</div>
+            </div>
+            <div class="cube-face cube-face-top" data-module="ae-tools">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">AE 工具</div>
+                <div class="cube-face-sub">Toolkit</div>
+            </div>
+            <div class="cube-face cube-face-bottom" data-module="comfyui" data-face-tag="BOTTOM">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">ComfyUI</div>
+                <div class="cube-face-sub">Image & Video</div>
+            </div>
+            <div class="cube-wire-face cube-wire-front"></div>
+            <div class="cube-wire-face cube-wire-back"></div>
+            <div class="cube-wire-face cube-wire-right"></div>
+            <div class="cube-wire-face cube-wire-left"></div>
+            <div class="cube-wire-face cube-wire-top"></div>
+            <div class="cube-wire-face cube-wire-bottom"></div>
+        </div>
+        <div class="cube-root cube-root-hidden" id="cubeRoot2">
+            <div class="cube-face cube-face-front" data-module="assets">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">素材库</div>
+                <div class="cube-face-sub">Assets</div>
+            </div>
+            <div class="cube-face cube-face-back" data-module="model-manager">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">模型管理</div>
+                <div class="cube-face-sub">Models</div>
+            </div>
+            <div class="cube-face cube-face-right" data-module="">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">预留</div>
+                <div class="cube-face-sub">Reserved</div>
+            </div>
+            <div class="cube-face cube-face-left" data-module="">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">预留</div>
+                <div class="cube-face-sub">Reserved</div>
+            </div>
+            <div class="cube-face cube-face-top" data-module="">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">预留</div>
+                <div class="cube-face-sub">Reserved</div>
+            </div>
+            <div class="cube-face cube-face-bottom" data-module="">
+                <div class="cube-face-corner tl"></div><div class="cube-face-corner tr"></div>
+                <div class="cube-face-corner bl"></div><div class="cube-face-corner br"></div>
+                <div class="cube-face-label">预留</div>
+                <div class="cube-face-sub">Reserved</div>
+            </div>
+            <div class="cube-wire-face cube-wire-front"></div>
+            <div class="cube-wire-face cube-wire-back"></div>
+            <div class="cube-wire-face cube-wire-right"></div>
+            <div class="cube-wire-face cube-wire-left"></div>
+            <div class="cube-wire-face cube-wire-top"></div>
+            <div class="cube-wire-face cube-wire-bottom"></div>
+        </div>
+        <div class="cube-bg-root" id="cubeBgRoot">
+            <div class="cube-bg-face cube-bg-front"></div>
+            <div class="cube-bg-face cube-bg-back"></div>
+            <div class="cube-bg-face cube-bg-right"></div>
+            <div class="cube-bg-face cube-bg-left"></div>
+            <div class="cube-bg-face cube-bg-top"></div>
+            <div class="cube-bg-face cube-bg-bottom"></div>
+        </div>
+            </div>
+    </div>
+    <div class="cube-nav">
+        <button class="cube-nav-arrow" id="cubeNavPrev" title="上一个 cube">◀</button>
+        <span class="cube-nav-indicator" id="cubeNavIndicator">CUBE 1/2</span>
+        <button class="cube-nav-arrow" id="cubeNavNext" title="下一个 cube">▶</button>
+    </div>
+    <div class="cube-deco-grid"></div>
+    <div class="cube-deco-cross"></div>
+    <canvas class="cube-particles" id="cubeParticles"></canvas>
+    <canvas class="cube-axes" id="cubeAxes" width="80" height="80"></canvas>
+    <div class="cube-deco-frame"></div>
+    <div class="cube-deco-tl">SYS.READY<br>ATF.ACTIVE<br>LCL.NOMINAL</div>
+    <div class="cube-deco-br">MODE:CUBE<br>RES:360P<br>FPS:60</div>
+    <div class="cube-deco-hex hx1"></div>
+    <div class="cube-deco-hex hx2"></div>
+    <div class="cube-deco-hex hx3"></div>
+<div class="cube-hud-angle" id="cubeHudAngle">SPIN: 0.0°/s &nbsp; X:-25° Y:45°</div>
+</div>
+
+    <!-- 脚本清单化：全部脚本经 scripts.manifest.js + loader.js 按序同步注入，语义与静态标签等价 -->
+    <script src="scripts.manifest.js"></script>
+    <script src="loader.js"></script>
+
+    <div class="ae-context-menu" id="scriptContextMenu" style="display:none">
+        <div class="context-menu-item" data-action="open">打开</div>
+        <div class="context-menu-item" data-action="run">运行</div>
+        <div class="context-menu-item" data-action="rename">重命名</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item" data-action="new-folder">新建子文件夹</div>
+        <div class="context-menu-item" data-action="new-script">新建脚本</div>
+        <div class="context-menu-sep"></div>
+        <div class="context-menu-item danger" data-action="delete">删除</div>
+    </div>
+</body>
+</html>
+

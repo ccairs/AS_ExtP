@@ -1,0 +1,2114 @@
+{
+ "ADBE 3D Glasses": {
+  "en": "3D Glasses (Legacy)",
+  "zh": "3D 眼镜 (过时)"
+ },
+ "ADBE 3D Glasses2": {
+  "en": "3D Glasses",
+  "zh": "3D 眼镜"
+ },
+ "ADBE 3D Tracker": {
+  "en": "3D Camera Tracker",
+  "zh": "3D 摄像机跟踪器"
+ },
+ "ADBE 3DText Back Ambient": {
+  "en": "3DText Back Ambient",
+  "zh": "背面环境光"
+ },
+ "ADBE 3DText Back Bright": {
+  "en": "3DText Back Bright",
+  "zh": "背面亮度"
+ },
+ "ADBE 3DText Back Diffuse": {
+  "en": "3DText Back Diffuse",
+  "zh": "背面漫反射"
+ },
+ "ADBE 3DText Back Fresnel": {
+  "en": "3DText Back Fresnel",
+  "zh": "背面反射衰减"
+ },
+ "ADBE 3DText Back Gloss": {
+  "en": "3DText Back Gloss",
+  "zh": "背面反射锐度"
+ },
+ "ADBE 3DText Back Hue": {
+  "en": "3DText Back Hue",
+  "zh": "背面色调"
+ },
+ "ADBE 3DText Back IOR": {
+  "en": "3DText Back IOR",
+  "zh": "背面折射率"
+ },
+ "ADBE 3DText Back Metal": {
+  "en": "3DText Back Metal",
+  "zh": "背面金属度"
+ },
+ "ADBE 3DText Back Opacity": {
+  "en": "3DText Back Opacity",
+  "zh": "背面不透明度"
+ },
+ "ADBE 3DText Back RGB": {
+  "en": "3DText Back RGB",
+  "zh": "背面颜色"
+ },
+ "ADBE 3DText Back Reflection": {
+  "en": "3DText Back Reflection",
+  "zh": "背面反射强度"
+ },
+ "ADBE 3DText Back Sat": {
+  "en": "3DText Back Sat",
+  "zh": "背面饱和度"
+ },
+ "ADBE 3DText Back Shininess": {
+  "en": "3DText Back Shininess",
+  "zh": "背面镜面反射光泽度"
+ },
+ "ADBE 3DText Back Specular": {
+  "en": "3DText Back Specular",
+  "zh": "背面镜面反射强度"
+ },
+ "ADBE 3DText Back XparRoll": {
+  "en": "3DText Back XparRoll",
+  "zh": "背面透明度衰减"
+ },
+ "ADBE 3DText Back Xparency": {
+  "en": "3DText Back Xparency",
+  "zh": "背面透明度"
+ },
+ "ADBE 3DText Bevel Ambient": {
+  "en": "3DText Bevel Ambient",
+  "zh": "倒角环境光"
+ },
+ "ADBE 3DText Bevel Bright": {
+  "en": "3DText Bevel Bright",
+  "zh": "倒角亮度"
+ },
+ "ADBE 3DText Bevel Depth": {
+  "en": "3DText Bevel Depth",
+  "zh": "倒角深度"
+ },
+ "ADBE 3DText Bevel Diffuse": {
+  "en": "3DText Bevel Diffuse",
+  "zh": "倒角漫反射"
+ },
+ "ADBE 3DText Bevel Fresnel": {
+  "en": "3DText Bevel Fresnel",
+  "zh": "倒角反射衰减"
+ },
+ "ADBE 3DText Bevel Gloss": {
+  "en": "3DText Bevel Gloss",
+  "zh": "倒角反射锐度"
+ },
+ "ADBE 3DText Bevel Hue": {
+  "en": "3DText Bevel Hue",
+  "zh": "倒角色调"
+ },
+ "ADBE 3DText Bevel IOR": {
+  "en": "3DText Bevel IOR",
+  "zh": "倒角折射率"
+ },
+ "ADBE 3DText Bevel Metal": {
+  "en": "3DText Bevel Metal",
+  "zh": "倒角金属度"
+ },
+ "ADBE 3DText Bevel Opacity": {
+  "en": "3DText Bevel Opacity",
+  "zh": "倒角不透明度"
+ },
+ "ADBE 3DText Bevel RGB": {
+  "en": "3DText Bevel RGB",
+  "zh": "倒角颜色"
+ },
+ "ADBE 3DText Bevel Reflection": {
+  "en": "3DText Bevel Reflection",
+  "zh": "倒角反射强度"
+ },
+ "ADBE 3DText Bevel Sat": {
+  "en": "3DText Bevel Sat",
+  "zh": "倒角饱和度"
+ },
+ "ADBE 3DText Bevel Shininess": {
+  "en": "3DText Bevel Shininess",
+  "zh": "倒角镜面反射光泽度"
+ },
+ "ADBE 3DText Bevel Specular": {
+  "en": "3DText Bevel Specular",
+  "zh": "倒角镜面反射强度"
+ },
+ "ADBE 3DText Bevel XparRoll": {
+  "en": "3DText Bevel XparRoll",
+  "zh": "倒角透明度衰减"
+ },
+ "ADBE 3DText Bevel Xparency": {
+  "en": "3DText Bevel Xparency",
+  "zh": "倒角透明度"
+ },
+ "ADBE 3DText Extrude Depth": {
+  "en": "3DText Extrude Depth",
+  "zh": "挤出深度"
+ },
+ "ADBE 3DText Front Ambient": {
+  "en": "3DText Front Ambient",
+  "zh": "正面环境光"
+ },
+ "ADBE 3DText Front Bright": {
+  "en": "3DText Front Bright",
+  "zh": "正面亮度"
+ },
+ "ADBE 3DText Front Diffuse": {
+  "en": "3DText Front Diffuse",
+  "zh": "正面漫反射"
+ },
+ "ADBE 3DText Front Fresnel": {
+  "en": "3DText Front Fresnel",
+  "zh": "正面反射衰减"
+ },
+ "ADBE 3DText Front Gloss": {
+  "en": "3DText Front Gloss",
+  "zh": "正面反射锐度"
+ },
+ "ADBE 3DText Front Hue": {
+  "en": "3DText Front Hue",
+  "zh": "正面色调"
+ },
+ "ADBE 3DText Front IOR": {
+  "en": "3DText Front IOR",
+  "zh": "正面折射率"
+ },
+ "ADBE 3DText Front Metal": {
+  "en": "3DText Front Metal",
+  "zh": "正面金属度"
+ },
+ "ADBE 3DText Front Opacity": {
+  "en": "3DText Front Opacity",
+  "zh": "正面不透明度"
+ },
+ "ADBE 3DText Front RGB": {
+  "en": "3DText Front RGB",
+  "zh": "正面颜色"
+ },
+ "ADBE 3DText Front Reflection": {
+  "en": "3DText Front Reflection",
+  "zh": "正面反射强度"
+ },
+ "ADBE 3DText Front Sat": {
+  "en": "3DText Front Sat",
+  "zh": "正面饱和度"
+ },
+ "ADBE 3DText Front Shininess": {
+  "en": "3DText Front Shininess",
+  "zh": "正面镜面反射光泽度"
+ },
+ "ADBE 3DText Front Specular": {
+  "en": "3DText Front Specular",
+  "zh": "正面镜面反射强度"
+ },
+ "ADBE 3DText Front XparRoll": {
+  "en": "3DText Front XparRoll",
+  "zh": "正面透明度衰减"
+ },
+ "ADBE 3DText Front Xparency": {
+  "en": "3DText Front Xparency",
+  "zh": "正面透明度"
+ },
+ "ADBE 3DText Side Ambient": {
+  "en": "3DText Side Ambient",
+  "zh": "侧面环境光"
+ },
+ "ADBE 3DText Side Bright": {
+  "en": "3DText Side Bright",
+  "zh": "侧面亮度"
+ },
+ "ADBE 3DText Side Diffuse": {
+  "en": "3DText Side Diffuse",
+  "zh": "侧面漫反射"
+ },
+ "ADBE 3DText Side Fresnel": {
+  "en": "3DText Side Fresnel",
+  "zh": "侧面反射衰减"
+ },
+ "ADBE 3DText Side Gloss": {
+  "en": "3DText Side Gloss",
+  "zh": "侧面反射锐度"
+ },
+ "ADBE 3DText Side Hue": {
+  "en": "3DText Side Hue",
+  "zh": "侧面色调"
+ },
+ "ADBE 3DText Side IOR": {
+  "en": "3DText Side IOR",
+  "zh": "侧面折射率"
+ },
+ "ADBE 3DText Side Metal": {
+  "en": "3DText Side Metal",
+  "zh": "侧面金属度"
+ },
+ "ADBE 3DText Side Opacity": {
+  "en": "3DText Side Opacity",
+  "zh": "侧面不透明度"
+ },
+ "ADBE 3DText Side RGB": {
+  "en": "3DText Side RGB",
+  "zh": "侧面颜色"
+ },
+ "ADBE 3DText Side Reflection": {
+  "en": "3DText Side Reflection",
+  "zh": "侧面反射强度"
+ },
+ "ADBE 3DText Side Sat": {
+  "en": "3DText Side Sat",
+  "zh": "侧面饱和度"
+ },
+ "ADBE 3DText Side Shininess": {
+  "en": "3DText Side Shininess",
+  "zh": "侧面镜面反射光泽度"
+ },
+ "ADBE 3DText Side Specular": {
+  "en": "3DText Side Specular",
+  "zh": "侧面镜面反射强度"
+ },
+ "ADBE 3DText Side XparRoll": {
+  "en": "3DText Side XparRoll",
+  "zh": "侧面透明度衰减"
+ },
+ "ADBE 3DText Side Xparency": {
+  "en": "3DText Side Xparency",
+  "zh": "侧面透明度"
+ },
+ "ADBE 4ColorGradient": {
+  "en": "4-Color Gradient",
+  "zh": "四色渐变"
+ },
+ "ADBE AIF Perlin Noise 3D": {
+  "en": "Turbulent Noise",
+  "zh": "湍流噪波"
+ },
+ "ADBE ATG Extract": {
+  "en": "Inner/Outer Key",
+  "zh": "内外键控"
+ },
+ "ADBE AUX CHANNEL EXTRACT": {
+  "en": "3D Channel Extract",
+  "zh": "3D 通道提取"
+ },
+ "ADBE AV Layer": {
+  "en": "AV Layer",
+  "zh": ""
+ },
+ "ADBE Adv Blend Group": {
+  "en": "Advanced Blending",
+  "zh": "高级混合"
+ },
+ "ADBE Alpha Levels2": {
+  "en": "Alpha Levels",
+  "zh": "Alpha 色阶"
+ },
+ "ADBE Alpha Levels3": {
+  "en": "Alpha Levels",
+  "zh": "Alpha 色阶"
+ },
+ "ADBE Ambient Coefficient": {
+  "en": "Ambient Coefficient",
+  "zh": "环境光"
+ },
+ "ADBE Anchor Point": {
+  "en": "Anchor Point",
+  "zh": "锚点"
+ },
+ "ADBE Angle Control": {
+  "en": "Angle Control",
+  "zh": "角度控制"
+ },
+ "ADBE Apply Color LUT": {
+  "en": "Apply Color LUT (Legacy)",
+  "zh": "应用颜色 LUT"
+ },
+ "ADBE Apply Color LUT2": {
+  "en": "Apply Color LUT",
+  "zh": "应用颜色 LUT"
+ },
+ "ADBE Arithmetic": {
+  "en": "Arithmetic",
+  "zh": "算术"
+ },
+ "ADBE Aud BT": {
+  "en": "Bass & Treble",
+  "zh": "低音和高音"
+ },
+ "ADBE Aud Delay": {
+  "en": "Delay",
+  "zh": "延迟"
+ },
+ "ADBE Aud HiLo": {
+  "en": "High-Low Pass",
+  "zh": "高低通滤波器"
+ },
+ "ADBE Aud Modulator": {
+  "en": "Modulator",
+  "zh": "调制器"
+ },
+ "ADBE Aud Reverb": {
+  "en": "Reverb",
+  "zh": "混响"
+ },
+ "ADBE Aud Reverse": {
+  "en": "Reverse",
+  "zh": "反向"
+ },
+ "ADBE Aud Stereo Mixer": {
+  "en": "Stereo Mixer",
+  "zh": "立体声混音器"
+ },
+ "ADBE Aud Tone": {
+  "en": "Tone",
+  "zh": "音调"
+ },
+ "ADBE AudSpect": {
+  "en": "Audio Spectrum",
+  "zh": "音频频谱"
+ },
+ "ADBE AudWave": {
+  "en": "Audio Waveform",
+  "zh": "音频波形"
+ },
+ "ADBE Aud_Flange": {
+  "en": "Flange & Chorus",
+  "zh": "镶边和合唱"
+ },
+ "ADBE Audio Group": {
+  "en": "Audio",
+  "zh": "音频"
+ },
+ "ADBE Audio Levels": {
+  "en": "Audio Levels",
+  "zh": "音频电平"
+ },
+ "ADBE AutoColor": {
+  "en": "Auto Color",
+  "zh": "自动颜色"
+ },
+ "ADBE AutoContrast": {
+  "en": "Auto Contrast",
+  "zh": "自动对比度"
+ },
+ "ADBE AutoLevels": {
+  "en": "Auto Levels",
+  "zh": "自动色阶"
+ },
+ "ADBE B Channel Blend": {
+  "en": "B Channel Blend",
+  "zh": "蓝色"
+ },
+ "ADBE BEZMESH": {
+  "en": "Bezier Warp",
+  "zh": "贝塞尔扭曲"
+ },
+ "ADBE Basic 3D": {
+  "en": "Basic 3D",
+  "zh": "基本 3D"
+ },
+ "ADBE Basic Text2": {
+  "en": "Basic Text",
+  "zh": "基本文字"
+ },
+ "ADBE Bevel Alpha": {
+  "en": "Bevel Alpha",
+  "zh": "Alpha 斜角"
+ },
+ "ADBE Bevel Depth": {
+  "en": "Bevel Depth",
+  "zh": "斜角深度"
+ },
+ "ADBE Bevel Edges": {
+  "en": "Bevel Edges",
+  "zh": "边缘斜角"
+ },
+ "ADBE Bilateral": {
+  "en": "Bilateral Blur",
+  "zh": "双边模糊"
+ },
+ "ADBE Black&White": {
+  "en": "Black & White",
+  "zh": "黑白"
+ },
+ "ADBE Blend": {
+  "en": "Blend",
+  "zh": "混合"
+ },
+ "ADBE Blend Interior": {
+  "en": "Blend Interior",
+  "zh": "将内部样式作为组混合"
+ },
+ "ADBE Blend Options Group": {
+  "en": "Blend Options",
+  "zh": "混合选项"
+ },
+ "ADBE Blend Ranges": {
+  "en": "Blend Ranges",
+  "zh": "使用源文件的混合范围"
+ },
+ "ADBE Block Dissolve": {
+  "en": "Block Dissolve",
+  "zh": "块溶解"
+ },
+ "ADBE Box Blur": {
+  "en": "Box Blur (Legacy)",
+  "zh": "方框模糊"
+ },
+ "ADBE Box Blur2": {
+  "en": "Box Blur",
+  "zh": "快速方框模糊"
+ },
+ "ADBE Brightness & Contrast": {
+  "en": "Brightness & Contrast (Legacy)",
+  "zh": "亮度和对比度"
+ },
+ "ADBE Brightness & Contrast 2": {
+  "en": "Brightness & Contrast",
+  "zh": "亮度与对比度"
+ },
+ "ADBE Broadcast Colors": {
+  "en": "Broadcast Colors",
+  "zh": "广播颜色"
+ },
+ "ADBE Brush Strokes": {
+  "en": "Brush Strokes",
+  "zh": "画笔描边"
+ },
+ "ADBE Bulge": {
+  "en": "Bulge",
+  "zh": "膨胀"
+ },
+ "ADBE CHANNEL MIXER": {
+  "en": "Channel Mixer",
+  "zh": "通道混合器"
+ },
+ "ADBE Calculations": {
+  "en": "Calculations",
+  "zh": "计算"
+ },
+ "ADBE Camera Aperture": {
+  "en": "Aperture",
+  "zh": "光圈"
+ },
+ "ADBE Camera Blur Level": {
+  "en": "Blur Level",
+  "zh": "模糊级别"
+ },
+ "ADBE Camera Depth of Field": {
+  "en": "Depth of Field",
+  "zh": "景深"
+ },
+ "ADBE Camera Focus Distance": {
+  "en": "Focus Distance",
+  "zh": "对焦距离"
+ },
+ "ADBE Camera Layer": {
+  "en": "Camera Layer",
+  "zh": ""
+ },
+ "ADBE Camera Lens Blur": {
+  "en": "Camera Lens Blur",
+  "zh": "镜头模糊"
+ },
+ "ADBE Camera Options Group": {
+  "en": "Camera Options",
+  "zh": "相机选项"
+ },
+ "ADBE Camera Zoom": {
+  "en": "Zoom",
+  "zh": "缩放"
+ },
+ "ADBE CameraShakeDeblur": {
+  "en": "Camera-Shake Deblur",
+  "zh": "相机抖动去模糊"
+ },
+ "ADBE Cartoonify": {
+  "en": "Cartoon",
+  "zh": "卡通"
+ },
+ "ADBE Cell Pattern": {
+  "en": "Cell Pattern",
+  "zh": "细胞图案"
+ },
+ "ADBE Change Color": {
+  "en": "Change Color",
+  "zh": "更改颜色"
+ },
+ "ADBE Change To Color": {
+  "en": "Change to Color",
+  "zh": "更改为颜色"
+ },
+ "ADBE Channel Blur": {
+  "en": "Channel Blur",
+  "zh": "通道模糊"
+ },
+ "ADBE Channel Combiner": {
+  "en": "Channel Combiner",
+  "zh": "通道组合器"
+ },
+ "ADBE Checkbox Control": {
+  "en": "Checkbox Control",
+  "zh": "复选框控制"
+ },
+ "ADBE Checkerboard": {
+  "en": "Checkerboard",
+  "zh": "棋盘格"
+ },
+ "ADBE Cineon Converter": {
+  "en": "Cineon Converter (Legacy)",
+  "zh": "Cineon 转换器"
+ },
+ "ADBE Cineon Converter2": {
+  "en": "Cineon Converter",
+  "zh": "Cineon 转换器"
+ },
+ "ADBE Circle": {
+  "en": "Circle",
+  "zh": "圆形"
+ },
+ "ADBE Color Balance": {
+  "en": "Color Balance (Legacy)",
+  "zh": "色彩平衡"
+ },
+ "ADBE Color Balance (HLS)": {
+  "en": "Color Balance (HLS)",
+  "zh": "色彩平衡 (HLS)"
+ },
+ "ADBE Color Balance 2": {
+  "en": "Color Balance",
+  "zh": "色彩平衡"
+ },
+ "ADBE Color Control": {
+  "en": "Color Control",
+  "zh": "颜色控制"
+ },
+ "ADBE Color Difference Key": {
+  "en": "Color Difference Key",
+  "zh": "色差键控"
+ },
+ "ADBE Color Emboss": {
+  "en": "Color Emboss",
+  "zh": "彩色浮雕"
+ },
+ "ADBE Color Key": {
+  "en": "Color Key",
+  "zh": "颜色键控"
+ },
+ "ADBE Color Link": {
+  "en": "Color Link",
+  "zh": "颜色链接"
+ },
+ "ADBE Color Range": {
+  "en": "Color Range",
+  "zh": "颜色范围"
+ },
+ "ADBE Compander": {
+  "en": "HDR Compander",
+  "zh": "HDR 压缩扩展器"
+ },
+ "ADBE Compound Arithmetic": {
+  "en": "Compound Arithmetic",
+  "zh": "复合算术"
+ },
+ "ADBE Compound Blur": {
+  "en": "Compound Blur",
+  "zh": "复合模糊"
+ },
+ "ADBE Corner Pin": {
+  "en": "Corner Pin",
+  "zh": "角定位"
+ },
+ "ADBE CurvesCustom": {
+  "en": "Curves",
+  "zh": "曲线"
+ },
+ "ADBE DEPTH FIELD": {
+  "en": "Depth of Field",
+  "zh": "景深"
+ },
+ "ADBE DEPTH MATTE": {
+  "en": "Depth Matte",
+  "zh": "深度遮罩"
+ },
+ "ADBE Deflicker": {
+  "en": "Color Stabilizer",
+  "zh": "颜色稳定器"
+ },
+ "ADBE Difference": {
+  "en": "Time Difference",
+  "zh": "时间差异"
+ },
+ "ADBE Difference Matte2": {
+  "en": "Difference Matte",
+  "zh": "差异蒙版"
+ },
+ "ADBE Diffuse Coefficient": {
+  "en": "Diffuse Coefficient",
+  "zh": "漫反射"
+ },
+ "ADBE Displacement Map": {
+  "en": "Displacement Map",
+  "zh": "置换映射"
+ },
+ "ADBE Drop Shadow": {
+  "en": "Drop Shadow",
+  "zh": "投影"
+ },
+ "ADBE Dropdown Control": {
+  "en": "Dropdown Menu Control",
+  "zh": "下拉菜单控制"
+ },
+ "ADBE Dust & Scratches": {
+  "en": "Dust & Scratches",
+  "zh": "灰尘与划痕"
+ },
+ "ADBE ELLIPSE": {
+  "en": "Ellipse",
+  "zh": "椭圆"
+ },
+ "ADBE Easy Levels": {
+  "en": "Levels (Legacy)",
+  "zh": "色阶"
+ },
+ "ADBE Easy Levels2": {
+  "en": "Levels",
+  "zh": "色阶"
+ },
+ "ADBE Echo": {
+  "en": "Echo",
+  "zh": "回声"
+ },
+ "ADBE Effect Parade": {
+  "en": "Effects",
+  "zh": "效果"
+ },
+ "ADBE Emboss": {
+  "en": "Emboss",
+  "zh": "浮雕"
+ },
+ "ADBE Equalize": {
+  "en": "Equalize",
+  "zh": "均衡化"
+ },
+ "ADBE Exposure": {
+  "en": "Exposure (Legacy)",
+  "zh": "曝光"
+ },
+ "ADBE Exposure2": {
+  "en": "Exposure",
+  "zh": "曝光"
+ },
+ "ADBE Extract": {
+  "en": "Extract",
+  "zh": "提取"
+ },
+ "ADBE Extrsn Depth": {
+  "en": "Extrusion Depth",
+  "zh": "挤出深度"
+ },
+ "ADBE Extrsn Options Group": {
+  "en": "Geometry Options",
+  "zh": "几何选项"
+ },
+ "ADBE Eyedropper Fill": {
+  "en": "Eyedropper Fill",
+  "zh": "吸管填充"
+ },
+ "ADBE FOG_3D": {
+  "en": "Fog 3D",
+  "zh": "3D 雾"
+ },
+ "ADBE Fast Blur": {
+  "en": "Fast Blur (Legacy)",
+  "zh": "快速模糊 (旧版)"
+ },
+ "ADBE Fill": {
+  "en": "Fill",
+  "zh": "填充"
+ },
+ "ADBE Find Edges": {
+  "en": "Find Edges",
+  "zh": "查找边缘"
+ },
+ "ADBE Fractal": {
+  "en": "Fractal",
+  "zh": "分形"
+ },
+ "ADBE Fractal Noise": {
+  "en": "Fractal Noise",
+  "zh": "分形噪波"
+ },
+ "ADBE FreePin3": {
+  "en": "Puppet",
+  "zh": "操控"
+ },
+ "ADBE Fresnel Coefficient": {
+  "en": "Fresnel Coefficient",
+  "zh": "反射衰减"
+ },
+ "ADBE G Channel Blend": {
+  "en": "G Channel Blend",
+  "zh": "绿色"
+ },
+ "ADBE GROW BOUNDS": {
+  "en": "Grow Bounds",
+  "zh": "扩展边界"
+ },
+ "ADBE Gamma/Pedestal/Gain2": {
+  "en": "Gamma/Pedestal/Gain",
+  "zh": "伽马 / 基座 / 增益"
+ },
+ "ADBE Gaussian Blur": {
+  "en": "Gaussian Blur (Legacy)",
+  "zh": "高斯模糊 (旧版)"
+ },
+ "ADBE Gaussian Blur 2": {
+  "en": "Gaussian Blur",
+  "zh": "高斯模糊"
+ },
+ "ADBE Geometry": {
+  "en": "Transform (Legacy)",
+  "zh": "变换"
+ },
+ "ADBE Geometry2": {
+  "en": "Transform",
+  "zh": "变换"
+ },
+ "ADBE Glo2": {
+  "en": "Glow",
+  "zh": "发光"
+ },
+ "ADBE Global Altitude2": {
+  "en": "Global Light Altitude",
+  "zh": "全局光照高度"
+ },
+ "ADBE Global Angle2": {
+  "en": "Global Light Angle",
+  "zh": "全局光照角度"
+ },
+ "ADBE Glossiness Coefficient": {
+  "en": "Glossiness Coefficient",
+  "zh": "反射锐度"
+ },
+ "ADBE Gradient Wipe": {
+  "en": "Gradient Wipe",
+  "zh": "渐变擦除"
+ },
+ "ADBE Grid": {
+  "en": "Grid",
+  "zh": "网格"
+ },
+ "ADBE HDR ToneMap": {
+  "en": "HDR Highlight Compression",
+  "zh": "HDR 高光压缩"
+ },
+ "ADBE HUE SATURATION": {
+  "en": "Hue/Saturation",
+  "zh": "色相 / 饱和度"
+ },
+ "ADBE Hole Bevel Depth": {
+  "en": "Hole Bevel Depth",
+  "zh": "孔斜角深度"
+ },
+ "ADBE ID MATTE": {
+  "en": "ID Matte",
+  "zh": "ID 遮罩"
+ },
+ "ADBE IRIS_WIPE": {
+  "en": "Iris Wipe",
+  "zh": "光圈擦除"
+ },
+ "ADBE Index of Refraction": {
+  "en": "Index of Refraction",
+  "zh": "折射率"
+ },
+ "ADBE Invert": {
+  "en": "Invert",
+  "zh": "反相"
+ },
+ "ADBE Iris Aspect Ratio": {
+  "en": "Iris Aspect Ratio",
+  "zh": "光圈纵横比"
+ },
+ "ADBE Iris Diffraction Fringe": {
+  "en": "Iris Diffraction Fringe",
+  "zh": "光圈衍射边缘"
+ },
+ "ADBE Iris Highlight Gain": {
+  "en": "Iris Highlight Gain",
+  "zh": "高光增益"
+ },
+ "ADBE Iris Highlight Threshold": {
+  "en": "Iris Highlight Threshold",
+  "zh": "高光阈值"
+ },
+ "ADBE Iris Hightlight Saturation": {
+  "en": "Iris Hightlight Saturation",
+  "zh": "高光饱和度"
+ },
+ "ADBE Iris Rotation": {
+  "en": "Iris Rotation",
+  "zh": "光圈旋转"
+ },
+ "ADBE Iris Roundness": {
+  "en": "Iris Roundness",
+  "zh": "光圈圆度"
+ },
+ "ADBE Iris Shape": {
+  "en": "Iris Shape",
+  "zh": "光圈形状"
+ },
+ "ADBE KeyCleaner": {
+  "en": "Key Cleaner",
+  "zh": "键控清理"
+ },
+ "ADBE LIQUIFY": {
+  "en": "Liquify",
+  "zh": "液化"
+ },
+ "ADBE Laser": {
+  "en": "Beam",
+  "zh": "光束"
+ },
+ "ADBE Layer Control": {
+  "en": "Layer Control",
+  "zh": "图层控制"
+ },
+ "ADBE Layer Fill Opacity2": {
+  "en": "Fill Opacity",
+  "zh": "填充不透明度"
+ },
+ "ADBE Layer Overrides": {
+  "en": "Essential Properties",
+  "zh": "基本属性"
+ },
+ "ADBE Layer Source Alternate": {
+  "en": "Layer Source Alternate",
+  "zh": ""
+ },
+ "ADBE Leave Color": {
+  "en": "Leave Color",
+  "zh": "保留颜色"
+ },
+ "ADBE Lens Flare": {
+  "en": "Lens Flare",
+  "zh": "镜头光晕"
+ },
+ "ADBE Light Color": {
+  "en": "Light Color",
+  "zh": "颜色"
+ },
+ "ADBE Light Cone Angle": {
+  "en": "Cone Angle",
+  "zh": "锥角"
+ },
+ "ADBE Light Cone Feather 2": {
+  "en": "Cone Feather",
+  "zh": "锥形羽化"
+ },
+ "ADBE Light Falloff Distance": {
+  "en": "Falloff Distance",
+  "zh": "衰减距离"
+ },
+ "ADBE Light Falloff Start": {
+  "en": "Falloff Start",
+  "zh": "半径"
+ },
+ "ADBE Light Falloff Type": {
+  "en": "Falloff Type",
+  "zh": "衰减类型"
+ },
+ "ADBE Light Intensity": {
+  "en": "Intensity",
+  "zh": "强度"
+ },
+ "ADBE Light Layer": {
+  "en": "Light Layer",
+  "zh": ""
+ },
+ "ADBE Light Options Group": {
+  "en": "Light Options",
+  "zh": "灯光选项"
+ },
+ "ADBE Light Shadow Darkness": {
+  "en": "Shadow Darkness",
+  "zh": "阴影暗度"
+ },
+ "ADBE Light Shadow Diffusion": {
+  "en": "Shadow Diffusion",
+  "zh": "阴影扩散"
+ },
+ "ADBE Light Transmission": {
+  "en": "Light Transmission",
+  "zh": "光线透射"
+ },
+ "ADBE Lightning": {
+  "en": "Lightning (Legacy)",
+  "zh": "闪电"
+ },
+ "ADBE Lightning 2": {
+  "en": "Advanced Lightning",
+  "zh": "高级闪电"
+ },
+ "ADBE Linear Color Key2": {
+  "en": "Linear Color Key",
+  "zh": "线性颜色键控"
+ },
+ "ADBE Linear Wipe": {
+  "en": "Linear Wipe",
+  "zh": "线性擦除"
+ },
+ "ADBE Luma Key": {
+  "en": "Luma Key",
+  "zh": "亮度键控"
+ },
+ "ADBE Lumetri": {
+  "en": "Lumetri Color",
+  "zh": "Lumetri 颜色"
+ },
+ "ADBE MESH WARP": {
+  "en": "Mesh Warp",
+  "zh": "网格扭曲"
+ },
+ "ADBE MTrackers": {
+  "en": "Motion Trackers",
+  "zh": "运动跟踪器"
+ },
+ "ADBE Magnify": {
+  "en": "Magnify",
+  "zh": "放大"
+ },
+ "ADBE Marker": {
+  "en": "Marker",
+  "zh": "标记"
+ },
+ "ADBE Mask Parade": {
+  "en": "Masks",
+  "zh": "蒙版"
+ },
+ "ADBE Material Options Group": {
+  "en": "Material Options",
+  "zh": "材质选项"
+ },
+ "ADBE Matte Choker": {
+  "en": "Matte Choker",
+  "zh": "蒙版收缩"
+ },
+ "ADBE Median": {
+  "en": "Median",
+  "zh": "中间值"
+ },
+ "ADBE Metal Coefficient": {
+  "en": "Metal Coefficient",
+  "zh": "金属"
+ },
+ "ADBE Minimax": {
+  "en": "Minimax",
+  "zh": "最小最大值"
+ },
+ "ADBE Mirror": {
+  "en": "Mirror",
+  "zh": "镜像"
+ },
+ "ADBE Mosaic": {
+  "en": "Mosaic",
+  "zh": "马赛克"
+ },
+ "ADBE Motion Blur": {
+  "en": "Directional Blur",
+  "zh": "方向模糊"
+ },
+ "ADBE Noise": {
+  "en": "Noise",
+  "zh": "噪波"
+ },
+ "ADBE Noise Alpha": {
+  "en": "Noise Alpha (Legacy)",
+  "zh": "Alpha 噪波"
+ },
+ "ADBE Noise Alpha2": {
+  "en": "Noise Alpha",
+  "zh": "Alpha 噪波"
+ },
+ "ADBE Noise HLS": {
+  "en": "Noise HLS (Legacy)",
+  "zh": "HLS 噪波"
+ },
+ "ADBE Noise HLS Auto": {
+  "en": "Noise HLS Auto (Legacy)",
+  "zh": "HLS 自动噪波"
+ },
+ "ADBE Noise HLS Auto2": {
+  "en": "Noise HLS Auto",
+  "zh": "HLS 自动噪波"
+ },
+ "ADBE Noise HLS2": {
+  "en": "Noise HLS",
+  "zh": "HLS 噪波"
+ },
+ "ADBE Numbers2": {
+  "en": "Numbers",
+  "zh": "数字"
+ },
+ "ADBE OFMotionBlur": {
+  "en": "Pixel Motion Blur",
+  "zh": "像素运动模糊"
+ },
+ "ADBE Offset": {
+  "en": "Offset",
+  "zh": "偏移"
+ },
+ "ADBE Opacity": {
+  "en": "Opacity",
+  "zh": "不透明度"
+ },
+ "ADBE Optics Compensation": {
+  "en": "Optics Compensation",
+  "zh": "光学补偿"
+ },
+ "ADBE Orientation": {
+  "en": "Orientation",
+  "zh": "方向"
+ },
+ "ADBE PS Arbitrary Map": {
+  "en": "PS Arbitrary Map",
+  "zh": "PS 任意映射"
+ },
+ "ADBE PSL Bevel Emboss": {
+  "en": "PSL Bevel Emboss",
+  "zh": "Photoshop 斜面和浮雕"
+ },
+ "ADBE PSL Drop Shadow": {
+  "en": "PSL Drop Shadow",
+  "zh": "Photoshop 投影"
+ },
+ "ADBE PSL Inner Glow": {
+  "en": "PSL Inner Glow",
+  "zh": "Photoshop 内发光"
+ },
+ "ADBE PSL Inner Shadow": {
+  "en": "PSL Inner Shadow",
+  "zh": "Photoshop 内阴影"
+ },
+ "ADBE PSL Outer Glow": {
+  "en": "PSL Outer Glow",
+  "zh": "Photoshop 外发光"
+ },
+ "ADBE PSL Solid Fill": {
+  "en": "PSL Solid Fill",
+  "zh": "Photoshop 纯色填充"
+ },
+ "ADBE Paint": {
+  "en": "Paint",
+  "zh": "绘画"
+ },
+ "ADBE Paint Bucket": {
+  "en": "Paint Bucket",
+  "zh": "油漆桶"
+ },
+ "ADBE Param EQ": {
+  "en": "Parametric EQ",
+  "zh": "参数均衡器"
+ },
+ "ADBE Path Text": {
+  "en": "Path Text",
+  "zh": "路径文字"
+ },
+ "ADBE Photo Filter": {
+  "en": "Photo Filter (Legacy)",
+  "zh": "照片滤镜"
+ },
+ "ADBE PhotoFilterPS": {
+  "en": "Photo Filter",
+  "zh": "照片滤镜"
+ },
+ "ADBE Plane Curvature": {
+  "en": "Curvature",
+  "zh": "曲率"
+ },
+ "ADBE Plane Options Group": {
+  "en": "Geometry Options",
+  "zh": "几何选项"
+ },
+ "ADBE Plane Subdivision": {
+  "en": "Subdivision",
+  "zh": "分段"
+ },
+ "ADBE Playgnd": {
+  "en": "Particle Playground",
+  "zh": "粒子游乐场"
+ },
+ "ADBE Point Control": {
+  "en": "Point Control",
+  "zh": "点控制"
+ },
+ "ADBE Point3D Control": {
+  "en": "Point3D Control",
+  "zh": "3D 点控制"
+ },
+ "ADBE Polar Coordinates": {
+  "en": "Polar Coordinates",
+  "zh": "极坐标"
+ },
+ "ADBE Position": {
+  "en": "Position",
+  "zh": "位置"
+ },
+ "ADBE Position_0": {
+  "en": "Position_",
+  "zh": "X 位置"
+ },
+ "ADBE Position_1": {
+  "en": "Position_",
+  "zh": "Y 位置"
+ },
+ "ADBE Position_2": {
+  "en": "Position_",
+  "zh": "Z 位置"
+ },
+ "ADBE Posterize": {
+  "en": "Posterize",
+  "zh": "色调分离"
+ },
+ "ADBE Posterize Time": {
+  "en": "Posterize Time",
+  "zh": "时间分离"
+ },
+ "ADBE Pro Levels": {
+  "en": "Levels (Individual Controls, Legacy)",
+  "zh": "色阶 (单独控制)"
+ },
+ "ADBE Pro Levels2": {
+  "en": "Levels (Individual Controls)",
+  "zh": "色阶 (单独控制)"
+ },
+ "ADBE ProfileToProfile": {
+  "en": "Color Profile Converter",
+  "zh": "颜色配置文件转换器"
+ },
+ "ADBE R Channel Blend": {
+  "en": "R Channel Blend",
+  "zh": "红色"
+ },
+ "ADBE RESHAPE": {
+  "en": "Reshape",
+  "zh": "重塑"
+ },
+ "ADBE Radial Blur": {
+  "en": "Radial Blur",
+  "zh": "径向模糊"
+ },
+ "ADBE Radial Shadow": {
+  "en": "Radial Shadow",
+  "zh": "径向阴影"
+ },
+ "ADBE Radial Wipe": {
+  "en": "Radial Wipe",
+  "zh": "径向擦除"
+ },
+ "ADBE Ramp": {
+  "en": "Gradient Ramp",
+  "zh": "渐变斜坡"
+ },
+ "ADBE Reduce Interlace Flicker": {
+  "en": "Reduce Interlace Flicker",
+  "zh": "减少隔行闪烁"
+ },
+ "ADBE RefineMatte": {
+  "en": "Refine Matte (Legacy)",
+  "zh": "优化蒙版"
+ },
+ "ADBE RefineMatte2": {
+  "en": "Refine Soft Matte",
+  "zh": "优化柔边蒙版"
+ },
+ "ADBE RefineRBMatte": {
+  "en": "Refine Hard Matte",
+  "zh": "优化硬边蒙版"
+ },
+ "ADBE Reflection Coefficient": {
+  "en": "Reflection Coefficient",
+  "zh": "反射强度"
+ },
+ "ADBE Remove Color Matting": {
+  "en": "Remove Color Matting",
+  "zh": "移除颜色遮罩"
+ },
+ "ADBE Ripple": {
+  "en": "Ripple",
+  "zh": "波纹"
+ },
+ "ADBE Rolling Shutter": {
+  "en": "Rolling Shutter Repair",
+  "zh": "滚动快门修复"
+ },
+ "ADBE Root Vectors Group": {
+  "en": "Contents",
+  "zh": "内容"
+ },
+ "ADBE Rotate X": {
+  "en": "Rotate X",
+  "zh": "X 旋转"
+ },
+ "ADBE Rotate Y": {
+  "en": "Rotate Y",
+  "zh": "Y 旋转"
+ },
+ "ADBE Rotate Z": {
+  "en": "Rotate Z",
+  "zh": "Z 旋转"
+ },
+ "ADBE Roughen Edges": {
+  "en": "Roughen Edges",
+  "zh": "边缘粗糙化"
+ },
+ "ADBE SCHMEAR": {
+  "en": "Smear",
+  "zh": "涂抹"
+ },
+ "ADBE Samurai": {
+  "en": "Roto Brush & Refine Edge",
+  "zh": "Roto 笔刷和优化边缘"
+ },
+ "ADBE Scale": {
+  "en": "Scale",
+  "zh": "缩放"
+ },
+ "ADBE Scatter": {
+  "en": "Scatter",
+  "zh": "散射"
+ },
+ "ADBE Scribble Fill": {
+  "en": "Scribble",
+  "zh": "涂鸦"
+ },
+ "ADBE SelectiveColor": {
+  "en": "Selective Color",
+  "zh": "选择性颜色"
+ },
+ "ADBE Set Channels": {
+  "en": "Set Channels",
+  "zh": "设置通道"
+ },
+ "ADBE Set Matte2": {
+  "en": "Set Matte (Legacy)",
+  "zh": "设置蒙版"
+ },
+ "ADBE Set Matte3": {
+  "en": "Set Matte",
+  "zh": "设置遮罩"
+ },
+ "ADBE ShadowHighlight": {
+  "en": "Shadow/Highlight",
+  "zh": "阴影 / 高光"
+ },
+ "ADBE Sharpen": {
+  "en": "Sharpen",
+  "zh": "锐化"
+ },
+ "ADBE Shift Channels": {
+  "en": "Shift Channels",
+  "zh": "偏移通道"
+ },
+ "ADBE Shininess Coefficient": {
+  "en": "Shininess Coefficient",
+  "zh": "高光光泽度"
+ },
+ "ADBE Simple Choker": {
+  "en": "Simple Choker",
+  "zh": "简单收缩"
+ },
+ "ADBE Slider Control": {
+  "en": "Slider Control",
+  "zh": "滑块控制"
+ },
+ "ADBE Smart Blur": {
+  "en": "Smart Blur",
+  "zh": "智能模糊"
+ },
+ "ADBE Solid Composite": {
+  "en": "Solid Composite",
+  "zh": "实色合成"
+ },
+ "ADBE Specular Coefficient": {
+  "en": "Specular Coefficient",
+  "zh": "高光强度"
+ },
+ "ADBE Spherize": {
+  "en": "Spherize",
+  "zh": "球面化"
+ },
+ "ADBE Spill Suppressor": {
+  "en": "Spill Suppressor",
+  "zh": "溢色抑制器"
+ },
+ "ADBE Spill2": {
+  "en": "Advanced Spill Suppressor",
+  "zh": "高级溢色抑制器"
+ },
+ "ADBE Strobe": {
+  "en": "Strobe Light",
+  "zh": "闪光灯"
+ },
+ "ADBE Stroke": {
+  "en": "Stroke",
+  "zh": "描边"
+ },
+ "ADBE SubspaceStabilizer": {
+  "en": "Warp Stabilizer VFX",
+  "zh": "扭曲稳定器 VFX"
+ },
+ "ADBE Text Anchor Point 3D": {
+  "en": "Text Anchor Point 3D",
+  "zh": "锚点"
+ },
+ "ADBE Text Anchor Point Align": {
+  "en": "Text Anchor Point Align",
+  "zh": "分组对齐"
+ },
+ "ADBE Text Animator": {
+  "en": "Animator",
+  "zh": "动画器"
+ },
+ "ADBE Text Animator Properties": {
+  "en": "Animator Properties",
+  "zh": "属性"
+ },
+ "ADBE Text Animators": {
+  "en": "Animators",
+  "zh": "动画器"
+ },
+ "ADBE Text Blur": {
+  "en": "Text Blur",
+  "zh": "模糊"
+ },
+ "ADBE Text Character Offset": {
+  "en": "Text Character Offset",
+  "zh": "字符偏移"
+ },
+ "ADBE Text Character Replace": {
+  "en": "Text Character Replace",
+  "zh": "字符值"
+ },
+ "ADBE Text Document": {
+  "en": "Source Text",
+  "zh": "源文本"
+ },
+ "ADBE Text Fill Brightness": {
+  "en": "Text Fill Brightness",
+  "zh": "填充亮度"
+ },
+ "ADBE Text Fill Color": {
+  "en": "Text Fill Color",
+  "zh": "填充颜色"
+ },
+ "ADBE Text Fill Hue": {
+  "en": "Text Fill Hue",
+  "zh": "填充色调"
+ },
+ "ADBE Text Fill Opacity": {
+  "en": "Text Fill Opacity",
+  "zh": "填充不透明度"
+ },
+ "ADBE Text Fill Saturation": {
+  "en": "Text Fill Saturation",
+  "zh": "填充饱和度"
+ },
+ "ADBE Text First Margin": {
+  "en": "Text First Margin",
+  "zh": "首行边距"
+ },
+ "ADBE Text Force Align Path": {
+  "en": "Text Force Align Path",
+  "zh": "强制对齐"
+ },
+ "ADBE Text Index End": {
+  "en": "Text Index End",
+  "zh": "结束"
+ },
+ "ADBE Text Index Offset": {
+  "en": "Text Index Offset",
+  "zh": "偏移"
+ },
+ "ADBE Text Index Start": {
+  "en": "Text Index Start",
+  "zh": "起始"
+ },
+ "ADBE Text Last Margin": {
+  "en": "Text Last Margin",
+  "zh": "末行边距"
+ },
+ "ADBE Text Layer": {
+  "en": "Text Layer",
+  "zh": ""
+ },
+ "ADBE Text Levels Max Ease": {
+  "en": "Text Levels Max Ease",
+  "zh": "高缓动"
+ },
+ "ADBE Text Levels Min Ease": {
+  "en": "Text Levels Min Ease",
+  "zh": "低缓动"
+ },
+ "ADBE Text Line Anchor": {
+  "en": "Text Line Anchor",
+  "zh": "行锚点"
+ },
+ "ADBE Text Line Spacing": {
+  "en": "Text Line Spacing",
+  "zh": "行间距"
+ },
+ "ADBE Text More Options": {
+  "en": "Text More Options",
+  "zh": "更多选项"
+ },
+ "ADBE Text Opacity": {
+  "en": "Text Opacity",
+  "zh": "不透明度"
+ },
+ "ADBE Text Path Options": {
+  "en": "Text Path Options",
+  "zh": "路径选项"
+ },
+ "ADBE Text Percent End": {
+  "en": "Text Percent End",
+  "zh": "结束"
+ },
+ "ADBE Text Percent Offset": {
+  "en": "Text Percent Offset",
+  "zh": "偏移"
+ },
+ "ADBE Text Percent Start": {
+  "en": "Text Percent Start",
+  "zh": "起始"
+ },
+ "ADBE Text Perpendicular To Path": {
+  "en": "Text Perpendicular To Path",
+  "zh": "垂直于路径"
+ },
+ "ADBE Text Position 3D": {
+  "en": "Text Position 3D",
+  "zh": "位置"
+ },
+ "ADBE Text Properties": {
+  "en": "Text",
+  "zh": "文本"
+ },
+ "ADBE Text Random Seed": {
+  "en": "Text Random Seed",
+  "zh": "随机种子"
+ },
+ "ADBE Text Range Advanced": {
+  "en": "Text Range Advanced",
+  "zh": "高级"
+ },
+ "ADBE Text Reverse Path": {
+  "en": "Text Reverse Path",
+  "zh": "反转路径"
+ },
+ "ADBE Text Rotation": {
+  "en": "Rotation",
+  "zh": "Z 旋转"
+ },
+ "ADBE Text Rotation X": {
+  "en": "Text Rotation X",
+  "zh": "X 旋转"
+ },
+ "ADBE Text Rotation Y": {
+  "en": "Text Rotation Y",
+  "zh": "Y 旋转"
+ },
+ "ADBE Text Scale 3D": {
+  "en": "Text Scale 3D",
+  "zh": "缩放"
+ },
+ "ADBE Text Selector": {
+  "en": "Range Selector",
+  "zh": "范围选择器"
+ },
+ "ADBE Text Selector Max Amount": {
+  "en": "Text Selector Max Amount",
+  "zh": "数量"
+ },
+ "ADBE Text Selector Mode": {
+  "en": "Text Selector Mode",
+  "zh": "模式"
+ },
+ "ADBE Text Selector Smoothness": {
+  "en": "Text Selector Smoothness",
+  "zh": "平滑度"
+ },
+ "ADBE Text Selectors": {
+  "en": "Selectors",
+  "zh": "选择器"
+ },
+ "ADBE Text Skew": {
+  "en": "Text Skew",
+  "zh": "倾斜"
+ },
+ "ADBE Text Skew Axis": {
+  "en": "Text Skew Axis",
+  "zh": "倾斜轴"
+ },
+ "ADBE Text Stroke Brightness": {
+  "en": "Text Stroke Brightness",
+  "zh": "描边亮度"
+ },
+ "ADBE Text Stroke Color": {
+  "en": "Text Stroke Color",
+  "zh": "描边颜色"
+ },
+ "ADBE Text Stroke Hue": {
+  "en": "Text Stroke Hue",
+  "zh": "描边色调"
+ },
+ "ADBE Text Stroke Opacity": {
+  "en": "Text Stroke Opacity",
+  "zh": "描边不透明度"
+ },
+ "ADBE Text Stroke Saturation": {
+  "en": "Text Stroke Saturation",
+  "zh": "描边饱和度"
+ },
+ "ADBE Text Stroke Width": {
+  "en": "Text Stroke Width",
+  "zh": "描边宽度"
+ },
+ "ADBE Text Track Type": {
+  "en": "Text Track Type",
+  "zh": "字间距类型"
+ },
+ "ADBE Text Tracking Amount": {
+  "en": "Text Tracking Amount",
+  "zh": "字间距量"
+ },
+ "ADBE Texturize": {
+  "en": "Texturize",
+  "zh": "纹理化"
+ },
+ "ADBE Three-Way Color Corrector": {
+  "en": "Three-Way Color Corrector",
+  "zh": "三向颜色校正器"
+ },
+ "ADBE Threshold": {
+  "en": "Threshold (Legacy)",
+  "zh": "阈值"
+ },
+ "ADBE Threshold2": {
+  "en": "Threshold",
+  "zh": "阈值"
+ },
+ "ADBE Tile": {
+  "en": "Motion Tile",
+  "zh": "运动拼贴"
+ },
+ "ADBE Time Displacement": {
+  "en": "Time Displacement",
+  "zh": "时间置换"
+ },
+ "ADBE Time Remapping": {
+  "en": "Time Remapping",
+  "zh": "时间重映射"
+ },
+ "ADBE Timecode": {
+  "en": "Timecode",
+  "zh": "时间码"
+ },
+ "ADBE Timewarp": {
+  "en": "Time Warp",
+  "zh": "时间扭曲"
+ },
+ "ADBE Tint": {
+  "en": "Tint",
+  "zh": "色调"
+ },
+ "ADBE Transform Group": {
+  "en": "Transform",
+  "zh": "变换"
+ },
+ "ADBE Transp Rolloff": {
+  "en": "Transparency Rolloff",
+  "zh": "透明衰减"
+ },
+ "ADBE Transparency Coefficient": {
+  "en": "Transparency Coefficient",
+  "zh": "透明度"
+ },
+ "ADBE Tritone": {
+  "en": "Tritone",
+  "zh": "三色调"
+ },
+ "ADBE Turbulent Displace": {
+  "en": "Turbulent Displace",
+  "zh": "湍流置换"
+ },
+ "ADBE Twirl": {
+  "en": "Twirl",
+  "zh": "旋转"
+ },
+ "ADBE Unsharp Mask": {
+  "en": "Unsharp Mask (Legacy)",
+  "zh": "非锐化蒙版"
+ },
+ "ADBE Unsharp Mask2": {
+  "en": "Unsharp Mask",
+  "zh": "非锐化遮罩"
+ },
+ "ADBE Upscale": {
+  "en": "Detail-preserving Upscale",
+  "zh": "保留细节的放大"
+ },
+ "ADBE Vector Blend Mode": {
+  "en": "Vector Blend Mode",
+  "zh": "混合模式"
+ },
+ "ADBE Vector Composite Order": {
+  "en": "Vector Composite Order",
+  "zh": "合成"
+ },
+ "ADBE Vector Correlation": {
+  "en": "Vector Correlation",
+  "zh": "相关性"
+ },
+ "ADBE Vector Ellipse Position": {
+  "en": "Vector Ellipse Position",
+  "zh": "位置"
+ },
+ "ADBE Vector Ellipse Size": {
+  "en": "Vector Ellipse Size",
+  "zh": "大小"
+ },
+ "ADBE Vector Fill Color": {
+  "en": "Vector Fill Color",
+  "zh": "颜色"
+ },
+ "ADBE Vector Fill Opacity": {
+  "en": "Vector Fill Opacity",
+  "zh": "不透明度"
+ },
+ "ADBE Vector Fill Rule": {
+  "en": "Vector Fill Rule",
+  "zh": "填充规则"
+ },
+ "ADBE Vector Filter - Merge": {
+  "en": "Merge Paths",
+  "zh": "合并路径"
+ },
+ "ADBE Vector Filter - Offset": {
+  "en": "Offset Paths",
+  "zh": "偏移路径"
+ },
+ "ADBE Vector Filter - PB": {
+  "en": "Pucker & Bloat",
+  "zh": "收缩与膨胀"
+ },
+ "ADBE Vector Filter - RC": {
+  "en": "Round Corners",
+  "zh": "圆角"
+ },
+ "ADBE Vector Filter - Repeater": {
+  "en": "Repeater",
+  "zh": "重复器"
+ },
+ "ADBE Vector Filter - Roughen": {
+  "en": "Zig Zag",
+  "zh": "摆动路径"
+ },
+ "ADBE Vector Filter - Trim": {
+  "en": "Trim Paths",
+  "zh": "修剪路径"
+ },
+ "ADBE Vector Filter - Twist": {
+  "en": "Twist",
+  "zh": "扭转"
+ },
+ "ADBE Vector Filter - Wiggler": {
+  "en": "Wiggle Transform",
+  "zh": "摆动变换"
+ },
+ "ADBE Vector Filter - Zigzag": {
+  "en": "Zig Zag",
+  "zh": "锯齿"
+ },
+ "ADBE Vector Grad Colors": {
+  "en": "Vector Grad Colors",
+  "zh": "颜色"
+ },
+ "ADBE Vector Grad End Pt": {
+  "en": "Vector Grad End Pt",
+  "zh": "结束点"
+ },
+ "ADBE Vector Grad HiLite Angle": {
+  "en": "Vector Grad HiLite Angle",
+  "zh": "高光角度"
+ },
+ "ADBE Vector Grad HiLite Length": {
+  "en": "Vector Grad HiLite Length",
+  "zh": "高光长度"
+ },
+ "ADBE Vector Grad Start Pt": {
+  "en": "Vector Grad Start Pt",
+  "zh": "起始点"
+ },
+ "ADBE Vector Grad Type": {
+  "en": "Vector Grad Type",
+  "zh": "类型"
+ },
+ "ADBE Vector Graphic - Fill": {
+  "en": "Fill",
+  "zh": "填充"
+ },
+ "ADBE Vector Graphic - G-Fill": {
+  "en": "Gradient Fill",
+  "zh": "渐变填充"
+ },
+ "ADBE Vector Graphic - G-Stroke": {
+  "en": "Gradient Stroke",
+  "zh": "渐变描边"
+ },
+ "ADBE Vector Graphic - Stroke": {
+  "en": "Stroke",
+  "zh": "描边"
+ },
+ "ADBE Vector Group": {
+  "en": "Group",
+  "zh": "组"
+ },
+ "ADBE Vector Layer": {
+  "en": "Vector Layer",
+  "zh": "形状图层"
+ },
+ "ADBE Vector Materials Group": {
+  "en": "Material Options",
+  "zh": "材质选项"
+ },
+ "ADBE Vector Merge Type": {
+  "en": "Vector Merge Type",
+  "zh": "模式"
+ },
+ "ADBE Vector Offset Amount": {
+  "en": "Vector Offset Amount",
+  "zh": "数量"
+ },
+ "ADBE Vector Offset Copies": {
+  "en": "Vector Offset Copies",
+  "zh": "副本"
+ },
+ "ADBE Vector Offset Copy Offset": {
+  "en": "Vector Offset Copy Offset",
+  "zh": "副本偏移"
+ },
+ "ADBE Vector Offset Line Join": {
+  "en": "Vector Offset Line Join",
+  "zh": "线连接"
+ },
+ "ADBE Vector Offset Miter Limit": {
+  "en": "Vector Offset Miter Limit",
+  "zh": "斜接限制"
+ },
+ "ADBE Vector Paint": {
+  "en": "Vector Paint",
+  "zh": "矢量绘画"
+ },
+ "ADBE Vector PuckerBloat Amount": {
+  "en": "Vector PuckerBloat Amount",
+  "zh": "数量"
+ },
+ "ADBE Vector Random Seed": {
+  "en": "Vector Random Seed",
+  "zh": "随机种子"
+ },
+ "ADBE Vector Rect Position": {
+  "en": "Vector Rect Position",
+  "zh": "位置"
+ },
+ "ADBE Vector Rect Roundness": {
+  "en": "Vector Rect Roundness",
+  "zh": "圆角"
+ },
+ "ADBE Vector Rect Size": {
+  "en": "Vector Rect Size",
+  "zh": "大小"
+ },
+ "ADBE Vector Repeater Copies": {
+  "en": "Vector Repeater Copies",
+  "zh": "副本"
+ },
+ "ADBE Vector Repeater Offset": {
+  "en": "Vector Repeater Offset",
+  "zh": "偏移"
+ },
+ "ADBE Vector Repeater Order": {
+  "en": "Vector Repeater Order",
+  "zh": "合成"
+ },
+ "ADBE Vector Repeater Transform": {
+  "en": "Repeater Transform",
+  "zh": "变换"
+ },
+ "ADBE Vector Roughen Detail": {
+  "en": "Vector Roughen Detail",
+  "zh": "细节"
+ },
+ "ADBE Vector Roughen Points": {
+  "en": "Vector Roughen Points",
+  "zh": "点"
+ },
+ "ADBE Vector Roughen Size": {
+  "en": "Vector Roughen Size",
+  "zh": "大小"
+ },
+ "ADBE Vector RoundCorner Radius": {
+  "en": "Vector RoundCorner Radius",
+  "zh": "半径"
+ },
+ "ADBE Vector Shape": {
+  "en": "Path",
+  "zh": "路径"
+ },
+ "ADBE Vector Shape - Ellipse": {
+  "en": "Ellipse",
+  "zh": "椭圆"
+ },
+ "ADBE Vector Shape - Group": {
+  "en": "Path",
+  "zh": "路径"
+ },
+ "ADBE Vector Shape - Rect": {
+  "en": "Rectangle",
+  "zh": "矩形"
+ },
+ "ADBE Vector Shape - Star": {
+  "en": "Polystar",
+  "zh": "多边形 / 星形"
+ },
+ "ADBE Vector Shape Direction": {
+  "en": "Direction",
+  "zh": "形状方向"
+ },
+ "ADBE Vector Spatial Phase": {
+  "en": "Vector Spatial Phase",
+  "zh": "空间相位"
+ },
+ "ADBE Vector Star Inner Radius": {
+  "en": "Vector Star Inner Radius",
+  "zh": "内半径"
+ },
+ "ADBE Vector Star Inner Roundess": {
+  "en": "Vector Star Inner Roundess",
+  "zh": "内圆角"
+ },
+ "ADBE Vector Star Outer Radius": {
+  "en": "Vector Star Outer Radius",
+  "zh": "外半径"
+ },
+ "ADBE Vector Star Outer Roundess": {
+  "en": "Vector Star Outer Roundess",
+  "zh": "外圆角"
+ },
+ "ADBE Vector Star Points": {
+  "en": "Vector Star Points",
+  "zh": "点"
+ },
+ "ADBE Vector Star Position": {
+  "en": "Vector Star Position",
+  "zh": "位置"
+ },
+ "ADBE Vector Star Rotation": {
+  "en": "Vector Star Rotation",
+  "zh": "旋转"
+ },
+ "ADBE Vector Star Type": {
+  "en": "Vector Star Type",
+  "zh": "类型"
+ },
+ "ADBE Vector Stroke Color": {
+  "en": "Vector Stroke Color",
+  "zh": "颜色"
+ },
+ "ADBE Vector Stroke Dash 1": {
+  "en": "Vector Stroke Dash",
+  "zh": "虚线"
+ },
+ "ADBE Vector Stroke Dash 2": {
+  "en": "Vector Stroke Dash",
+  "zh": "虚线 2"
+ },
+ "ADBE Vector Stroke Dash 3": {
+  "en": "Vector Stroke Dash",
+  "zh": "虚线 3"
+ },
+ "ADBE Vector Stroke Dashes": {
+  "en": "Vector Stroke Dashes",
+  "zh": "虚线"
+ },
+ "ADBE Vector Stroke Gap 1": {
+  "en": "Vector Stroke Gap",
+  "zh": "间隔"
+ },
+ "ADBE Vector Stroke Gap 2": {
+  "en": "Vector Stroke Gap",
+  "zh": "间隔 2"
+ },
+ "ADBE Vector Stroke Gap 3": {
+  "en": "Vector Stroke Gap",
+  "zh": "间隔 3"
+ },
+ "ADBE Vector Stroke Line Cap": {
+  "en": "Vector Stroke Line Cap",
+  "zh": "线帽"
+ },
+ "ADBE Vector Stroke Line Join": {
+  "en": "Vector Stroke Line Join",
+  "zh": "线连接"
+ },
+ "ADBE Vector Stroke Miter Limit": {
+  "en": "Vector Stroke Miter Limit",
+  "zh": "斜接限制"
+ },
+ "ADBE Vector Stroke Offset": {
+  "en": "Vector Stroke Offset",
+  "zh": "偏移"
+ },
+ "ADBE Vector Stroke Opacity": {
+  "en": "Vector Stroke Opacity",
+  "zh": "不透明度"
+ },
+ "ADBE Vector Stroke Taper": {
+  "en": "Vector Stroke Taper",
+  "zh": "锥化"
+ },
+ "ADBE Vector Stroke Wave": {
+  "en": "Vector Stroke Wave",
+  "zh": "波浪"
+ },
+ "ADBE Vector Stroke Width": {
+  "en": "Vector Stroke Width",
+  "zh": "描边宽度"
+ },
+ "ADBE Vector Taper End Ease": {
+  "en": "Vector Taper End Ease",
+  "zh": "结束缓动"
+ },
+ "ADBE Vector Taper End Length": {
+  "en": "Vector Taper End Length",
+  "zh": "结束长度"
+ },
+ "ADBE Vector Taper End Width": {
+  "en": "Vector Taper End Width",
+  "zh": "结束宽度"
+ },
+ "ADBE Vector Taper Length Units": {
+  "en": "Vector Taper Length Units",
+  "zh": "长度单位"
+ },
+ "ADBE Vector Taper Start Ease": {
+  "en": "Vector Taper Start Ease",
+  "zh": "起始缓动"
+ },
+ "ADBE Vector Taper Start Length": {
+  "en": "Vector Taper Start Length",
+  "zh": "起始长度"
+ },
+ "ADBE Vector Taper Start Width": {
+  "en": "Vector Taper Start Width",
+  "zh": "起始宽度"
+ },
+ "ADBE Vector Taper Wave Amount": {
+  "en": "Vector Taper Wave Amount",
+  "zh": "数量"
+ },
+ "ADBE Vector Taper Wave Phase": {
+  "en": "Vector Taper Wave Phase",
+  "zh": "相位"
+ },
+ "ADBE Vector Taper Wave Units": {
+  "en": "Vector Taper Wave Units",
+  "zh": "单位"
+ },
+ "ADBE Vector Taper Wavelength": {
+  "en": "Vector Taper Wavelength",
+  "zh": "波长"
+ },
+ "ADBE Vector Temporal Freq": {
+  "en": "Vector Temporal Freq",
+  "zh": "摆动 / 秒"
+ },
+ "ADBE Vector Temporal Phase": {
+  "en": "Vector Temporal Phase",
+  "zh": "时间相位"
+ },
+ "ADBE Vector Transform Group": {
+  "en": "Shape Transform",
+  "zh": "变换"
+ },
+ "ADBE Vector Trim End": {
+  "en": "Vector Trim End",
+  "zh": "结束"
+ },
+ "ADBE Vector Trim Offset": {
+  "en": "Vector Trim Offset",
+  "zh": "偏移"
+ },
+ "ADBE Vector Trim Start": {
+  "en": "Vector Trim Start",
+  "zh": "起始"
+ },
+ "ADBE Vector Trim Type": {
+  "en": "Vector Trim Type",
+  "zh": "修剪多个形状"
+ },
+ "ADBE Vector Twist Angle": {
+  "en": "Vector Twist Angle",
+  "zh": "角度"
+ },
+ "ADBE Vector Twist Center": {
+  "en": "Vector Twist Center",
+  "zh": "中心"
+ },
+ "ADBE Vector Wiggler Transform": {
+  "en": "Wiggle Transform",
+  "zh": "变换"
+ },
+ "ADBE Vector Xform Temporal Freq": {
+  "en": "Vector Xform Temporal Freq",
+  "zh": "摆动 / 秒"
+ },
+ "ADBE Vector Zigzag Detail": {
+  "en": "Vector Zigzag Detail",
+  "zh": "每段脊数"
+ },
+ "ADBE Vector Zigzag Points": {
+  "en": "Vector Zigzag Points",
+  "zh": "点"
+ },
+ "ADBE Vector Zigzag Size": {
+  "en": "Vector Zigzag Size",
+  "zh": "大小"
+ },
+ "ADBE Vectors Group": {
+  "en": "Contents",
+  "zh": "内容"
+ },
+ "ADBE Venetian Blinds": {
+  "en": "Venetian Blinds",
+  "zh": "百叶窗"
+ },
+ "ADBE Vibrance": {
+  "en": "Vibrance",
+  "zh": "自然饱和度"
+ },
+ "ADBE WRPMESH": {
+  "en": "Warp",
+  "zh": "扭曲"
+ },
+ "ADBE Wave Warp": {
+  "en": "Wave Warp",
+  "zh": "波浪扭曲"
+ },
+ "ADBE Write-on": {
+  "en": "Write-on",
+  "zh": "书写"
+ }
+}

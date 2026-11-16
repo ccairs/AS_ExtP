@@ -1,0 +1,1682 @@
+
+
+/* 语言相关排版：韩文界面用韩文字体渲染谚文与汉字，避免中文字形混排 */
+:root[data-locale="ko-KR"] body,
+:root[data-locale="ko-KR"] button,
+:root[data-locale="ko-KR"] input,
+:root[data-locale="ko-KR"] select,
+:root[data-locale="ko-KR"] textarea,
+:root[data-locale="ko-KR"] .btn,
+:root[data-locale="ko-KR"] .modal.confirm-modal,
+:root[data-locale="ko-KR"] .run-error-card {
+    font-family: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+}
+:root[data-locale="ko-KR"] .section-title,
+:root[data-locale="ko-KR"] .font-display,
+:root[data-locale="ko-KR"] .panel-head,
+:root[data-locale="ko-KR"] .modal-head,
+:root[data-locale="ko-KR"] .qb-tab {
+    font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+}
+/* === 滚动条 === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--btn-bg); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+::-webkit-scrollbar-corner { background: transparent; }
+.row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px;
+    align-items: center;
+}
+.row label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* 设置弹窗表单 —— 覆盖 .modal-body .row 的 flex 列布局，恢复 grid 并左对齐 */
+#settingsModal .modal-body,
+#globalSettingsModal .modal-body {
+    gap: 16px;
+    padding: 14px 16px;
+}
+#settingsModal .row,
+#globalSettingsModal .row {
+    display: grid;
+    grid-template-columns: 120px 360px;
+    gap: 8px;
+    align-items: center;
+    justify-content: start;
+}
+#settingsModal .row label,
+#globalSettingsModal .row label {
+    font-size: 12px;
+    font-weight: 600;
+}
+#settingsModal .row.checkbox-row,
+#globalSettingsModal .row.checkbox-row {
+    grid-template-columns: 120px 1fr;
+    align-items: center;
+}
+/* 主题草稿提示（「预览中 · 点保存后生效」）：只在草稿相对已保存状态确有改动时显示，
+   放在主题预设控件下方一行（grid 第二列），不挤占 label 列 */
+#globalSettingsModal .theme-draft-hint {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1.4;
+}
+#globalSettingsModal .theme-draft-hint::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px rgba(var(--accent-rgb), .6);
+    flex: 0 0 auto;
+}
+#globalSettingsModal .theme-draft-hint[hidden] {
+    display: none;
+}
+#settingsModal .checkbox-inline-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 8px 0 4px;
+}
+#settingsModal .checkbox-inline-row .toggle-wrap {
+    font-size: 12px;
+    color: var(--text-muted, #888);
+    gap: 6px;
+}
+
+/* 设置弹窗按钮行 —— 顶部分割线 */
+#settingsModal .btn-row,
+#globalSettingsModal .btn-row {
+    padding-top: 12px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+/* ===== 模块设置面板通用分组排版（st-panel）—— ComfyUI/素材库等共用，
+   视觉语言对齐 Agent 模块设置（#llmSettingsContainer 的 st-* 体系）。
+   约定：分组内只有一个字段时不输出 st-section 标题与分割线，
+   字段直接作为 st-panel 子元素（宽度撑满，字段 label 自说明） ===== */
+.st-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+/* 分组标题：弱化小字 + 底部细线 */
+.st-panel .st-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    padding-bottom: 5px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+/* 字段网格：双列，跨列字段用 st-field-wide */
+.st-panel .st-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+}
+.st-panel .st-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.st-panel .st-field > label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.st-panel .st-field input,
+.st-panel .st-field select {
+    width: 100%;
+    box-sizing: border-box;
+}
+.st-panel .st-field-wide {
+    grid-column: 1 / -1;
+}
+/* 字段下方的辅助说明 */
+.st-panel .st-field-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+/* 置灰视觉（仅设 disabled 看不出差别）——热盒原生件缺位时的「热盒快捷键」行（输入框 + 录制/默认两键）用同一套降透明度 + 禁用光标 */
+#globalSettingsModal .row button:disabled,
+#globalSettingsModal .row input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* 设置弹窗宽度 -- 匹配表单网格，不留大面积空白 */
+#settingsModal .modal,
+#globalSettingsModal .modal {
+    width: min(560px, 92vw);
+}
+.persona-editor-modal {
+    width: min(520px, 92vw);
+}
+.persona-editor-modal .modal-body {
+    padding: 14px 16px;
+}
+.persona-editor-modal .btn-row {
+    padding: 12px 20px 16px;
+}
+.persona-editor-modal textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid var(--btn-border);
+    background: var(--input-bg, var(--surface-3));
+    color: var(--btn-text, #f0f2f5);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+    line-height: 1.5;
+    transition: border-color .15s ease;
+}
+.persona-editor-modal textarea:focus {
+    border-color: var(--accent, #fbbf24);
+}
+.checkbox-row {
+    align-items: flex-start;
+}
+.password-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.password-row input {
+    width: 100%;
+    padding-right: 36px;
+}
+.password-row .toggle-pwd {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+}
+.password-row .toggle-pwd:hover {
+    color: var(--text-main);
+}
+.check-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--btn-text);
+    line-height: 1.4;
+    margin-top: 2px;
+}
+.check-wrap input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    flex-shrink: 0;
+}
+input, select, textarea {
+    width: 100%;
+    border: 1px solid var(--btn-border);
+    background: var(--input-bg);
+    color: var(--btn-text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    outline: none;
+    resize: vertical;
+    transition: border-color .15s cubic-bezier(0.35,0,0.65,1), box-shadow .15s cubic-bezier(0.35,0,0.65,1), background .15s cubic-bezier(0.35,0,0.65,1);
+}
+textarea::-webkit-resizer {
+    background: var(--surface-3);
+    border-radius: 0 0 4px 0;
+}
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: var(--input-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%237a8090' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+    padding-right: 30px;
+    cursor: pointer;
+}
+select:hover {
+    border-color: rgba(var(--accent-rgb),.3);
+    background-color: rgba(var(--accent-rgb),.03);
+}
+input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.action-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.btn {
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border-radius: 4px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-weight: 600;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .12s cubic-bezier(.35,0,.65,1), transform .06s cubic-bezier(.35,0,.65,1), background .06s cubic-bezier(.35,0,.65,1);
+}
+.btn::before {
+    content: "";
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(var(--accent-rgb),.25) 5px, rgba(var(--accent-rgb),.25) 6px);
+    transform: translateY(-100%);
+    transition: transform .35s cubic-bezier(.4,0,.6,1);
+    pointer-events: none;
+}
+.btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(var(--accent-rgb),.18);
+    opacity: 0;
+    pointer-events: none;
+}
+.btn:hover {
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+}
+.btn:hover::before {
+    transform: translateY(100%);
+}
+.btn:active {
+    transform: scale(0.93);
+    border-color: var(--accent);
+    background: var(--btn-hover-bg);
+}
+.btn:active::after {
+    opacity: 1;
+    animation: btn-click-flash .15s step-end forwards;
+}
+@keyframes btn-click-flash {
+    0% { opacity: 1; }
+    40% { opacity: 0; }
+    70% { opacity: .6; }
+    100% { opacity: 0; }
+}
+.btn.secondary {
+    background: var(--btn-hover-bg);
+}
+.btn.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+    background: var(--btn-hover-bg);
+}
+/* 运行/发送这类**主按钮**：暗底 + 亮描边 + 亮字，走 --run-* 四个主题变量。
+   默认档的值就是签名配色（--run-bg #6a4a20 / --run-border #d4a844 / --run-text #fef3c7 /
+   悬停 #7a5624）；初号机/二号机沿用各自原本的按钮配色；自定义档**没改 accent** 时保持默认档
+   原值（逐字一致），改过 accent 才由 themeApplier.deriveRunColors 派生一套同形状的深色版。 */
+.btn.run {
+    border: 1px solid var(--run-border, #d4a844);
+    background: var(--run-bg, #6a4a20);
+    color: var(--run-text, #fef3c7);
+    box-shadow: 0 0 10px rgba(var(--accent-rgb),.2);
+}
+.btn.run::before {
+    background: repeating-linear-gradient(0deg, transparent, transparent 5px, rgba(var(--accent-rgb),.35) 5px, rgba(var(--accent-rgb),.35) 6px);
+}
+.btn.run:hover {
+    background: var(--run-hover-bg, #7a5624);
+    border-color: var(--accent);
+    box-shadow: 0 0 22px rgba(var(--accent-rgb),.5), 0 0 40px rgba(var(--accent-2-rgb),.2);
+}
+.btn.run:hover::before {
+    transform: translateY(100%);
+}
+.btn.run:active {
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb),.4), 0 0 20px rgba(var(--accent-rgb),.3);
+}
+.btn.run:active::after {
+    background: rgba(var(--accent-rgb),.3);
+}
+.status-inline {
+    min-height: 34px;
+    min-width: 220px;
+    max-width: min(52vw, 560px);
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: none;
+    align-items: center;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.status-inline.success { background: #1a2a1a; color: var(--btn-text); border-color: var(--signal-green); }
+.status-inline.error { background: #2a1a1a; color: #fca5a5; border-color: #7f1d1d; }
+.status-inline.info { background: rgba(12,16,22,.8); color: var(--btn-text); border-color: var(--border); }
+.modal-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: none;
+    opacity: 0;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity .15s cubic-bezier(0.4,0,0.6,1);
+}
+.modal {
+    width: min(600px, 92vw);
+    max-height: 88vh;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface-2);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .45);
+    opacity: 0;
+    transform: translateY(10px) scale(.98);
+}
+.modal.confirm-modal {
+    width: min(360px, 90vw);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 40px rgba(0,0,0,.55);
+    background: radial-gradient(ellipse 400px 250px at 15% 0%, var(--accent-soft) 0%, rgba(var(--accent-rgb),0.02) 30%, rgba(var(--accent-rgb),0.005) 50%, var(--surface-2) 70%);
+    position: relative;
+    overflow: hidden;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+}
+.confirm-modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(to right, rgba(var(--accent-rgb),.5), rgba(var(--accent-rgb),.12) 60%, transparent 100%);
+    border-radius: 12px 12px 0 0;
+    z-index: 1;
+}
+.confirm-modal .modal-head {
+    padding: 14px 16px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e6edf3;
+    border-bottom: none;
+    line-height: 1.3;
+}
+.confirm-modal .modal-body {
+    padding: 4px 16px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: auto;
+    /* 弹窗宽仅 360px，消息里的长路径/长工具名（C:\Users\...\AS_ExtP 这类无空格长词、以及「」包裹的 inline code）不可断行 →
+           把内容撑宽、底部出现横向滚动条。允许长词按需断行即可（纵向滚动保留）。 */
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    color: #8b949e;
+    line-height: 1.6;
+}
+.confirm-modal .modal-body .btn-row {
+    margin: 12px -16px 0;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: rgba(0,0,0,0.15);
+    justify-content: flex-end;
+    gap: 8px;
+}
+.confirm-modal .btn-row .btn {
+    font-size: 11px;
+    padding: 4px 14px;
+    border-radius: 6px;
+    font-weight: 500;
+    line-height: 1.4;
+    transition: all .12s ease;
+}
+/* 弹窗次级控件走 --popup-ctrl-* 中性灰阶（不随档位）：初号机/二号机的 --btn-border / --btn-text
+   本身是橙色，跟随档位会让确认弹窗长出橙描边与橙字 */
+.confirm-modal .btn-row .btn.secondary {
+    background: transparent;
+    border: 1px solid var(--popup-ctrl-border);
+    color: var(--popup-ctrl-text);
+}
+/* hover 只加底色、描边维持中性灰（本规则特异性 0,4,0 高于 house .btn:hover 的 0,2,0，
+   显式写出以免日后调整特异性时回落成琥珀描边） */
+.confirm-modal .btn-row .btn.secondary:hover {
+    background: var(--popup-ctrl-hover-bg);
+    border-color: var(--popup-ctrl-border-hover);
+}
+#confirmOkBtn {
+    background: var(--warning-vivid);
+    border-color: var(--warning-vivid);
+    color: #0d1117;
+    font-weight: 600;
+}
+#confirmOkBtn:hover {
+    background: var(--warning-vivid);
+    box-shadow: 0 4px 12px rgba(var(--warning-vivid-rgb),.2);
+}
+.confirm-modal #promptInput {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+    background: var(--popup-ctrl-field-bg);
+    border: 1px solid var(--popup-ctrl-border);
+    color: var(--popup-ctrl-text);
+    resize: none;
+}
+.confirm-modal #promptInput:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+/* 危险操作弹窗：与 showConfirm 共用同一个 confirmModal 结构与交互逻辑，
+   仅通过 JS 叠加 danger 枚举类切换为红色警示样式（红色背景渐变 + 红色标题/确认按钮/顶条），
+   与普通确认框共用同一套 DOM，避免整窗黄色与危险语境不符。 */
+.modal.confirm-modal.danger-confirm {
+    border: 1px solid rgba(var(--danger-vivid-rgb),.45);
+    background:
+        radial-gradient(ellipse 400px 250px at 15% 0%, rgba(var(--danger-vivid-rgb),.16) 0%, rgba(var(--danger-vivid-rgb),.05) 30%, rgba(var(--danger-vivid-rgb),.02) 50%, #2d1517 72%);
+}
+.modal.confirm-modal.danger-confirm::before {
+    background: linear-gradient(to right, var(--danger-vivid), rgba(var(--danger-vivid-rgb),.15) 60%, transparent 100%);
+}
+.modal.confirm-modal.danger-confirm .modal-head {
+    color: var(--danger-vivid);
+}
+.modal.confirm-modal.danger-confirm .modal-body .btn-row {
+    border-top: 1px solid rgba(var(--danger-vivid-rgb),.25);
+}
+.modal.confirm-modal.danger-confirm #confirmOkBtn {
+    background: #da3633;
+    border-color: #da3633;
+    color: #fff;
+    font-weight: 600;
+}
+.modal.confirm-modal.danger-confirm #confirmOkBtn:hover {
+    background: #e5534b;
+    box-shadow: 0 4px 12px rgba(var(--danger-vivid-rgb),.25);
+}
+.modal.confirm-modal.danger-confirm .btn-row .btn.secondary {
+    border-color: rgba(var(--danger-vivid-rgb),.35);
+    color: #f0b6b6;
+}
+/* ===== 首次打开阻隔弹窗：AI 免责声明（client/features/firstRunDisclaimer.js 驱动）=====
+   z-index 取 10020：压在 toast(10010) / Bridge 阻塞层(10001~10002) / QuickBar(9998~9999) 之上——
+   这是闸门，输入框不能被任何浮层盖住。调试抽屉(99999)靠 shared/logger.js 的
+   「.modal-mask 可见即让位」自动收起，故仍用 .modal-mask 类名（勿换成自造遮罩类）。 */
+.modal-mask.disclaimer-mask {
+    z-index: 10020;
+    background: rgba(6, 10, 16, 0.94);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+/* 宽度必须带 .modal 一起写：panel.css 里同样有 `.modal { width: min(520px,92vw) }`，
+   而 panel.css 在 index.html 里**后加载**——同权重（都是单类）时后者胜，只写 .disclaimer-modal
+   会静默被压回 520px（真浏览器验收台实测抓到）。border/圆角/底色沿用 panel.css 的 house 风格。 */
+.modal.disclaimer-modal {
+    width: min(660px, 94vw);
+}
+.disclaimer-modal .modal-head {
+    font-size: 14px;
+    flex: 0 0 auto;
+}
+/* 正文可滚动、底部确认区常驻（不随正文滚走）：覆盖 panel.css 的 .modal-body 内边距/gap */
+.disclaimer-modal .modal-body {
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+}
+/* 语言选择行：常驻在正文之上（正文滚动时不跟着走）。选项由 JS 运行时创建——
+   Chrome 88 里隐藏容器中的静态 <option> 会重置选中值。 */
+.disclaimer-locale-row {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.disclaimer-locale-row label {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.disclaimer-locale-row select {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 148px;
+    padding: 6px 28px 6px 10px;
+    font-size: 12px;
+}
+/* 首启闸门早于 bootstrap，语言下拉在弹窗内单独转换为自定义下拉（见 firstRunDisclaimer.js） */
+.disclaimer-locale-row .cs-wrap {
+    flex: 0 0 auto;
+    min-width: 148px;
+}
+.disclaimer-locale-row .cs-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+.disclaimer-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 20px 6px;
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--text-muted);
+}
+.disclaimer-lead {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #e6edf3;
+}
+.disclaimer-body ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.disclaimer-body li { margin-bottom: 6px; }
+.disclaimer-body strong { color: var(--warning-vivid); }
+.disclaimer-foot {
+    margin: 12px 0 0;
+    color: var(--text-muted);
+    opacity: .85;
+}
+.disclaimer-gate {
+    flex: 0 0 auto;
+    padding: 12px 20px 14px;
+    border-top: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.25);
+}
+.disclaimer-progress {
+    height: 2px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+.disclaimer-progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    transition: width .2s linear;
+}
+.disclaimer-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+.disclaimer-hint.bad { color: var(--danger-vivid); }
+.disclaimer-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.disclaimer-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+    border-radius: 6px;
+    background: var(--popup-ctrl-field-bg);
+    border: 1px solid var(--border);
+    color: var(--popup-ctrl-field-text);
+}
+.disclaimer-input:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+.disclaimer-input:disabled { opacity: .45; cursor: not-allowed; }
+.disclaimer-modal #disclaimerConfirmBtn {
+    flex: 0 0 auto;
+    padding: 8px 18px;
+    font-size: 12px;
+}
+.disclaimer-modal #disclaimerConfirmBtn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+}
+.section-title {
+    margin: 2px 0;
+    padding: 6px 8px 6px 14px;
+    border-radius: 0;
+    border: 1px solid var(--border);
+    background: var(--surface-3);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    font-family: "Noto Serif SC", "SimSun", "STSong", serif;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.section-title::before {
+    content: "◆";
+    margin-right: 6px;
+    font-size: 8px;
+    opacity: .7;
+}
+
+.section-indicator {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid var(--accent);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    margin-right: 6px;
+}
+
+.diamond-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    transform: rotate(45deg);
+    flex-shrink: 0;
+}
+
+.diamond-dot.green {
+    background: var(--signal-green, #4ade80);
+    box-shadow: 0 0 6px var(--signal-green, #4ade80);
+}
+/* 顶栏状态标签（SYS/SIG）的另两态：鉴权失败 = 琥珀、离线 = 红，与底部 BRIDGE 段
+   的三态配色同一语义（main.js _updateBridgeTags 写的类名就在这里落地）。
+   变量口径与上面的 green 一致：主题变量 + 兜底色。 */
+.diamond-dot.amber {
+    background: var(--warning, #fbbf24);
+    box-shadow: 0 0 6px var(--warning, #fbbf24);
+}
+.diamond-dot.red {
+    background: var(--danger, #ff8a8a);
+    box-shadow: 0 0 6px var(--danger, #ff8a8a);
+}
+.icon-btn {
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    border-radius: 4px;
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all .15s cubic-bezier(0.35,0,0.65,1);
+}
+.icon-btn:hover {
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+}
+.toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--btn-text);
+    font-size: 13px;
+    /* 给隐藏的 1px switch-input 提供包含块，避免聚焦时浏览器把它滚进视口导致面板上挪 */
+    position: relative;
+}
+.toggle-wrap .switch-input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+.toggle-wrap .switch-slider {
+    position: relative;
+    width: 38px;
+    height: 22px;
+    border-radius: 999px;
+    border: 1px solid var(--btn-border);
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25);
+    transition: background .15s cubic-bezier(0.35,0,0.65,1), border-color .15s cubic-bezier(0.35,0,0.65,1), box-shadow .15s cubic-bezier(0.35,0,0.65,1);
+    flex-shrink: 0;
+}
+.toggle-wrap .switch-slider::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--btn-text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+    transition: transform .12s cubic-bezier(0.35,0,0.65,1), background .15s cubic-bezier(0.35,0,0.65,1);
+}
+.toggle-wrap .switch-input:checked + .switch-slider {
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.toggle-wrap .switch-input:checked + .switch-slider::after {
+    transform: translateX(16px);
+    background: var(--accent);
+}
+.toggle-wrap .switch-input:focus-visible + .switch-slider {
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ===== 自定义下拉 ===== */
+.cs-wrap {
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+}
+.cs-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    background: var(--input-bg);
+    color: var(--btn-text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.cs-btn:hover { border-color: rgba(var(--accent-rgb),.3); background: rgba(var(--accent-rgb),.04); }
+.cs-btn:disabled, .cs-btn.cs-disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    pointer-events: none;
+    border-color: var(--btn-border);
+    background: var(--input-bg);
+    box-shadow: none;
+}
+.cs-btn:focus-visible, .cs-wrap.cs-open .cs-btn {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.cs-label { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-arrow {
+    flex-shrink: 0; display: flex; align-items: center; color: var(--text-muted);
+    font-size: 14px; line-height: 1; transition: transform .2s ease;
+}
+.cs-arrow.cs-open { transform: rotate(180deg); }
+.cs-list {
+    position: absolute;
+    z-index: 9999;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    min-width: max-content;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: 0 8px 32px rgba(0,0,0,.55);
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition: opacity .15s ease, transform .15s ease;
+}
+.cs-wrap.cs-open .cs-list { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.cs-opt {
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .1s ease, color .1s ease;
+}
+.cs-opt:hover { background: rgba(var(--accent-rgb),.08); color: var(--btn-text); }
+.cs-opt.active { background: rgba(var(--accent-rgb),.12); color: var(--accent); font-weight: 600; }
+.cs-opt.disabled { opacity: .35; pointer-events: none; }
+
+/* ===== 滑条 / Range Slider ===== */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    outline: none;
+    margin: 0;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    border: 1px solid var(--btn-border);
+}
+input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    border: 1px solid var(--btn-border);
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(var(--accent-rgb),.5);
+    box-shadow: 0 0 8px rgba(var(--accent-rgb),.25);
+    margin-top: -7px;
+    cursor: pointer;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(var(--accent-rgb),.5);
+    box-shadow: 0 0 8px rgba(var(--accent-rgb),.25);
+    cursor: pointer;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 18px rgba(var(--accent-rgb),.35);
+    transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb:hover {
+    box-shadow: 0 0 18px rgba(var(--accent-rgb),.35);
+    transform: scale(1.15);
+}
+input[type="range"]:active::-webkit-slider-thumb {
+    box-shadow: 0 0 24px rgba(var(--accent-rgb),.45);
+    transform: scale(1.08);
+    border-color: var(--accent);
+}
+input[type="range"]:active::-moz-range-thumb {
+    box-shadow: 0 0 24px rgba(var(--accent-rgb),.45);
+    transform: scale(1.08);
+    border-color: var(--accent);
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 0 18px rgba(var(--accent-rgb),.3);
+}
+input[type="range"]:focus-visible::-moz-range-thumb {
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 0 18px rgba(var(--accent-rgb),.3);
+}
+input[type="range"]:focus {
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* ===== 音效音量：长按蓄力发射（音量标识） ===== */
+.vol-indicator {
+    position: relative;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+}
+.vol-indicator:hover {
+    color: var(--accent);
+}
+.vol-indicator-icon {
+    display: inline-flex;
+    transition: transform .05s linear;
+}
+.vol-indicator-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: var(--accent);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35));
+}
+.vol-charge-ring {
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    background: conic-gradient(var(--accent) calc(var(--charge, 0) * 1turn), transparent 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    opacity: 0;
+    pointer-events: none;
+}
+.vol-indicator.charging .vol-charge-ring { opacity: 1; }
+.vol-projectile {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid rgba(var(--accent-rgb), .5);
+    box-shadow: 0 0 8px rgba(var(--accent-rgb), .25);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 5;
+    will-change: left, top;
+}
+/* 发射期间隐藏滑块原黄点，保证全程只有一个黄点 */
+input[type="range"].vol-hiding-thumb::-webkit-slider-thumb { opacity: 0; }
+input[type="range"].vol-hiding-thumb::-moz-range-thumb { opacity: 0; }
+
+/* ===== 半透明面板统一模糊 ===== */
+.modal-mask,
+.mgmt-main-tabs,
+.mgmt-filter-bar,
+.mgmt-tools-panel,
+.mgmt-servers-panel,
+.ae-tools-filter-bar,
+.ae-tools-table-wrap,
+.mgmt-modal-box,
+.comfyui-topbar,
+.mgmt-install-section,
+.ae-tools-drawer-overlay {
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+.modal-mask { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+.comfyui-lightbox { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* 下拉列表模糊 */
+.cs-list {
+    backdrop-filter: blur(10px) saturate(130%);
+    -webkit-backdrop-filter: blur(10px) saturate(130%);
+}
+
+/* ===== 模块入场 / 返回动画 ===== */
+.app.module-transitioning {
+    position: relative;
+    perspective: 900px;
+    transform-style: preserve-3d;
+}
+
+.app.module-transitioning > #moduleView {
+    position: absolute;
+    /* height:auto 覆盖 .view 的 height:100% —— absolute 元素的 height:100% 相对
+       .app 的 padding box（含 padding-bottom:20px），会压过 inset 的 bottom 约束，
+       导致 view 底边延伸到状态栏背后被盖。改 auto 让 top/bottom 共同决定高度。 */
+    height: auto;
+    inset: 0 0 20px 0; /* bottom 20px = .hud-status-bar 高度，避开状态栏 */
+}
+
+.app.module-transition-assembling,
+.app.module-transition-impact {
+    perspective: 900px;
+    transform-style: preserve-3d;
+}
+
+.app.module-transition-assembling .module-content,
+.app.module-transition-impact .module-content {
+    overflow: visible;
+}
+
+.app.module-transition-assembling {
+}
+
+.app.module-transition-impact {
+}
+
+#homeView.module-depth-exit {
+    position: relative;
+    z-index: 1;
+    animation: module-depth-exit 280ms cubic-bezier(.42,.0,.58,1) both;
+    transform-origin: center center;
+}
+
+#moduleView.module-entering {
+    z-index: 2;
+}
+
+#homeView.module-home-return {
+    position: absolute;
+    height: auto; /* 同 #moduleView：覆盖 .view height:100%，让 inset bottom 生效 */
+    inset: 0 0 20px 0; /* 避开底部 .hud-status-bar（20px），与 #moduleView 切换保持一致 */
+    z-index: 2;
+    animation: module-home-return 360ms cubic-bezier(.16,.84,.24,1) both;
+    transform-origin: center center;
+}
+
+#homeView.module-home-return .module-card {
+    animation: home-card-return-stagger .18s cubic-bezier(.35,0,.65,1) forwards;
+}
+#homeView.module-home-return .module-card:nth-child(1) { animation-delay: 0ms; }
+#homeView.module-home-return .module-card:nth-child(2) { animation-delay: 22ms; }
+#homeView.module-home-return .module-card:nth-child(3) { animation-delay: 44ms; }
+#homeView.module-home-return .module-card:nth-child(4) { animation-delay: 66ms; }
+#homeView.module-home-return .module-card:nth-child(5) { animation-delay: 88ms; }
+#homeView.module-home-return .module-card:nth-child(6) { animation-delay: 110ms; }
+#homeView.module-home-return .module-card:nth-child(n+7) { animation-delay: 132ms; }
+
+#moduleView.module-leaving {
+    position: absolute;
+    height: auto; /* 同上：覆盖 .view height:100%，让 inset bottom 生效 */
+    inset: 0 0 20px 0; /* 同上：避开底部 .hud-status-bar（20px） */
+    z-index: 1;
+}
+
+#moduleView.module-entering [data-enter],
+#moduleView.module-entering > .topbar,
+#moduleView.module-entering .module-content > [data-module-panel]:not(#agentPanel):not(.hidden),
+#moduleView.module-entering #agentPanel .llm-unified-panel,
+#moduleView.module-entering #scriptListDrawer,
+#moduleView.module-entering #scriptPreviewDrawer,
+#moduleView.module-entering #agentPanel .llm-chat-topbar,
+#moduleView.module-entering #agentPanel .ae-agent-topbar,
+#moduleView.module-entering #agentCurrentModelBar,
+#moduleView.module-entering #agentPanel .ae-agent-message-list,
+#moduleView.module-entering #agentPanel .ae-agent-toolbar,
+#moduleView.module-entering #agentPanel .ae-agent-input-wrap,
+#moduleView.module-leaving [data-enter],
+#moduleView.module-leaving > .topbar,
+#moduleView.module-leaving .module-content > [data-module-panel]:not(#agentPanel):not(.hidden),
+#moduleView.module-leaving #agentPanel .llm-unified-panel,
+#moduleView.module-leaving #scriptListDrawer,
+#moduleView.module-leaving #scriptPreviewDrawer,
+#moduleView.module-leaving #agentPanel .llm-chat-topbar,
+#moduleView.module-leaving #agentPanel .ae-agent-topbar,
+#moduleView.module-leaving #agentCurrentModelBar,
+#moduleView.module-leaving #agentPanel .ae-agent-message-list,
+#moduleView.module-leaving #agentPanel .ae-agent-toolbar,
+#moduleView.module-leaving #agentPanel .ae-agent-input-wrap {
+    will-change: transform;
+}
+
+#moduleView.module-entering .module-content {
+    animation: module-base-fade 520ms ease 120ms both;
+}
+
+#moduleView.module-entering [data-enter="top"],
+#moduleView.module-entering > .topbar { animation: module-enter-top 480ms cubic-bezier(.16,.84,.24,1) 120ms both; }
+#moduleView.module-entering #agentCurrentModelBar { animation: module-enter-top 440ms cubic-bezier(.16,.84,.24,1) 160ms both; }
+#moduleView.module-entering #agentPanel .llm-chat-topbar,
+#moduleView.module-entering #agentPanel .ae-agent-topbar { animation: module-enter-top 440ms cubic-bezier(.16,.84,.24,1) 200ms both; }
+#moduleView.module-entering [data-enter="status"] { animation: module-enter-top 440ms cubic-bezier(.16,.84,.24,1) 200ms both; }
+#moduleView.module-entering [data-enter="left"],
+#moduleView.module-entering #scriptListDrawer { animation: module-enter-left 540ms cubic-bezier(.16,.84,.24,1) 240ms both; }
+#moduleView.module-entering [data-enter="right"],
+#moduleView.module-entering #scriptPreviewDrawer { animation: module-enter-right 540ms cubic-bezier(.16,.84,.24,1) 240ms both; }
+#moduleView.module-entering [data-enter="main"],
+#moduleView.module-entering #agentPanel .llm-center-chat,
+#moduleView.module-entering .module-content > [data-module-panel]:not(#agentPanel):not(.hidden) { animation: module-enter-main 560ms cubic-bezier(.16,.84,.24,1) 280ms both; }
+/* 消息列表不再单独上 translateZ/scale 3D 动画（原 agent-message-enter-main）：
+   巨型列表会被强制提升为超大合成层逐帧重栅格化，模块二次进入时列表已全量填充，秒级卡顿。
+   滑入感由上方 .llm-center-chat 的 module-enter-main（纯 2D translateY）承担 */
+#moduleView.module-entering [data-enter="messages"] { animation: module-enter-main 480ms cubic-bezier(.16,.84,.24,1) 280ms both; }
+#moduleView.module-entering [data-enter="toolbar"],
+#moduleView.module-entering #agentPanel .ae-agent-toolbar { animation: module-enter-bottom 440ms cubic-bezier(.16,.84,.24,1) 320ms both; }
+#moduleView.module-entering [data-enter="bottom"],
+#moduleView.module-entering #agentPanel .ae-agent-input-wrap { animation: module-enter-bottom 480ms cubic-bezier(.16,.84,.24,1) 360ms both; }
+
+#moduleView.module-entering #agentPanel .llm-unified-panel,
+#moduleView.module-entering [data-enter="shell"] {
+    animation: module-shell-fade 360ms ease 150ms both;
+}
+
+#moduleView.module-leaving [data-enter="top"],
+#moduleView.module-leaving > .topbar { animation: module-leave-top 420ms cubic-bezier(.35,0,.2,1) 280ms both; }
+#moduleView.module-leaving [data-enter="left"],
+#moduleView.module-leaving #scriptListDrawer { animation: module-leave-left 460ms cubic-bezier(.35,0,.2,1) 180ms both; }
+#moduleView.module-leaving [data-enter="main"],
+#moduleView.module-leaving #agentPanel .llm-center-chat,
+#moduleView.module-leaving .module-content > [data-module-panel]:not(#agentPanel):not(.hidden) { animation: module-leave-main 500ms cubic-bezier(.35,0,.2,1) 160ms both; }
+#moduleView.module-leaving [data-enter="right"],
+#moduleView.module-leaving #scriptPreviewDrawer { animation: module-leave-right 460ms cubic-bezier(.35,0,.2,1) 140ms both; }
+#moduleView.module-leaving [data-enter="status"] { animation: module-leave-top 360ms cubic-bezier(.35,0,.2,1) 120ms both; }
+#moduleView.module-leaving #agentCurrentModelBar { animation: module-leave-top 360ms cubic-bezier(.35,0,.2,1) 200ms both; }
+#moduleView.module-leaving [data-enter="messages"] { animation: module-leave-main 420ms cubic-bezier(.35,0,.2,1) 80ms both; }
+#moduleView.module-leaving [data-enter="toolbar"],
+#moduleView.module-leaving #agentPanel .ae-agent-toolbar { animation: module-leave-bottom 360ms cubic-bezier(.35,0,.2,1) 40ms both; }
+#moduleView.module-leaving [data-enter="bottom"],
+#moduleView.module-leaving #agentPanel .ae-agent-input-wrap { animation: module-leave-bottom 420ms cubic-bezier(.35,0,.2,1) 0ms both; }
+#moduleView.module-leaving #agentPanel .llm-chat-topbar,
+#moduleView.module-leaving #agentPanel .ae-agent-topbar { animation: module-leave-top 420ms cubic-bezier(.35,0,.2,1) 200ms both; }
+
+#moduleView.module-leaving #agentPanel .llm-unified-panel,
+#moduleView.module-leaving [data-enter="shell"] {
+    animation: module-shell-fade-out 420ms ease 240ms both;
+}
+
+[data-module-panel].module-ready-tv {
+    animation: module-ready-tv-flash .3s steps(1) forwards;
+}
+
+[data-module-panel].module-ready-tv::before {
+    animation: module-ready-tv-noise .3s steps(1) forwards;
+}
+
+[data-module-panel].module-ready-tv::after {
+    animation: module-ready-tv-tear .3s steps(1) forwards;
+}
+
+@keyframes module-depth-exit {
+    0% { opacity: 1; transform: translateZ(0) scale(1); }
+    100% { opacity: 0; transform: translateZ(-120px) scale(.9); }
+}
+
+@keyframes module-home-return {
+    0% { opacity: 0; transform: translateY(-40px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-card-return-stagger {
+    0% { transform: translateY(6px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes module-base-fade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes module-shell-fade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes module-shell-fade-out {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes module-enter-top {
+    0% { transform: translateY(-110px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes module-enter-left {
+    0% { transform: translateX(-320px); }
+    100% { transform: translateX(0); }
+}
+
+@keyframes module-enter-right {
+    0% { transform: translateX(340px); }
+    100% { transform: translateX(0); }
+}
+
+@keyframes module-enter-bottom {
+    0% { transform: translateY(130px); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes module-enter-main {
+    0% { transform: translateY(100%); }
+    100% { transform: translateY(0); }
+}
+
+@keyframes module-leave-top {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-110px); }
+}
+
+@keyframes module-leave-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-320px); }
+}
+
+@keyframes module-leave-right {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(340px); }
+}
+
+@keyframes module-leave-bottom {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(130px); }
+}
+
+@keyframes module-leave-main {
+    0% { transform: translateY(0) translateZ(0) scale(1); }
+    100% { transform: translateY(100%) translateZ(80px) scale(1.015); }
+}
+
+@keyframes module-ready-tv-flash {
+    0%   { filter: brightness(1); transform: translateX(0); }
+    6%   { filter: brightness(.72); transform: translateX(4px); }
+    10%  { filter: brightness(.28); transform: translateX(-6px); }
+    16%  { filter: brightness(.86); transform: translateX(2px); }
+    22%  { filter: brightness(.2); transform: translateX(-8px); }
+    28%  { filter: brightness(.78); transform: translateX(5px); }
+    34%  { filter: brightness(.45); transform: translateX(-3px); }
+    42%  { filter: brightness(.92); transform: translateX(1px); }
+    48%  { filter: brightness(.55); transform: translateX(-2px); }
+    56%  { filter: brightness(.88); transform: translateX(0); }
+    66%  { filter: brightness(.72); }
+    78%  { filter: brightness(.94); }
+    90%  { filter: brightness(1); transform: translateX(0); }
+    100% { filter: brightness(1); }
+}
+
+@keyframes module-ready-tv-noise {
+    0%   { opacity: 0; }
+    8%   { opacity: .45; }
+    14%  { opacity: .08; }
+    22%  { opacity: .55; }
+    28%  { opacity: .12; }
+    36%  { opacity: .4; }
+    44%  { opacity: .06; }
+    52%  { opacity: .35; }
+    60%  { opacity: .1; }
+    70%  { opacity: .2; }
+    82%  { opacity: .04; }
+    94%  { opacity: .06; }
+    100% { opacity: 0; }
+}
+
+@keyframes module-ready-tv-tear {
+    0%   { opacity: 0; top: 50%; transform: translateX(0); }
+    8%   { opacity: .7; top: 22%; transform: translateX(-6px); }
+    14%  { opacity: .15; top: 68%; transform: translateX(5px); }
+    20%  { opacity: .6; top: 35%; transform: translateX(-4px); }
+    26%  { opacity: .8; top: 12%; transform: translateX(8px); }
+    30%  { opacity: .2; top: 78%; transform: translateX(-6px); }
+    36%  { opacity: .5; top: 45%; transform: translateX(3px); }
+    42%  { opacity: .1; top: 55%; transform: translateX(-8px); }
+    50%  { opacity: .4; top: 30%; transform: translateX(5px); }
+    58%  { opacity: .15; top: 72%; transform: translateX(-3px); }
+    66%  { opacity: .25; top: 40%; transform: translateX(2px); }
+    74%  { opacity: .08; top: 18%; transform: translateX(-5px); }
+    84%  { opacity: .1; top: 62%; transform: translateX(1px); }
+    92%  { opacity: .03; }
+    100% { opacity: 0; top: 50%; transform: translateX(0); }
+}
+
+/* ===== 面板刷新 glitch 反馈 ===== */
+div[data-module-panel] {
+    position: relative;
+    overflow: hidden;
+}
+
+/* 面板本身：亮度暴跳 + 水平歪斜 + 位移 */
+[data-module-panel].panel-refresh-sweep {
+    animation: panel-glitch-flash .3s steps(1) forwards;
+}
+@keyframes panel-glitch-flash {
+    0%   { filter: brightness(1);   transform: skewX(0deg) translateX(0); }
+    6%   { filter: brightness(2.5); transform: skewX(5deg) translateX(4px); }
+    10%  { filter: brightness(0.3); transform: skewX(-4deg) translateX(-6px); }
+    16%  { filter: brightness(3);   transform: skewX(2deg) translateX(2px); }
+    22%  { filter: brightness(0.2); transform: skewX(-6deg) translateX(-8px); }
+    28%  { filter: brightness(2);   transform: skewX(3deg) translateX(5px); }
+    34%  { filter: brightness(0.5); transform: skewX(-2deg) translateX(-3px); }
+    42%  { filter: brightness(1.8); transform: skewX(1deg) translateX(1px); }
+    48%  { filter: brightness(0.6); transform: skewX(-1deg) translateX(-2px); }
+    56%  { filter: brightness(1.4); transform: skewX(0deg) translateX(0); }
+    66%  { filter: brightness(0.8); }
+    78%  { filter: brightness(1.1); }
+    90%  { filter: brightness(1);   transform: skewX(0deg) translateX(0); }
+    100% { filter: brightness(1); }
+}
+
+/* ::before — 全屏噪点/静电闪烁 */
+[data-module-panel]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    background-size: 120px 120px;
+    mix-blend-mode: overlay;
+}
+[data-module-panel].panel-refresh-sweep::before {
+    animation: panel-noise-flash .3s steps(1) forwards;
+}
+@keyframes panel-noise-flash {
+    0%   { opacity: 0; }
+    8%   { opacity: .45; }
+    14%  { opacity: .08; }
+    22%  { opacity: .55; }
+    28%  { opacity: .12; }
+    36%  { opacity: .4; }
+    44%  { opacity: .06; }
+    52%  { opacity: .35; }
+    60%  { opacity: .1; }
+    70%  { opacity: .2; }
+    82%  { opacity: .04; }
+    94%  { opacity: .06; }
+    100% { opacity: 0; }
+}
+
+/* ::after — 横条撕裂线，skewX 漂移 + 位置乱跳 */
+[data-module-panel]::after {
+    content: "";
+    position: absolute;
+    left: -20px;
+    right: -20px;
+    z-index: 101;
+    pointer-events: none;
+    opacity: 0;
+    height: 3px;
+    background: rgba(var(--accent-rgb),.25);
+    box-shadow:
+        0 30px 0 rgba(var(--danger-deep-rgb),.2),
+        0 30px 6px rgba(var(--danger-deep-rgb),.15),
+        -0 -30px 0 rgba(var(--accent-rgb),.18),
+        -0 -30px 6px rgba(var(--accent-rgb),.12),
+        0 60px 0 rgba(var(--danger-deep-rgb),.15),
+        0 60px 4px rgba(var(--danger-deep-rgb),.1),
+        -0 -60px 0 rgba(var(--accent-rgb),.12);
+}
+[data-module-panel].panel-refresh-sweep::after {
+    animation: panel-tear-glitch .3s steps(1) forwards;
+}
+@keyframes panel-tear-glitch {
+    0%   { opacity: 0; top: 50%; transform: skewX(0deg); }
+    8%   { opacity: .7; top: 22%; transform: skewX(-8deg); }
+    14%  { opacity: .15; top: 68%; transform: skewX(6deg); }
+    20%  { opacity: .6; top: 35%; transform: skewX(-4deg); }
+    26%  { opacity: .8; top: 12%; transform: skewX(10deg); }
+    30%  { opacity: .2; top: 78%; transform: skewX(-6deg); }
+    36%  { opacity: .5; top: 45%; transform: skewX(3deg); }
+    42%  { opacity: .1; top: 55%; transform: skewX(-10deg); }
+    50%  { opacity: .4; top: 30%; transform: skewX(5deg); }
+    58%  { opacity: .15; top: 72%; transform: skewX(-3deg); }
+    66%  { opacity: .25; top: 40%; transform: skewX(2deg); }
+    74%  { opacity: .08; top: 18%; transform: skewX(-5deg); }
+    84%  { opacity: .1; top: 62%; transform: skewX(1deg); }
+    92%  { opacity: .03; }
+    100% { opacity: 0; top: 50%; transform: skewX(0deg); }
+}
+/* ── 全局面板级顶部提示（AEToast）──
+   顶部居中弹出，自动消失。success/error/info/warn 四色。
+   最顶层（z-index 10010），覆盖所有模块面板、主面板与设置弹窗。
+   Agent 模块运行时状态仍用其内联 #status 条；设置类反馈走本全局 toast。 */
+.ae-toast-container {
+    position: fixed;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10010;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+.ae-toast {
+    min-width: 200px;
+    max-width: min(560px, 84vw);
+    padding: 9px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    /* 透明底板 + 毛玻璃模糊：透出底层内容并模糊，确保在任何面板/弹窗上都清晰可读 */
+    background: rgba(23, 27, 36, .55);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    color: var(--text-main);
+    font-size: 12px;
+    line-height: 1.5;
+    display: none;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .45);
+    pointer-events: auto;
+    /* 底部色条（3px）区分类型，替代图标 */
+    border-bottom-width: 3px;
+}
+.ae-toast.ae-toast-show {
+    display: flex;
+    animation: ae-toast-in .26s cubic-bezier(.2,.7,.3,1) forwards;
+}
+.ae-toast.ae-toast-leaving {
+    display: flex;
+    animation: ae-toast-out .18s ease forwards;
+}
+.ae-toast-text {
+    min-width: 0;
+    word-break: break-word;
+}
+/* 常驻提醒（autoHideMs:0）的关闭按钮——常驻 toast 唯一的关闭入口 */
+.ae-toast-close {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-left: 10px;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    color: inherit;
+    opacity: .8;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+.ae-toast-close:hover { opacity: 1; background: rgba(255, 255, 255, .12); }
+.ae-toast-success { color: #7dffb0; border-bottom-color: var(--signal-green); background: rgba(100, 255, 150, .14); }
+.ae-toast-error   { color: var(--danger); border-bottom-color: var(--danger); background: rgba(255, 100, 100, .14); }
+.ae-toast-warn    { color: var(--warning); border-bottom-color: var(--warning); background: rgba(var(--accent-rgb), .14); }
+.ae-toast-info    { color: var(--text-main); border-bottom-color: var(--accent); background: rgba(130, 180, 220, .14); }
+@keyframes ae-toast-in {
+    from { opacity: 0; transform: translateY(-12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ae-toast-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ── 外部访问授权常驻指示（EXT-MCP 授权开启期间）──
+   两个 body 直接子元素：全屏边光 + 置顶提示条容器。
+   必须挂 body 直接子元素：CEP 里 position:fixed 落在祖先 stacking context 内时
+   合成层管理会出问题。
+   两者 z-index 均为 9996：低于 QuickBar 触发区 9998 / 下拉层 9999（硬约束），
+   且避开已占用的高层级 —— 9993（panel.css 彩蛋模糊底）、
+   9997（deepseekPet 全屏拖拽层，pet.css:335，pointer-events:auto 的交互层；
+   另有 panel.css:2774 的彩蛋 AT 力场覆盖层）。下界同样要守：低于 9990 会沉到
+   面板内容层之下（面板背景是不透明暗色），边光等于没画。
+   两者 pointer-events 均为 none：边光铺满全屏、提示条位于顶上居中，
+   只要吃指针事件就会截走 #quickBarTrigger 的 hover，QuickBar 就打不开。 */
+.ae-ext-edge-glow {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9996;
+    /* 先有线、再有晕，四层由内向外的分工：
+         ① 1px 锐利金线——定形，负责"这里有一条明确的边"
+         ② 3px 热边——让"边"本身发光。没有这层时，只有线 + 雾边缘读起来是
+            "边上蒙了一层黄气"，加一层紧贴的低模糊才能读成"边在发光"
+         ③④ 近/远光晕——负 spread 约束不向面板内部化开
+            （更早的单层 inset 0 0 42px 大范围铺开，观感是边缘一团发糊的黄斑）
+       偏弱有两个独立原因：峰值透明度只到 .40~.55；且呼吸谷值为
+       opacity .6，光层有 40% 时间按六折显示——远距光晕最低实际只有 .40×.6=.24。 */
+    /* 颜色走 var(--accent-rgb) 而非硬编码琥珀：--accent-rgb 由 themeApplier 在
+           运行期随主题更新（themeApplier.js:62，缺省时从 accent 推导，:32），
+           所以边光随主题变色。默认主题下它就是 251,191,36（panel.css:31），
+           与硬编码琥珀完全等价。同一指示器里 .ae-ext-pinned-hl 的文字色与
+           .ae-toast-info 的底条同样走 var(--accent)——整条指示器口径一致（硬编码会让
+           非默认主题下指示器一半跟主题、一半不跟）。 */
+    box-shadow:
+        inset 0 0 0 1px rgba(var(--accent-rgb), .72),
+        inset 0 0 3px 0 rgba(var(--accent-rgb), .50),
+        inset 0 0 14px -1px rgba(var(--accent-rgb), .58),
+        inset 0 0 34px -8px rgba(var(--accent-rgb), .46);
+    animation: ae-ext-breathe 3.4s ease-in-out infinite;
+}
+
+/* 提示条定位容器：几何由容器承载，胶囊本体不带定位。
+   原因：.ae-toast-show 的入场动画 ae-toast-in 会写 transform，
+   若胶囊自己用 left:50% + translateX(-50%) 居中，会被动画覆盖、
+   动画结束后跳到屏幕右侧。 */
+.ae-ext-pinned-wrap {
+    position: fixed;
+    /* top: 7px 而非 0：保住胶囊 8px 圆角形，不被扩展顶边切平。 */
+    top: 7px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 9996;
+}
+
+/* 提示条胶囊：外观全部沿用 .ae-toast（圆角/内边距/字号/3px 类型色条/
+   投影），只覆盖四处 —— 定位由外层容器接管、指针事件关闭、
+   底色转实（不用毛玻璃）、backdrop-filter 显式置 none。 */
+.ae-toast.ae-ext-pinned {
+    pointer-events: none;
+    background: rgba(22, 26, 34, .88);
+    /* backdrop-filter 显式置 none 是承重的：CEF 88 下 backdrop-filter 元素的子树
+           持续绘制会反复重采样、模糊闪断，而本提示条常驻且带呼吸
+           动画，正命中该场景。基类 .ae-toast 的毛玻璃不得继承到这里。
+           -webkit- 前缀一并声明，与基类写法保持一致。 */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.ae-ext-pinned-hl {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* 外接调用滚动提示。
+   整行「滚出→换字→滚入」：JS（extIndicator.notifyToolCall）给**整行的两个 span**
+   （.ae-ext-pinned-hl + .ae-ext-pinned-meta）同时加/去下面两个一次性动画类，并在中间点
+   换字——调用时整行滚出、只滚入「调用 X」（meta 清空），3s 后整行滚回静态文案。
+   动画落在两个 span 自身（它们在胶囊 display:flex 里是 flex item，computed display 为
+   block，transform 生效）；胶囊本体不得带 transform（会被 .ae-toast-show 的 ae-toast-in
+   入场动画覆盖，见上方 .ae-ext-pinned-wrap 注释）。
+   两个类都是一次性的（forwards 停在终态，JS 在阶段结束时摘除），故不必写初始态。 */
+.ae-ext-pinned-hl.ae-ext-roll-out,
+.ae-ext-pinned-meta.ae-ext-roll-out {
+    animation: ae-ext-roll-out .15s ease forwards;
+}
+.ae-ext-pinned-hl.ae-ext-roll-in,
+.ae-ext-pinned-meta.ae-ext-roll-in {
+    animation: ae-ext-roll-in .15s ease forwards;
+}
+@keyframes ae-ext-roll-out {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-6px); }
+}
+@keyframes ae-ext-roll-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 该类名是 Task 4 文案拼装定位「档位/工具数」元信息节点的钩子。
+   颜色与基类 .ae-toast 同为 var(--text-main)（继承即可拿到），此处显式写出
+   是刻意的：样式表里保留这条规则，后来者才不会当它是废弃类名而删掉钩子。 */
+.ae-ext-pinned-meta {
+    color: var(--text-main);
+}
+
+/* 描边环绕（方案「呼吸描边环」）：1px 琥珀实描边贴外圈 + 一层收窄光晕，
+   圆角 = 胶囊圆角 + 1px（inset:-1px 外扩），保证四角同心不漏底。 */
+.ae-toast-ring {
+    position: relative;
+}
+.ae-toast-ring::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    /* 9px = 基类 .ae-toast 的 8px（common.css:1236）+ inset:-1px 外扩 1px。
+       改基类圆角必须同步改这里，否则四角不同心、漏出底色缝隙。 */
+    border-radius: 9px;
+    pointer-events: none;
+    /* 与 .ae-ext-edge-glow 同口径：随主题（var(--accent-rgb)），不硬编码琥珀 */
+    box-shadow:
+        0 0 0 1px rgba(var(--accent-rgb), .6),
+        0 0 16px -2px rgba(var(--accent-rgb), .6);
+    animation: ae-ext-breathe 3.4s ease-in-out infinite;
+}
+
+/* 呼吸幅度：谷值 .2 ↔ 峰值 1（用户指定）。摆动比 5:1，是明确的"在呼吸"而不是
+   微弱起伏。注意谷值时各层透明度是相乘的——1px 线在谷值只有 .72×.2≈.14，
+   远距光晕 .46×.2≈.09，即面板边光在谷值接近熄灭、峰值时点亮。
+
+   本关键帧被**两处共用**：.ae-ext-edge-glow（全屏边光）与 .ae-toast-ring::after
+   （提示条描边环）。若日后发现同一个幅度套在小面积的环上读起来像"闪"而不是
+   "呼吸"，拆分关键帧即可，不必改动边光。 */
+@keyframes ae-ext-breathe {
+    0%, 100% { opacity: .2; }
+    50%      { opacity: 1; }
+}
+
+/* 保留静态边光与静态描边环，仅停掉呼吸：动效敏感用户仍能靠
+   静止的 1px 金线与描边环看出「授权开启」，不是把指示一并抹掉。
+   调用滚动动画一并停：JS 侧 matchMedia 为真时已跳过动画类，这里是拿不到
+   matchMedia 的环境（或被外加类名）的兜底——文字照常切换，只是不做位移。 */
+@media (prefers-reduced-motion: reduce) {
+    .ae-ext-edge-glow,
+    .ae-toast-ring::after {
+        animation: none;
+    }
+    .ae-ext-pinned-hl.ae-ext-roll-out,
+    .ae-ext-pinned-meta.ae-ext-roll-out,
+    .ae-ext-pinned-hl.ae-ext-roll-in,
+    .ae-ext-pinned-meta.ae-ext-roll-in {
+        animation: none;
+    }
+}
+
+/* 语言相关排版：日文界面用日文字体渲染汉字，避免「直」「骨」等字形按中文习惯显示 */
+:root[data-locale="ja-JP"] body,
+:root[data-locale="ja-JP"] button,
+:root[data-locale="ja-JP"] input,
+:root[data-locale="ja-JP"] select,
+:root[data-locale="ja-JP"] textarea,
+:root[data-locale="ja-JP"] .btn {
+    font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif;
+}
+
+/* 日文界面补充：自带 font-family 的控件（确认弹窗、脚本报错卡）与明朝体标题
+   继承不到 body 的 ja 覆盖，单独换日文字体栈；明朝体侧用日文明朝，避免中文字形混排。 */
+:root[data-locale="ja-JP"] .modal.confirm-modal,
+:root[data-locale="ja-JP"] .run-error-card {
+    font-family: "Segoe UI", "Yu Gothic UI", "Meiryo", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+}
+:root[data-locale="ja-JP"] .section-title,
+:root[data-locale="ja-JP"] .font-display,
+:root[data-locale="ja-JP"] .panel-head,
+:root[data-locale="ja-JP"] .modal-head,
+:root[data-locale="ja-JP"] .qb-tab {
+    font-family: "Yu Mincho", "YuMincho", "MS Mincho", "Noto Serif JP", serif;
+}
+

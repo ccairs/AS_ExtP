@@ -1,0 +1,1163 @@
+/* AE Tools Module Styles */
+/* 面板外壳铺表面（与 memory/Agent/Skill/MCP 同款变量）：模块内容区自身不铺底色
+   （.app/.view/.module-content 均 transparent，设计上背景叠加层要从面板后面透出），
+   而本模块只有工具栏（0.8）与表格（0.6）各自带底，顶部 tab 条「工具管理 /
+   API 参考」裸露——亮色叠加层下直接压在图上。 */
+#aeToolsPanel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* flex 撑满外壳：height:100% + 同级 tab 条 → 容器整体下移 35px，表格底部
+   35px 溢到面板外被 overflow 裁掉（表格自身滚动区少了 35px 可视高度）。 */
+#aeToolsBody {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ── Tab Bar ── */
+.ae-tools-tab-bar {
+    display: flex;
+    gap: 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(var(--border-rgb),.3);
+    margin: 0 12px;
+}
+.ae-tab-btn {
+    padding: 8px 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.ae-tab-btn:hover {
+    color: var(--text-main);
+    border-bottom-color: rgba(var(--accent-rgb),.3);
+}
+.ae-tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* ── API Reference ── */
+.ae-api-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 0;
+}
+.ae-api-category {
+    border: 1px solid rgba(var(--border-rgb),.25);
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(10,14,20,.4);
+}
+.ae-api-cat-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+    background: rgba(14,18,24,.7);
+    transition: background .12s ease;
+}
+.ae-api-cat-header:hover {
+    background: rgba(var(--accent-rgb),.04);
+}
+.ae-api-cat-arrow {
+    font-size: 10px;
+    width: 14px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.ae-api-cat-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+.ae-api-cat-body {
+    border-top: 1px solid rgba(var(--border-rgb),.15);
+}
+.ae-api-tool-card {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(var(--border-rgb),.08);
+}
+.ae-api-tool-card:last-child {
+    border-bottom: none;
+}
+.ae-api-tool-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.ae-api-tool-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(var(--accent-rgb),.06);
+    padding: 2px 8px;
+    border-radius: 3px;
+}
+.ae-api-code {
+    margin: 6px 0 0;
+    padding: 6px 10px;
+    background: rgba(0,0,0,.3);
+    border: 1px solid rgba(var(--border-rgb),.2);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.ae-api-params {
+    margin: 6px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.ae-api-param-tag {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(var(--border-rgb),.15);
+    color: var(--accent);
+}
+
+.ae-tools-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+}
+.ae-tools-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.ae-tools-container {
+    display: flex;
+    flex-direction: column;
+    /* 原为 height:100%：与同级 tab 条叠加后整体超出外壳 35px（见 #aeToolsBody 注释） */
+    flex: 1;
+    min-height: 0;
+}
+
+/* === Filter Bar (aligns with mgmt-filter-bar) === */
+.ae-tools-filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    background: var(--surface-bar);
+    border: 1px solid rgba(var(--border-rgb),.3);
+    border-radius: 6px;
+    padding: 8px 14px;
+    margin: 10px 12px 4px;
+}
+.ae-tools-filter-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-shrink: 0;
+}
+#aeToolAddBtn {
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+/* AE Tools 筛选栏下拉按钮 */
+.ae-tools-filter-bar .cs-btn {
+    height: 32px;
+    min-width: 120px;
+    padding: 0 10px;
+    border-radius: 6px;
+    border: 1px solid var(--btn-border);
+    background: var(--surface-3);
+    color: var(--text-main);
+    font-size: 11px;
+    box-sizing: border-box;
+}
+.ae-tools-filter-bar .cs-btn:hover {
+    border-color: rgba(var(--accent-rgb),.3);
+    background-color: rgba(var(--accent-rgb),.03);
+}
+.ae-tools-filter-bar .cs-btn:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.ae-tools-search {
+    width: 140px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 4px;
+    border: 1px solid var(--btn-border);
+    background: var(--surface-3);
+    color: var(--text-main);
+    font-size: 11px;
+    box-sizing: border-box;
+}
+.ae-tools-count-badge {
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.ae-tools-search:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 6px var(--accent-soft);
+}
+
+/* === Tool List Table === */
+.ae-tools-table-wrap {
+    flex: 1;
+    min-height: 0;
+    margin: 0 12px 8px;
+    overflow: auto;
+    border: 1px solid rgba(var(--border-rgb),.35);
+    border-radius: 4px;
+    background: var(--surface-table-wrap);
+    box-shadow: 0 0 20px rgba(var(--accent-rgb),.03), inset 0 0 30px rgba(0,0,0,.45);
+}
+.ae-tools-table {
+    width: 100%;
+    font-size: 13px;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+.ae-tools-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: rgba(14,18,24,.95);
+    color: var(--accent);
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(var(--accent-rgb),.1);
+    cursor: default;
+    user-select: none;
+}
+.ae-tools-table th.sortable {
+    cursor: pointer;
+}
+.ae-tools-table th.sortable:hover {
+    color: #fff;
+}
+
+.ae-tools-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(var(--border-rgb),.14);
+    color: var(--btn-text);
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background .12s ease;
+}
+.ae-tools-table td:first-child {
+    border-left: 3px solid transparent;
+    padding-left: 13px;
+}
+
+.ae-tools-table tbody tr:nth-child(even) {
+    background: rgba(14,18,24,.5);
+}
+.ae-tools-table tbody tr:nth-child(odd) {
+    background: transparent;
+}
+.ae-tools-table tbody tr:hover {
+    background: rgba(var(--accent-rgb),.06) !important;
+}
+.ae-tools-table tbody tr:hover td:first-child {
+    border-left-color: var(--accent);
+}
+.ae-tools-table tbody tr.selected td {
+    border-left-color: var(--accent);
+    background: rgba(var(--accent-rgb),.06);
+}
+.ae-tools-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.col-name { width: 16%; }
+.col-source { width: 64px; text-align: center; white-space: nowrap; }
+.col-desc { width: auto; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-category { width: 14%; text-align: left; }
+.ae-tools-table .col-source,
+.ae-tools-table .col-enabled,
+.ae-tools-table .col-actions { overflow: visible; text-overflow: clip; }
+.col-enabled { width: 92px; text-align: center; }
+.col-actions { width: 110px; text-align: center; }
+.ae-table-empty {
+    padding: 60px 32px;
+    text-align: center;
+    color: var(--text-muted);
+    border: 1px dashed rgba(var(--border-rgb),.25);
+    border-radius: 4px;
+    font-size: 13px;
+    background: var(--surface-panel);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.ae-table-empty::before {
+    content: "📦";
+    font-size: 32px;
+    opacity: .5;
+}
+
+.ae-tools-table .col-actions .btn {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.ae-tools-table .col-actions .btn:hover {
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+}
+.ae-row-btn {
+    font-size: 10px;
+    padding: 2px 6px;
+}
+.ae-tools-table .col-actions .btn.ae-row-btn-danger {
+    color: var(--danger-vivid) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    margin-left: 4px;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 0 4px;
+    min-width: 24px;
+}
+.ae-tools-table .col-actions .btn.ae-row-btn-danger:hover {
+    background: rgba(var(--danger-vivid-rgb),.12) !important;
+    border-color: rgba(var(--danger-vivid-rgb),.3) !important;
+}
+
+/* Category Badge (aligns with mgmt-badge) */
+.ae-cat-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(28,34,42,.4);
+    border: 1px solid rgba(var(--border-rgb),.4);
+    color: var(--text-muted);
+    transition: all .15s cubic-bezier(0.35,0,0.65,1);
+}
+
+.ae-llm-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    vertical-align: middle;
+    background: rgba(99,102,241,.15);
+    border: 1px solid rgba(99,102,241,.4);
+    color: #a5b4fc;
+}
+
+.ae-user-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    vertical-align: middle;
+    background: rgba(28,34,42,.4);
+    border: 1px solid rgba(var(--border-rgb),.4);
+    color: var(--text-muted);
+}
+
+.ae-sys-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    vertical-align: middle;
+    background: rgba(var(--signal-green-rgb),.12);
+    border: 1px solid rgba(var(--signal-green-rgb),.35);
+    color: #86efac;
+}
+
+/* === Overlay Drawer === */
+.ae-tools-drawer-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 380px;
+    background: var(--surface-1);
+    border-left: 1px solid var(--btn-border);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+    padding: 16px;
+    overflow: hidden;
+    z-index: 20;
+    transform: translateX(100%);
+    transition: transform .22s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    opacity: 1;
+}
+
+.ae-tools-drawer-overlay.open {
+    transform: translateX(0);
+}
+
+.ae-tools-drawer-placeholder {
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 24px 0;
+    text-align: center;
+}
+
+.ae-tools-drawer-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--btn-border);
+    flex-shrink: 0;
+}
+
+/* === Drawer Form === */
+.ae-tools-drawer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 2px;
+}
+
+.ae-tools-drawer-form label {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    margin: 8px 0 2px;
+    color: var(--text-muted);
+}
+
+/* 抽屉表单内的 toggle 开关行：恢复 toggle-wrap 自身样式，避免被上面的通用 label 规则覆盖 */
+.ae-tools-drawer-form label.toggle-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    margin: 8px 0 16px;
+}
+.ae-tools-drawer-form label.toggle-wrap .toggle-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.4;
+}
+.ae-tools-drawer-form label.toggle-wrap .toggle-label .ae-field-hint {
+    font-size: 10px;
+    font-weight: 400;
+}
+
+.ae-tools-drawer-form input[type="text"],
+.ae-tools-drawer-form textarea,
+.ae-tools-drawer-form select {
+    width: 100%;
+    font-size: 11px;
+    border-radius: 5px;
+    border: 1px solid var(--btn-border);
+    background-color: var(--surface-3);
+    color: var(--text-main);
+    box-sizing: border-box;
+    transition: border-color .15s ease;
+}
+.ae-tools-drawer-form input[type="text"],
+.ae-tools-drawer-form textarea {
+    padding: 6px 8px;
+    resize: vertical;
+}
+/* 描述栏：防止 flex 布局在参数较多时被挤压成单行，保持可拖动调整高度 */
+.ae-tools-drawer-form #aeDrawerDesc {
+    flex-shrink: 0;
+}
+.ae-tools-drawer-form select,
+.ae-tools-drawer-form .cs-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+    cursor: pointer;
+}
+.ae-tools-drawer-form input[type="text"]:focus,
+.ae-tools-drawer-form textarea:focus,
+.ae-tools-drawer-form select:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 6px var(--accent-soft);
+}
+
+/* === Schema Builder === */
+.ae-schema-builder {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.ae-schema-params {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.ae-schema-param-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    background: var(--surface-2);
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+.ae-schema-param-row .ae-param-name {
+    width: 100px;
+    height: 26px;
+    padding: 0 6px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+.ae-schema-param-row .ae-param-type,
+.ae-schema-param-row .cs-btn {
+    width: 80px;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-main);
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.ae-schema-param-row .ae-param-desc {
+    flex: 1;
+    min-width: 0;
+    height: 26px;
+    padding: 0 6px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-main);
+    box-sizing: border-box;
+}
+.ae-schema-param-row .ae-param-remove-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+.ae-schema-param-row .ae-param-remove-btn:hover {
+    color: var(--danger-vivid);
+    border-color: rgba(var(--danger-vivid-rgb),.3);
+    background: rgba(var(--danger-vivid-rgb),.08);
+}
+.ae-schema-add-btn {
+    align-self: flex-start;
+    height: 26px;
+    padding: 0 10px;
+    font-size: 11px;
+    border: 1px dashed var(--btn-border);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .15s ease;
+}
+.ae-schema-add-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.ae-tools-drawer-form textarea.mono {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 10px;
+    line-height: 1.4;
+}
+
+/* === Code Highlight Editor === */
+.ae-code-highlight-wrap {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #0d1117;
+    min-height: 80px;
+}
+.ae-code-highlight-wrap:focus-within {
+    border-color: var(--signal-green);
+    box-shadow: 0 0 8px rgba(var(--signal-green-rgb),.15);
+}
+
+#aeDrawerCode {
+    display: block;
+    width: 100%;
+    min-height: 80px;
+    border: none !important;
+    border-radius: 4px !important;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre;
+    overflow: auto;
+    background: transparent !important;
+    position: relative;
+    margin: 0;
+    padding: 8px;
+    box-sizing: border-box;
+    resize: vertical;
+    color: var(--text-main) !important;
+    caret-color: var(--text-main) !important;
+    z-index: 2;
+}
+#aeDrawerCode::-webkit-scrollbar { width: 6px; height: 6px; }
+#aeDrawerCode::-webkit-scrollbar-track { background: transparent; }
+#aeDrawerCode::-webkit-scrollbar-thumb { background: rgba(var(--accent-rgb),.2); border-radius: 3px; }
+#aeDrawerCode::-webkit-scrollbar-thumb:hover { background: rgba(var(--accent-rgb),.4); }
+.ae-code-highlight-wrap.has-highlight #aeDrawerCode {
+    color: transparent !important;
+}
+
+#aeDrawerCodeHighlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    z-index: 1;
+    pointer-events: none;
+    overflow: hidden;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: transparent !important;
+}
+.ae-code-highlight-wrap.has-highlight #aeDrawerCodeHighlight {
+    color: var(--text-main) !important;
+}
+#aeDrawerCodeHighlightCode {
+    display: block;
+    padding: 8px;
+    margin: 0;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre;
+}
+
+.ae-tools-drawer-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 14px;
+    padding-top: 10px;
+    border-top: 1px solid var(--btn-border);
+    flex-shrink: 0;
+}
+.ae-drawer-actions-right {
+    display: flex;
+    gap: 8px;
+}
+.ae-tools-drawer-actions .btn {
+    height: 28px;
+    padding: 0 14px;
+    font-size: 11px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .2s ease;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+}
+.ae-tools-drawer-actions .btn:hover {
+    background: var(--btn-hover-bg);
+    border-color: var(--accent);
+}
+.ae-tools-drawer-actions .btn.secondary {
+    opacity: 0.7;
+}
+.ae-tools-drawer-actions .btn.secondary:hover {
+    opacity: 1;
+}
+#aeDrawerRun {
+    border-color: var(--signal-green) !important;
+    color: var(--signal-green) !important;
+}
+#aeDrawerRun:hover {
+    background: var(--signal-green-soft) !important;
+}
+#aeDrawerSave {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+    background: var(--btn-bg) !important;
+}
+#aeDrawerSave:hover {
+    background: var(--accent-soft) !important;
+}
+
+/* ── 测试参数区 ── */
+.ae-run-args-wrap {
+    margin-top: 8px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+}
+.ae-run-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    width: 16px;
+    height: 22px;
+    z-index: 1;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    opacity: .55;
+    transition: opacity .15s ease, color .15s ease;
+}
+.ae-run-resize-handle:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+.ae-run-resize-handle::before {
+    content: '';
+    width: 10px;
+    height: 14px;
+    background: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px 3px);
+}
+.ae-run-args-wrap.collapsed .ae-run-resize-handle {
+    display: none;
+}
+.ae-run-args-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    transition: color .15s ease;
+}
+.ae-run-args-label:hover { color: var(--text-main); }
+.ae-run-args-hint {
+    font-weight: 400;
+    color: var(--text-muted);
+    opacity: .7;
+}
+/* === 工具行为 / 作用域 fieldset === */
+.ae-tools-fieldset {
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin: 10px 0;
+    background: var(--surface-2);
+}
+.ae-tools-fieldset-label {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.ae-tools-fieldset-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+.ae-tools-fieldset .toggle-wrap {
+    margin: 0 !important;
+    font-size: 12px;
+    gap: 6px;
+}
+.ae-tools-fieldset .toggle-wrap .toggle-label {
+    font-size: 12px;
+    font-weight: 500;
+    display: inline;
+}
+
+/* === 作用域胶囊复选框 === */
+.ae-tools-drawer-form .ae-scope-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.ae-tools-drawer-form .ae-scope-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin: 0;
+    padding: 4px 12px;
+    border: 1px solid var(--btn-border);
+    border-radius: 999px;
+    background: var(--surface-3);
+    cursor: pointer;
+    transition: all .15s ease;
+    user-select: none;
+}
+.ae-tools-drawer-form .ae-scope-check:hover {
+    border-color: var(--accent);
+    color: var(--text-main);
+}
+.ae-tools-drawer-form .ae-scope-check input {
+    position: absolute;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.ae-tools-drawer-form .ae-scope-check:not(.disabled) {
+    cursor: pointer;
+}
+.ae-tools-drawer-form .ae-scope-check.active {
+    background: rgba(var(--accent-rgb), .15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+.ae-tools-drawer-form .ae-scope-check.disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+.ae-field-hint {
+    font-weight: 400;
+    color: var(--text-muted);
+    opacity: .7;
+}
+.ae-run-args-input {
+    display: block;
+    width: 100%;
+    padding: 5px 10px;
+    font-size: 10px;
+    font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    color: var(--text-main);
+    background: rgba(10,14,20,.4);
+    border: none;
+    border-top: 1px solid var(--btn-border);
+    border-radius: 0;
+    outline: none;
+    min-height: 28px;
+}
+.ae-run-args-input:focus {
+    background: var(--input-bg);
+}
+.ae-run-args-input::placeholder {
+    color: var(--text-muted);
+    opacity: .5;
+}
+.ae-run-args-wrap.collapsed .ae-run-args-input {
+    display: none;
+}
+.ae-run-args-wrap.collapsed {
+    border-color: transparent;
+    background: transparent;
+}
+.ae-run-args-wrap.collapsed .ae-run-args-label {
+    padding: 2px 4px;
+}
+
+/* ── 运行结果区 ── */
+.ae-run-result {
+    margin-top: 10px;
+    border: 1px solid var(--btn-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(10,14,20,.5);
+    flex-shrink: 0;
+}
+.ae-run-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px;
+    background: rgba(var(--border-rgb),.3);
+    border-bottom: 1px solid var(--btn-border);
+}
+.ae-run-status {
+    font-size: 11px;
+    font-weight: 600;
+}
+.ae-run-status.running { color: var(--accent); }
+.ae-run-status.success { color: var(--signal-green); }
+.ae-run-status.error { color: var(--danger); }
+.ae-run-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+}
+.ae-run-close:hover { color: var(--text-main); }
+.ae-run-output {
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 10px;
+    max-height: 200px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    color: var(--text-main);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+}
+
+/* === Footer Stats === */
+.ae-tools-footer {
+    padding: 7px 24px;
+    font-size: 10px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* ── 模块设置弹窗 ── */
+.ae-settings-root {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 0;
+}
+.ae-settings-card {
+    border: 1px solid rgba(var(--border-rgb),.35);
+    border-radius: 8px;
+    background: rgba(14,18,24,.5);
+    overflow: hidden;
+    transition: border-color .2s ease;
+}
+.ae-settings-card:hover {
+    border-color: rgba(var(--accent-rgb),.12);
+}
+.ae-settings-card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(var(--accent-rgb),.03);
+    border-bottom: 1px solid rgba(var(--border-rgb),.18);
+}
+.ae-settings-card-icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.ae-settings-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: .03em;
+}
+.ae-settings-card-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.ae-settings-card-desc {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+.ae-settings-card-desc code {
+    background: rgba(var(--accent-rgb),.08);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+.ae-settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface-3);
+    border: 1px solid rgba(var(--border-rgb),.2);
+    border-radius: 6px;
+}
+.ae-settings-toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ae-settings-toggle-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.ae-settings-toggle-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+.ae-settings-actions {
+    display: flex;
+    gap: 8px;
+}
+.ae-settings-actions .btn {
+    height: 28px;
+    padding: 0 14px;
+    font-size: 11px;
+}
+.ae-cache-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.ae-cache-status-label {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.ae-cache-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+}
+.ae-cache-status-badge::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+.ae-cache-status-badge.cache-ready {
+    background: rgba(var(--signal-green-rgb),.1);
+    color: var(--signal-green);
+    border: 1px solid rgba(var(--signal-green-rgb),.2);
+}
+.ae-cache-status-badge.cache-ready::before {
+    background: var(--signal-green);
+    box-shadow: 0 0 4px var(--signal-green);
+}
+.ae-cache-status-badge.cache-generating {
+    background: rgba(var(--accent-rgb),.1);
+    color: var(--accent);
+    border: 1px solid rgba(var(--accent-rgb),.2);
+    animation: ae-cache-pulse 1.2s ease-in-out infinite;
+}
+.ae-cache-status-badge.cache-generating::before {
+    background: var(--accent);
+    box-shadow: 0 0 4px var(--accent);
+}
+.ae-cache-status-badge.cache-missing {
+    background: rgba(124,132,144,.1);
+    color: var(--text-muted);
+    border: 1px solid rgba(124,132,144,.15);
+}
+.ae-cache-status-badge.cache-missing::before {
+    background: var(--text-muted);
+}
+@keyframes ae-cache-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .65; }
+}
+.ae-settings-footer {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    padding: 4px 0;
+}
+.ae-settings-footer .btn {
+    height: 32px;
+    padding: 0 20px;
+    font-size: 12px;
+}
+
+/* === Responsive === */
+@media (max-width: 600px) {
+    .ae-tools-drawer-overlay {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--btn-border);
+    }
+}

@@ -1,0 +1,58 @@
+{
+    "id": "seedance2_i2v",
+    "name": "Seedance 2.0 首帧/首尾帧视频",
+    "description": "Seedance 2.0 云端首帧或首尾帧视频生成（需要 ComfyUI 账户积分）",
+    "category": "video",
+    "mode": "img2vid",
+    "cloud": true,
+    "parameters": [
+        { "key": "prompt", "label": "提示词", "type": "textarea" },
+        { "key": "first_frame", "label": "首帧图片", "type": "image", "required": true },
+        { "key": "last_frame", "label": "尾帧图片(可选)", "type": "image" },
+        { "key": "model", "label": "模型", "type": "select", "choices": ["Seedance 2.0", "Seedance 2.0 Fast"], "default": "Seedance 2.0" },
+        { "key": "resolution", "label": "分辨率", "type": "select", "choices": ["480p", "720p", "1080p"], "default": "720p" },
+        { "key": "ratio", "label": "宽高比", "type": "select", "choices": ["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"], "default": "adaptive" },
+        { "key": "duration", "label": "时长(秒)", "type": "number", "default": 7, "min": 4, "max": 15, "step": 1 },
+        { "key": "generate_audio", "label": "生成音频", "type": "boolean", "default": true },
+        { "key": "seed", "label": "种子", "type": "number", "default": 0, "min": 0, "max": 2147483647 },
+        { "key": "watermark", "label": "水印", "type": "boolean", "default": false }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "ByteDance2FirstLastFrameNode",
+            "inputs": {
+                "model": "{{model}}",
+                "model.prompt": "{{prompt}}",
+                "model.resolution": "{{resolution}}",
+                "model.ratio": "{{ratio}}",
+                "model.duration": "{{duration}}",
+                "model.generate_audio": "{{generate_audio}}",
+                "first_frame": ["first_frame_loader", 0],
+                "last_frame": ["last_frame_loader", 0],
+                "seed": "{{seed}}",
+                "watermark": "{{watermark}}"
+            }
+        },
+        "2": {
+            "class_type": "SaveVideo",
+            "inputs": {
+                "video": ["1", 0],
+                "filename_prefix": "video/ComfyUI",
+                "format": "auto",
+                "codec": "auto"
+            }
+        },
+        "first_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{first_frame}}"
+            }
+        },
+        "last_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{last_frame}}"
+            }
+        }
+    }
+}

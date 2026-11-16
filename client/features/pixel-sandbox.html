@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>像素物理沙盒</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0e1118;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #e4e8f0;
+    overflow: hidden;
+  }
+  h2 {
+    margin: 12px 0 4px;
+    font-size: 16px;
+    color: #fbbf24;
+  }
+  canvas {
+    outline: 2px solid #2a303a;
+    image-rendering: pixelated;
+    cursor: crosshair;
+  }
+  .toolbar {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .btn {
+    padding: 6px 14px;
+    border: 1px solid #2e3440;
+    background: #1c2128;
+    color: #c0c6d0;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: #242a34; border-color: #fbbf24; }
+  .btn.active { background: #fbbf24; color: #0e1118; border-color: #fbbf24; font-weight: bold; }
+  .info { font-size:12px;color:#697080;margin:4px 0; }
+	  .rot-slider { position:relative;width:240px;height:20px;margin:6px auto 0;cursor:default;user-select:none;-webkit-user-select:none; }
+	  .rot-track { position:absolute;left:0;top:8px;width:100%;height:4px;background:#1c2128;border-radius:2px; }
+	  .rot-knob { position:absolute;left:50%;top:0;width:20px;height:20px;margin-left:-10px;border:2px solid rgba(255,255,255,.3);border-radius:50%;background:#0e1118;cursor:grab;z-index:1;}
+	  .rot-knob:active { cursor:grabbing;border-color:rgba(255,255,255,.7);background:#1c2128; }
+	  .rot-knob:hover { border-color:rgba(255,255,255,.5); }
+	  .rot-label { font-size:10px;color:#555;margin-left:4px; }
+</style>
+</head>
+<body>
+<h2>🐱 像素物理沙盒 — Pixel Physics Sandbox</h2>
+<div class="info">鼠标按住放粒子 · 点击按钮切换材料 · 左侧显示 FPS</div>
+<div class="toolbar" id="toolbar">
+  <button class="btn active" data-mat="1">🟫 沙子 Sand</button>
+  <button class="btn" data-mat="2">💧 水 Water</button>
+  <button class="btn" data-mat="3">🔥 火 Fire</button>
+  <button class="btn" data-mat="4">🧱 墙 Wall</button>
+  <button class="btn" data-mat="5">🟢 酸 Acid</button>
+  <button class="btn" data-mat="6">🌿 植物 Plant</button>
+  <button class="btn" data-mat="0">🧹 橡皮擦</button>
+</div>
+<div style="position:relative;width:398px;height:398px;display:flex;align-items:center;justify-content:center;overflow:visible;" id="canvasWrap">
+  <div style="position:relative;" id="rotTarget">
+    <canvas id="c"></canvas>
+    </div>
+	</div>
+	<div class="rot-slider" id="rotSlider">
+	  <div class="rot-track"></div>
+	  <div class="rot-knob" id="rotKnob"></div>
+	</div>
+<div style="font-size:9px;color:#3a3f4a;margin-top:2px;user-select:none;-webkit-user-select:none;">2005 Dofi Blog · World of Sand - Chirag Mehta · Falling Sand Game</div>
+<script>
+// ==================== 像素物理引擎 ====================
+var W = 280, H = 280;
+var canvas = document.getElementById('c');
+canvas.width = W; canvas.height = H;
+var ctx = canvas.getContext('2d');
+var imageData = ctx.createImageData(W, H);
+
+// 材料枚举
+var EMPTY = 0, SAND = 1, WATER = 2, FIRE = 3, WALL = 4, ACID = 5, PLANT = 6;
+
+// 世界状态 — 每个像素 [material, lifetime, velX, velY]
+var world = new Uint8Array(W * H * 4);
+    // 同帧处理标记：防粒子 swap 到未扫格子后被重复处理（链式移动→方向偏置）
+    var processed = new Uint8Array(W * H);
+
+// 颜色映射
+var colors = {
+  0: [14,17,24,255],
+  1: [194,178,128,255],
+  2: [51,136,255,255],
+  3: [255,160,30,255],
+  4: [100,100,110,255],
+  5: [100,255,60,255],
+  6: [60,200,80,255]
+};
+
+function idx(x,y) { return (y*W + x) * 4; }
+
+function setCell(x, y, mat, life) {
+  if (x<0||x>=W||y<0||y>=H) return;
+  var i = idx(x,y);
+  world[i] = mat;
+  world[i+1] = life || 0;
+  world[i+2] = 0; world[i+3] = 0;
+}
+
+function getMat(x,y) {
+  if (x<0||x>=W||y<0||y>=H) return WALL;
+  return world[idx(x,y)];
+}
+function getLife(x,y) {
+  if (x<0||x>=W||y<0||y>=H) return 0;
+  return world[idx(x,y)+1];
+}
+function isEmpty(x,y) { return getMat(x,y) === EMPTY; }
+function isSandPassable(x,y) { var m=getMat(x,y); return m===EMPTY||m===WATER||m===ACID; }
+
+function swap(x1,y1,x2,y2) {
+  processed[y2*W + x2] = 1; // 目标格标记已处理，本帧不再扫描
+  var i1 = idx(x1,y1), i2 = idx(x2,y2);
+  for (var k=0;k<4;k++) {
+    var tmp = world[i1+k];
+    world[i1+k] = world[i2+k];
+    world[i2+k] = tmp;
+  }
+}
+
+// ---- per-pixel 伪随机方向（用坐标+帧号哈希，消除左右偏置） ----
+function randDir(x, y) {
+  return ((x * 13 + y * 31 + frameNum * 7) & 1) ? 1 : -1;
+}
+
+// ---- 速度读写（signed byte, bias 128） ----
+function getV(x,y){var i=idx(x,y);var vx=world[i+2],vy=world[i+3];if(vx>127)vx-=256;if(vy>127)vy-=256;return[vx,vy];}
+function setV(x,y,vx,vy){var i=idx(x,y);world[i+2]=vx&255;world[i+3]=vy&255;}
+
+// ---- 各材料更新规则（带惯性） ----
+function updateSand(x,y) {
+  var v=getV(x,y), g=grav();
+  // 重力加速：每帧+2，移动消耗-1，净+1 → 速度持续累积
+  v[0]+=g[0]*2; v[1]+=g[1]*2;
+  if(v[0]>8)v[0]=8;if(v[0]<-8)v[0]=-8;if(v[1]>8)v[1]=8;if(v[1]<-8)v[1]=-8;
+  var ax=Math.abs(v[0]),ay=Math.abs(v[1]);
+  var sx=v[0]>0?1:(v[0]<0?-1:0), sy=v[1]>0?1:(v[1]<0?-1:0);
+  // |v|>=7 走3格, |v|>=4 走2格, |v|>=1 走1格
+  var cells=(ax>=7||ay>=7)?3:((ax>=4||ay>=4)?2:((ax>=1||ay>=1)?1:0));
+  if(cells===0&&(g[0]||g[1])){cells=1;sx=g[0];sy=g[1];}
+  for(var s=0;s<cells;s++){
+    var tx=x+sx,ty=y+sy, ok=inB(tx,ty)&&isSandPassable(tx,ty);
+    if(!ok){
+      // 同材料团块：交换位置让整团整体移动，防止只散外圈
+      if(sx&&inB(tx,ty)&&getMat(tx,ty)===SAND&&processed[ty*W+tx]===0){
+        if(Math.abs(v[1])>=1)v[1]-=sy;
+        setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+        continue;
+      }
+      var d=randDir(x,y);
+      // 对角受阻 → 拆单轴 或 垂直侧滑
+      if(sx&&sy){
+        if(inB(x+sx,y)&&isSandPassable(x+sx,y)){tx=x+sx;ty=y;ok=true;sy=0;}
+        else if(inB(x,y+sy)&&isSandPassable(x,y+sy)){tx=x;ty=y+sy;ok=true;sx=0;}
+        else if(inB(x+sx,y+d)&&isSandPassable(x+sx,y+d)){tx=x+sx;ty=y+d;ok=true;sy=d;}
+        else if(inB(x+d,y+sy)&&isSandPassable(x+d,y+sy)){tx=x+d;ty=y+sy;ok=true;sx=d;}
+      }
+      // 纯横向受阻 → 斜向滑
+      else if(sx&&!sy){
+        if(inB(x+sx,y+d)&&isSandPassable(x+sx,y+d)){tx=x+sx;ty=y+d;ok=true;}
+        else if(inB(x+sx,y-d)&&isSandPassable(x+sx,y-d)){tx=x+sx;ty=y-d;ok=true;}
+      }
+      // 纯纵向受阻 → 斜向滑（落地侧散）
+      else if(!sx&&sy){
+        if(inB(x+d,y+sy)&&isSandPassable(x+d,y+sy)){tx=x+d;ty=y+sy;ok=true;}
+        else if(inB(x-d,y+sy)&&isSandPassable(x-d,y+sy)){tx=x-d;ty=y+sy;ok=true;}
+      }
+    }
+    if(ok){
+      if(Math.abs(v[1])>=1)v[1]-=sy; // 只消耗垂直速度（水平速度自由落体不消耗）
+      var intoLiquid=(getMat(tx,ty)===WATER||getMat(tx,ty)===ACID);
+      setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+      if(intoLiquid){v[0]=Math.round(v[0]*0.5);v[1]=Math.round(v[1]*0.5);setV(x,y,v[0],v[1]);}
+    }else{
+      // 碰撞反弹（水平摩擦衰减，垂直反弹）
+      v[0]=Math.round(v[0]*0.7);
+      v[1]=Math.round(v[1]*-0.3);
+      setV(x,y,v[0],v[1]); return;
+    }
+  }
+  // 水平速度概率衰减：每帧25%概率减1（平均4帧减1，vx=8→0约32帧，曲线自然）
+  if(v[0]!==0 && Math.random()<0.5){v[0]-=v[0]>0?1:-1;setV(x,y,v[0],v[1]);}
+}
+
+function updateWater(x,y) {
+  var v=getV(x,y), g=grav();
+  // 水轻：慢加速 (+1/帧，4帧才到2格速度)
+  v[0]+=g[0]*2; v[1]+=g[1]*2;
+  if(v[0]>6)v[0]=6;if(v[0]<-6)v[0]=-6;if(v[1]>6)v[1]=6;if(v[1]<-6)v[1]=-6;
+  var gx=g[0],gy=g[1],lx=-gy,ly=gx;
+  var sx=v[0]>0?1:(v[0]<0?-1:0), sy=v[1]>0?1:(v[1]<0?-1:0);
+  if(sx===0&&sy===0){sx=gx;sy=gy;}
+  // 水：中速（+2/帧，最高6）
+  var steps=(Math.abs(v[0])>=4||Math.abs(v[1])>=4)?2:1;
+  var moved=false, blockedV=false, blockedH=false;
+  for(var st=0;st<steps;st++){
+    var tx=x+sx,ty=y+sy;
+    if(inB(tx,ty)&&isEmpty(tx,ty)){
+      if(Math.abs(v[1])>=1)v[1]-=sy; // 水平速度自由落体不消耗
+      setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+    moved=true;
+    }else{
+      // 同材料团块：交换位置，整团整体移动
+      if(sx&&inB(tx,ty)&&getMat(tx,ty)===WATER&&processed[ty*W+tx]===0){
+        if(Math.abs(v[1])>=1)v[1]-=sy;
+        setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+        moved=true; continue;
+      }
+      // 对角受阻 → 拆单轴
+      if(sx&&sy){
+        if(inB(x+sx,y)&&isEmpty(x+sx,y)){
+          // 纯水平拆分，不消耗水平速度
+          setV(x,y,v[0],v[1]); swap(x,y,x+sx,y); x=x+sx;
+          moved=true; blockedV=true; continue;
+        }
+        if(inB(x,y+sy)&&isEmpty(x,y+sy)){
+          if(Math.abs(v[1])>=1)v[1]-=sy;
+          setV(x,y,v[0],v[1]); swap(x,y,x,y+sy); y=y+sy;
+          moved=true; blockedH=true; continue;
+        }
+      }
+      // 纯水平受阻
+      if(sx&&!sy){blockedH=true;}
+      // 纯垂直受阻
+      if(!sx&&sy){blockedV=true;}
+      break;
+    }
+  }
+  if(moved){
+    // 着地（下方是固体/沙子）→ 加速水平衰减，交棒给铺展流
+    var onGround=inB(x,y+1)&&getMat(x,y+1)!==EMPTY&&getMat(x,y+1)!==WATER&&getMat(x,y+1)!==ACID;
+    if(v[0]!==0){
+      if(onGround && Math.random()<0.6){v[0]-=v[0]>0?1:-1;}
+      else if(!onGround && Math.random()<0.5){v[0]-=v[0]>0?1:-1;}
+    }
+    // 着地无水平速度 → 选下山方向（推完还能继续下落的那侧）
+    if(onGround && v[0]===0){
+      var d1=isEmpty(x+lx,y+ly)&&isEmpty(x+lx+gx,y+ly+gy);
+      var d2=isEmpty(x-lx,y-ly)&&isEmpty(x-lx+gx,y-ly+gy);
+      if(d1&&!d2) setV(x,y,lx,ly);
+      else if(d2&&!d1) setV(x,y,-lx,-ly);
+      else if(d1||d2){ var sd=Math.random()<0.5?1:-1; setV(x,y,lx*sd,ly*sd); }
+    }
+    setV(x,y,v[0],v[1]);return;
+  } // 下落成功，不铺展
+  // 高速液体反弹（只弹受阻分量，水平被挡弹水平、垂直被挡弹垂直）
+  if((blockedH&&Math.abs(v[0])>=3)||(blockedV&&Math.abs(v[1])>=3)){
+    if(blockedH) v[0]=Math.round(v[0]*-0.2);
+    if(blockedV) v[1]=Math.round(v[1]*-0.2);
+    setV(x,y,v[0],v[1]);return;
+  }
+  // ── 受阻→水面扩散找平 ──
+  // 每帧1格平滑扩散 + 悬崖优先 + 浮水表面给速度加速找平
+  if(!isEmpty(x-1,y)&&!isEmpty(x+1,y)&&!isEmpty(x,y-1)&&!isEmpty(x,y+1)){setV(x,y,0,0);return;}
+  // 浮在水面上 = 下方重力方向是水 → 扩散后给速度，下帧继续流
+  var floating=inB(x+gx,y+gy)&&getMat(x+gx,y+gy)===WATER;
+  var d0=(Math.random()<0.5)?1:-1;
+  var bestDir=0, bestIsCliff=false;
+  for(var di=0; di<2; di++){
+    var dd=di===0?d0:-d0;
+    var dx=lx*dd, dy=ly*dd;
+    for(var dist=1; dist<=8; dist++){
+      var nx=x+dx*dist, ny=y+dy*dist;
+      if(!inB(nx,ny)) break;
+      if(processed[ny*W+nx]===2) break;
+      var m=getMat(nx,ny);
+      if(m===EMPTY){
+        // 悬崖=下方是空地/酸（重力方向）。下方是水不算悬崖（防抱团）
+        var below=getMat(nx+gx, ny+gy);
+        var isCliff=(below===EMPTY||below===ACID);
+        if(isCliff && !bestIsCliff){bestDir=dd; bestIsCliff=true;}
+        if(!bestIsCliff && !bestDir){bestDir=dd;}
+      }else if(m===WATER){
+        // 穿过水继续扫，不阻断 → 水能"看到"水线另一侧的空地
+      }else{break;} // 固体/墙即停
+    }
+  }
+  if(bestDir!==0){
+    var tx=x+lx*bestDir, ty=y+ly*bestDir;
+    if(inB(tx,ty)){
+      var tm=getMat(tx,ty);
+      if(tm===EMPTY){
+        processed[y*W+x]=2; v[0]=0; v[1]=0;
+        setV(x,y,0,0); swap(x,y,tx,ty);
+        // 浮在水面上 → 给水平速度，下帧继续往同方向扩散
+        if(floating){
+          setV(tx,ty, lx*bestDir, ly*bestDir);
+        }
+      }else if(tm===WATER && processed[ty*W+tx]===0){
+        // 挤过水分子：同材料swap穿透水屏障
+        processed[y*W+x]=2; v[0]=0; v[1]=0;
+        setV(x,y,0,0); swap(x,y,tx,ty);
+      }
+    }
+  }
+}
+
+var FLAMMABLE = {}; FLAMMABLE[PLANT]=true;
+function updateFire(x,y) {
+  var i = idx(x,y);
+  var life = world[i+1];
+  var hasFuel = false;
+  for (var dy=-1; dy<=1; dy++) {
+    for (var dx=-1; dx<=1; dx++) {
+      if (dx===0&&dy===0) continue;
+      if (FLAMMABLE[getMat(x+dx,y+dy)]) { hasFuel = true; break; }
+    }
+    if (hasFuel) break;
+  }
+  if (!hasFuel) { life -= 4; }
+  else { life--; }
+  if (life <= 0) { setCell(x,y,EMPTY,0); return; }
+  world[i+1] = life;
+  for (var dy=-1; dy<=1; dy++) {
+    for (var dx=-1; dx<=1; dx++) {
+      if (dx===0&&dy===0) continue;
+      var nx=x+dx, ny=y+dy;
+      if (nx<0||nx>=W||ny<0||ny>=H) continue;
+      if (FLAMMABLE[getMat(nx,ny)] && Math.random() < 0.08) {
+        setCell(nx, ny, FIRE, 8+Math.floor(Math.random()*25));
+      }
+    }
+  }
+  var g=grav(),gx=g[0],gy=g[1];
+  if(inB(x-gx,y-gy)&&isEmpty(x-gx,y-gy)&&Math.random()<0.12)setCell(x-gx,y-gy,FIRE,Math.max(3,life-6));
+  var lx=-gy,ly=gx,sw=randDir(x,y);
+  if(inB(x+lx*sw,y+ly*sw)&&isEmpty(x+lx*sw,y+ly*sw)&&Math.random()<0.06)setCell(x+lx*sw,y+ly*sw,FIRE,Math.max(3,life-8));
+}
+
+function updateAcid(x,y) {
+  var v=getV(x,y), g=grav(), i=idx(x,y);
+  // ---- 寿命管理：只被腐蚀消耗，不自然蒸发 ----
+  var life=world[i+1];
+  if(life===0) life=70+Math.floor(Math.random()*40); // 新酸 70~110 腐蚀预算
+  // ---- 重力加速 ----
+  v[0]+=g[0]; v[1]+=g[1];
+  if(v[0]>4)v[0]=4;if(v[0]<-4)v[0]=-4;if(v[1]>4)v[1]=4;if(v[1]<-4)v[1]=-4;
+  var gx=g[0],gy=g[1],lx=-gy,ly=gx;
+  var sx=v[0]>0?1:(v[0]<0?-1:0), sy=v[1]>0?1:(v[1]<0?-1:0);
+  if(sx===0&&sy===0){sx=gx;sy=gy;}
+  // ---- 渐进腐蚀：概率+寿命消耗 ----
+  function tryCor(nx,ny){
+    if(!inB(nx,ny)) return;
+    var m=getMat(nx,ny);
+    if(m===EMPTY||m===WALL||m===ACID||m===FIRE) return;
+    // 不同材料耐腐蚀不同：植物最怕酸，沙子耐酸
+    var rate=(m===PLANT)?0.30:(m===SAND)?0.10:0.14;
+    if(Math.random()<rate){
+      setCell(nx,ny,EMPTY,0); // 腐蚀成功
+      life-=18; // 酸消耗大
+    }else{
+      life-=1; // 接触也微量消耗
+    }
+  }
+  tryCor(x+sx,y+sy); if(life<=0){setCell(x,y,EMPTY,0);return;}
+  tryCor(x-sx,y-sy); if(life<=0){setCell(x,y,EMPTY,0);return;}
+  var cd=randDir(x,y);
+  tryCor(x+lx*cd,y+ly*cd); if(life<=0){setCell(x,y,EMPTY,0);return;}
+  tryCor(x-lx*cd,y-ly*cd); if(life<=0){setCell(x,y,EMPTY,0);return;}
+  world[i+1]=life;
+  // ---- 移动 ----
+  var steps=(Math.abs(v[0])>=4||Math.abs(v[1])>=4)?2:1;
+  var origSX=sx, origSY=sy;
+  for(var s=0;s<steps;s++){
+    var tx=x+sx,ty=y+sy, ok=inB(tx,ty)&&isEmpty(tx,ty);
+    if(!ok){
+      // 同材料团块：交换位置，整团整体移动
+      if(sx&&inB(tx,ty)&&getMat(tx,ty)===ACID&&processed[ty*W+tx]===0){
+        if(Math.abs(v[1])>=1)v[1]-=sy;
+        setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+        continue;
+      }
+      var d=randDir(x,y);
+      if(sx&&sy){
+        if(inB(x+sx,y)&&isEmpty(x+sx,y)){tx=x+sx;ty=y;ok=true;sy=0;}
+        else if(inB(x,y+sy)&&isEmpty(x,y+sy)){tx=x;ty=y+sy;ok=true;sx=0;}
+        else if(inB(x+sx,y+d)&&isEmpty(x+sx,y+d)){tx=x+sx;ty=y+d;ok=true;sy=d;}
+        else if(inB(x+d,y+sy)&&isEmpty(x+d,y+sy)){tx=x+d;ty=y+sy;ok=true;sx=d;}
+      }else if(sx&&!sy){
+        if(inB(x+sx,y+d)&&isEmpty(x+sx,y+d)){tx=x+sx;ty=y+d;ok=true;}
+        else if(inB(x+sx,y-d)&&isEmpty(x+sx,y-d)){tx=x+sx;ty=y-d;ok=true;}
+      }else if(!sx&&sy){
+        if(inB(x+d,y+sy)&&isEmpty(x+d,y+sy)){tx=x+d;ty=y+sy;ok=true;}
+        else if(inB(x-d,y+sy)&&isEmpty(x-d,y+sy)){tx=x-d;ty=y+sy;ok=true;}
+      }
+    }
+    if(ok){
+      if(Math.abs(v[1])>=1)v[1]-=sy; // 水平速度自由落体不消耗
+      setV(x,y,v[0],v[1]); swap(x,y,tx,ty); x=tx;y=ty;
+    }else{
+      // 高速反弹（只弹受阻分量）
+      if((origSX&&Math.abs(v[0])>=2)||(origSY&&Math.abs(v[1])>=2)){
+        if(origSX) v[0]=Math.round(v[0]*-0.15);
+        if(origSY) v[1]=Math.round(v[1]*-0.15);
+        setV(x,y,v[0],v[1]);return;
+      }
+      // 受阻→侧向铺展
+      var bD=0,bN=0, d0=(Math.random()<0.5)?1:-1;
+      for(var di=0; di<2; di++){
+        var dd=di===0?d0:-d0;
+        var dx=lx*dd,dy=ly*dd;
+        var nx=x+dx,ny=y+dy,n2=0;
+        while(inB(nx,ny)&&isEmpty(nx,ny)&&processed[ny*W+nx]!==2&&n2<3){
+          n2++;nx+=dx;ny+=dy;
+          if(inB(nx-dx+gx,ny-dy+gy)&&isEmpty(nx-dx+gx,ny-dy+gy)){processed[y*W+x]=2;setV(x,y,0,0);swap(x,y,nx-dx+gx,ny-dy+gy);return;}
+        }
+        if(n2>bN){bN=n2;bD=dd;}
+      }
+      if(bN>0){
+        var dx2=lx*bD,dy2=ly*bD;
+        if(bN>1){dx2*=2;dy2*=2;}
+        if(dx2>1)dx2=1;if(dx2<-1)dx2=-1;if(dy2>1)dy2=1;if(dy2<-1)dy2=-1;
+        var tx2=x+dx2,ty2=y+dy2;
+        if(inB(tx2,ty2)&&isEmpty(tx2,ty2)){processed[y*W+x]=2;setV(x,y,0,0);swap(x,y,tx2,ty2);}
+      }
+      return;
+    }
+  }
+  // 水平速度衰减：每帧25%概率减1
+  if(v[0]!==0 && Math.random()<0.5){v[0]-=v[0]>0?1:-1;setV(x,y,v[0],v[1]);}
+}
+
+function updatePlant(x,y) {
+  var g=grav(),gx=g[0],gy=g[1],lx=-gy,ly=gx;
+  if(inB(x+gx,y+gy)&&isEmpty(x+gx,y+gy)&&Math.random()<0.05)setCell(x+gx,y+gy,PLANT,0);
+  var sw=(Math.random()<0.5?1:-1);
+  if(inB(x+lx*sw,y+ly*sw)&&isEmpty(x+lx*sw,y+ly*sw)&&Math.random()<0.02)setCell(x+lx*sw,y+ly*sw,PLANT,0);
+}
+
+// ---- 主更新循环 ----
+var frameNum = 0;
+function update() {
+  // 扫描方向与重力相反：粒子移动后落在已扫描区域，防止同帧重复处理（瞬移到边界）
+  frameNum++;
+  processed.fill(0);
+  var g = grav();
+  // X: 重力向右则从右往左扫，向左则从左往右扫
+  var scanLR = (g[0] <= 0);
+  // Y: 重力向下从下往上扫（gy>0→btot=true），向上从上往下扫
+  var scanBT = (g[1] >= 0);
+  var yStart = scanBT ? H-1 : 0;
+  var yEnd   = scanBT ? -1 : H;
+  var yStep  = scanBT ? -1 : 1;
+  for (var y = yStart; y !== yEnd; y += yStep) {
+    var xStart = scanLR ? 0 : W-1;
+    var xEnd   = scanLR ? W : -1;
+    var xStep  = scanLR ? 1 : -1;
+    for (var x = xStart; x !== xEnd; x += xStep) {
+      if (processed[y*W + x]) continue;
+      processed[y*W + x] = 1;
+      var mat = getMat(x,y);
+      if (mat === EMPTY || mat === WALL) continue;
+      switch(mat) {
+        case SAND:  updateSand(x,y);  break;
+        case WATER: updateWater(x,y); break;
+        case FIRE:  updateFire(x,y);  break;
+        case ACID:  updateAcid(x,y);  break;
+        case PLANT: updatePlant(x,y); break;
+      }
+    }
+  }
+}
+
+// ---- 渲染 ----
+function render() {
+  var data = imageData.data;
+  for (var i=0; i<W*H; i++) {
+    var off = i*4;
+    var mat = world[off];
+    var c = colors[mat] || colors[0];
+    // 火焰颜色: 新火→白热，旧火→橙红，快灭→暗红
+    if (mat === FIRE) {
+      var life = world[off+1];
+      var t = Math.min(life/30, 1.0);  // 0=快灭, 1=最旺
+      // 白 → 黄 → 橙 → 红 → 暗红
+      var r,g,b;
+      if (t > 0.8)      { r=255; g=255; b=220; }        // 白热
+      else if (t > 0.5) { r=255; g=180+75*(t-0.5)/0.3; b=40; }  // 黄→橙
+      else if (t > 0.2) { r=255; g=60+120*(t-0.2)/0.3; b=10; }   // 橙→红
+      else              { r=140+115*t/0.2; g=10+5*t/0.2; b=5; }   // 暗红
+      c = [Math.floor(r), Math.floor(g), Math.floor(b), 255];
+    }
+    data[off]=c[0]; data[off+1]=c[1]; data[off+2]=c[2]; data[off+3]=c[3];
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// ---- 鼠标交互 ----
+var currentMat = SAND;
+var mouseDown = false;
+var brushSize = 4;
+
+var lastMX = 0, lastMY = 0, prevCX = -1, prevCY = -1, prevSX = -1, prevSY = -1;
+canvas.addEventListener('mousedown', function(e){
+  mouseDown = true; lastMX = e.clientX; lastMY = e.clientY;
+  prevSX = -1; prevSY = -1; // 重置屏幕坐标，下帧才算速度
+  var p = screenToCanvas(lastMX, lastMY); prevCX = p.x; prevCY = p.y;
+});
+canvas.addEventListener('mouseup', function(){ mouseDown = false; });
+canvas.addEventListener('mouseleave', function(){ mouseDown = false; });
+canvas.addEventListener('mousemove', function(e){ lastMX = e.clientX; lastMY = e.clientY; });
+
+function paintAt(cx, cy, vx, vy) {
+  var r = brushSize;
+  if(!vx)vx=0;if(!vy)vy=0;
+  vx=Math.round(vx); vy=Math.round(vy); // 取整防 &255 截断
+  if(vx>8)vx=8;if(vx<-8)vx=-8;if(vy>8)vy=8;if(vy<-8)vy=-8;
+  for (var dy=-r; dy<=r; dy++) {
+    for (var dx=-r; dx<=r; dx++) {
+      if (dx*dx+dy*dy > r*r) continue;
+      var x=cx+dx, y=cy+dy;
+      if (x<0||x>=W||y<0||y>=H) continue;
+      if (currentMat===0) { setCell(x,y,EMPTY,0); continue; }
+      if (getMat(x,y)!==EMPTY && currentMat!==0) continue; // 不覆盖已有粒子
+      var life = (currentMat===FIRE) ? 20+Math.floor(Math.random()*40) : (currentMat===ACID) ? 70+Math.floor(Math.random()*40) : 0;
+      setCell(x,y,currentMat, life);
+      if(vx||vy) setV(x,y,vx,vy); // 继承鼠标速度
+    }
+  }
+}
+
+// ---- 工具栏 ----
+document.getElementById('toolbar').addEventListener('click', function(e){
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  currentMat = parseInt(btn.dataset.mat);
+  document.querySelectorAll('#toolbar .btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+});
+
+// =================================================================
+//  预设文字参数 — 改这几个数就行，不用碰其他代码
+//  gaps[i] = 第 i 个字到第 i+1 个字的间距（像素）
+//  数组长度 = text.length - 1
+// =================================================================
+var PRESET = {
+  text:    'AIRS',          // 要显示的文字
+  scale:   8,               // 字模放大倍数（1=5px, 8=40px）
+  gaps:    [-6, 12, 2],     // 每个字间距 A→I, I→R, R→S
+  x:       70,              // 左边缘 X 坐标（数字=绝对坐标, 'center'=自动居中）
+  y:       120,              // 文字顶部 Y 坐标（0=最顶, 280=最底）
+  mat:     WALL             // 材料（WALL=墙, SAND=沙, WATER=水 等）
+};
+
+// ---- 5x5 像素字模 ----
+var FONT = {
+  'A': [[0,1,0],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
+  'I': [[0,1,1,1,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,1,1,1,0]],
+  'R': [[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1]],
+  'S': [[0,1,1],[1,0,0],[0,1,0],[0,0,1],[1,1,0]]
+};
+var CHAR_W = { 'A':5,'I':5,'R':5,'S':5 };
+
+function drawText(text, ox, oy, mat) {
+  var cx = ox, s = PRESET.scale, gaps = PRESET.gaps;
+  for (var c=0; c<text.length; c++) {
+    var ch = text[c], w = CHAR_W[ch], glyph = FONT[ch];
+    for (var dy=0; dy<5; dy++) {
+      for (var dx=0; dx<w; dx++) {
+        if (glyph[dy][dx]) {
+          for (var sy=0; sy<s; sy++) {
+            for (var sx=0; sx<s; sx++) {
+              setCell(cx+dx*s+sx, oy+dy*s+sy, mat, 0);
+            }
+          }
+        }
+      }
+    }
+    cx += w * s + (gaps[c] || 0);
+  }
+}
+
+function textWidth(text) {
+  var tw = 0, s = PRESET.scale, gaps = PRESET.gaps;
+  for (var c=0; c<text.length; c++) {
+    tw += CHAR_W[text[c]] * s;
+    if (c < text.length-1) tw += gaps[c];
+  }
+  return tw;
+}
+
+// ---- 预设场景 ----
+function presetDemo() {
+  var tw = textWidth(PRESET.text);
+  var ox = PRESET.x === 'center' ? Math.floor((W - tw) / 2) : PRESET.x;
+  drawText(PRESET.text, ox, PRESET.y, PRESET.mat);
+}
+
+presetDemo();
+
+// ---- 旋转：CSS视觉 + 8向重力向量（不转数据） ----
+var viewAngle = 0, dragOn = false, dragStartX = 0, dragStartA = 0;
+var rt = document.getElementById("rotTarget");
+var knob = document.getElementById("rotKnob");
+function gravityDir() {
+  var a = ((viewAngle % 360) + 360) % 360;
+  if (a < 22.5 || a >= 337.5) return [0,1];
+  if (a < 67.5)  return [1,1];
+  if (a < 112.5) return [1,0];
+  if (a < 157.5) return [1,-1];
+  if (a < 202.5) return [0,-1];
+  if (a < 247.5) return [-1,-1];
+  if (a < 292.5) return [-1,0];
+  return [-1,1];
+}
+function grav(){ return gravityDir(); }
+function inB(x,y){ return x>=0 && x<W && y>=0 && y<H; }
+// 旋转滑块：拖动旋钮，左=-180° 中=0° 右=+180°，吸附45°刻度
+function snap45(a) { return Math.round(a/45)*45; }
+function angleToPos(a) {
+  return (a + 180) / 360 * 100;           // [-180,180] → [0%,100%]，不归一化，180°=最右
+}
+function posToAngle(pct) {
+  return (pct / 100 * 360) - 180;          // [0%,100%] -> [-180°,180°]
+}
+var slider = document.getElementById('rotSlider');
+// 初始化旋钮位置
+knob.style.left = angleToPos(viewAngle) + '%';
+// mousedown：旋钮或轨道上都可拖
+slider.addEventListener('mousedown', function(e){
+  dragOn = true;
+  var barR = slider.getBoundingClientRect();
+  dragStartX = barR.left + barR.width / 2;  // 条中心（用于后续 dx 计算）
+  dragStartA = viewAngle;
+  // 直接跳到鼠标位置
+  var rawPct = (e.clientX - barR.left) / barR.width * 100;
+  var pct = rawPct < 0 ? 0 : (rawPct > 100 ? 100 : rawPct);
+  viewAngle = snap45(posToAngle(pct));
+  knob.style.left = angleToPos(viewAngle) + '%';
+  dragStartX = e.clientX;  // 重置起点为当前鼠标
+  dragStartA = viewAngle;
+  e.preventDefault();
+});
+document.addEventListener('mousemove', function(e){
+  if (!dragOn) return;
+  var dx = e.clientX - dragStartX;
+  var newA = dragStartA + dx * 1.5;
+  // 先钳角度再算位置，否则 angleToPos 归一化会把超界 wrap 到对面
+  if (newA < -180) newA = -180;
+  if (newA > 180) newA = 180;
+  viewAngle = snap45(newA);
+  knob.style.left = angleToPos(viewAngle) + '%';
+});
+document.addEventListener('mouseup', function(){
+  dragOn = false;
+});
+
+// 画笔逆映射 — 逆旋转把屏幕坐标映射到 canvas 本地坐标
+function screenToCanvas(cx, cy) {
+  var r = canvas.getBoundingClientRect();
+  // 旋转中心 = bounding rect 中心（旋转不改变此点）
+  var scx = r.left + r.width / 2;
+  var scy = r.top + r.height / 2;
+  var dx = cx - scx;
+  var dy = cy - scy;
+  // 计算逆旋转偏移
+  var a = viewAngle * Math.PI / 180;
+  var cos = Math.cos(a), sin = Math.sin(a);
+  var rx = dx * cos + dy * sin;
+  var ry = -dx * sin + dy * cos;
+  return {
+    x: Math.floor(W / 2 + rx),
+    y: Math.floor(H / 2 + ry)
+  };
+}
+
+// ---- ESC 发送给父页面关闭沙盒 ----
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { window.parent.postMessage('sandbox-close', '*'); }
+});
+
+// ---- 主循环（物理90Hz累积，渲染限60fps） ----
+var PHYSICS_INTERVAL = 1000 / 90; // 物理 ~11.1ms
+var RENDER_INTERVAL = 1000 / 60;  // 显示帧率上限 60fps
+var lastPhysicsTime = performance.now();
+var lastRenderTime = 0;
+var physicsAccum = 0;
+var frameCount = 0, fps = 0, lastFpsTime = performance.now();
+
+function loop(now) {
+  // 物理累积：按90Hz步进，始终跑满（不受显示帧率限制）
+  var pt = Math.min(now - lastPhysicsTime, 50);
+  lastPhysicsTime = now;
+  physicsAccum += pt;
+  while (physicsAccum >= PHYSICS_INTERVAL) {
+    update();
+    physicsAccum -= PHYSICS_INTERVAL;
+  }
+
+  // 显示限60fps：渲染/颜料/旋转/FPS统计都走这个闸门
+  if (now - lastRenderTime >= RENDER_INTERVAL) {
+    lastRenderTime = now;
+
+    rt.style.transform = "rotate(" + (viewAngle % 360) + "deg)";
+    // 按住不动也持续释放粒子，移动时补点防断开
+    if (mouseDown) {
+      var p = screenToCanvas(lastMX, lastMY);
+      var cx = p.x, cy = p.y;
+      if (prevCX < 0) { prevCX = cx; prevCY = cy; }
+      // 从屏幕坐标原始差值算速度（避免 floor 量化丢精度）
+      var mvx=0, mvy=0;
+      if(prevSX>=0){
+        var sdx=lastMX-prevSX, sdy=lastMY-prevSY;
+        var a=viewAngle*Math.PI/180, cos=Math.cos(a), sin=Math.sin(a);
+        mvx=sdx*cos+sdy*sin; // 逆旋转到画布空间，1:1 映射鼠标速度
+        mvy=-sdx*sin+sdy*cos;
+      }
+      prevSX=lastMX; prevSY=lastMY;
+      _dbgVX=mvx; _dbgVY=mvy; // 调试：显示鼠标速度
+      var dist = Math.max(Math.abs(cx - prevCX), Math.abs(cy - prevCY));
+      if (dist <= 1) { paintAt(cx, cy, mvx, mvy); }
+      else {
+        for (var t = 0; t <= dist; t++) {
+          var ix = Math.round(prevCX + (cx - prevCX) * t / dist);
+          var iy = Math.round(prevCY + (cy - prevCY) * t / dist);
+          paintAt(ix, iy, mvx, mvy);
+        }
+      }
+      prevCX = cx; prevCY = cy;
+    }
+    render();
+
+    frameCount++;
+    if (now - lastFpsTime >= 1000) {
+      fps = frameCount;
+      frameCount = 0;
+      lastFpsTime = now;
+    }
+    var velTxt=''; if(typeof _dbgVX!=='undefined') velTxt=' · 鼠标速度: '+_dbgVX.toFixed(1)+','+_dbgVY.toFixed(1);
+    document.querySelector('.info').textContent =
+      '鼠标按住放粒子 · FPS: ' + fps +
+      ' · 粒子数: ~' + (function(){var c=0;for(var i=0;i<W*H*4;i+=4){if(world[i]!==0)c++;}return c;})() + velTxt;
+  }
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
