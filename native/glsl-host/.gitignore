@@ -1,0 +1,11 @@
+build/
+deploy/
+*.aex
+*.obj
+*.pdb
+.vs/
+third_party/glad/*.c
+third_party/glad/*.h
+# 测试运行目录下的草稿（tests/test_util.h 的 tempPath；ctest 在 build/ 下，
+# 手动在 native/glsl-host/ 里跑时落在这里，根 .gitignore 的 /temp/ 只兜住仓库根）
+temp/

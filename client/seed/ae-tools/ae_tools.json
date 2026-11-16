@@ -1,0 +1,581 @@
+{
+  "version": "2.0",
+  "updatedAt": "2026-07-31T00:00:00.000Z",
+  "tools": [
+    {
+      "name": "queryProject",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "project",
+      "extendScript": "result = queryProject(__args);",
+      "stub": false,
+      "description": "模糊浏览 AE 项目结构：项目面板、图层、渲染队列、搜索、选中、动画总览。图层/合成条目带稳定键 layerId/compositionId（Layer.id / Item.id 可用时）：跨调用用 id 定位（索引/名字随增删、重排、改名变化）。browse 的 comp/footage/folder 与 layers 的 source（嵌套合成/素材来源）也带 id（Item.id），source.index 是面板顺序，增删后移位。browse 递归遍历受 200 条总上限保护：触发时结果带 truncated=true、truncatedFolder（触发时所在文件夹路径）与 truncatedReason。\n\n图层条目带 content 摘要与 anim 动画指纹（props 动画属性名上限 8、tracks 有键属性数、keys 总关键帧数、spanFrames 首末关键帧的合成帧、hasExpression、scanned/unscanned），layers 与 selected(timeline) 的条目都有：据此判断要不要 queryDetails 取详情、曲线与逐键值。\n\ncontent.keyframes 只计 5 个变换属性（Position/Scale/Rotation/Opacity/Anchor Point）+ Audio Levels + Time Remap（AVLayer 且已启用）+ Source Text 的关键帧数，与 anim.keys 同口径；蒙版/效果关键帧不计（看 masks/effects 计数）。另带 parent（{index,name}，无父层为 null）、hasTrackMatte 与 blendingMode（混合模式名）；nested 为 precomp 来源时 animation 恒 unknown、不递归子合成；扫描面只读关键帧数与表达式存在性，未扫族见 unscanned（不当 0）；stretch≠100 置 spanNonLinear 并省略 spanFrames。\n\nselected 的 timeline 条目只对返回页（itemOffset/itemLimit）算 content/anim，totalCount 报总选中数。\n\ntarget=overview 返回每合成一行（compositionId/name/width/height/frameRate/durationFrames/numLayers/layerTypeCounts/animatedLayers/tracks/keyframes/expressions/nestedLayers/spanFrames），扫该合成全部图层后按合成分页（itemOffset/itemLimit），nameFilter/compositionIds 收窄，或 compositionId/compositionIndex/compIndex 定位单个合成；结果级 scanScope 列本页实扫族（transform/timeRemap/sourceText），unscanned 固定列未扫五族（masks/effects/shapeContents/textAnimatorParams/layerStyles）；同一合成含 stretch≠100 层则置 spanNonLinear。\n\nlayers 与 selected(timeline) 的返回页各受 12KB 单页预算：超出时先剥该条 content/anim（contentOmitted=true），页置 bytesTruncated，仍超再截条目；续页 layers 用 nextOffset、selected 用 nextItemOffset。分页参数与 target 不匹配时结果带 warnings（字符串数组）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": ["browse", "layers", "renderQueue", "search", "selected", "overview"],
+            "description": "查询目标（必须用 enum 精确值）：browse=项目面板（depth 递归，-1 全量）；layers=图层列表（需 compositionIndex 或 compositionId）；renderQueue=渲染队列；search=跨合成搜索（需 searchType+name）；selected=选中概览（需 scope，timeline 条目带 layerId/compositionId/compositionName，project 条目带 id 与 type=comp|footage|folder）；overview=项目级动画总览（每个合成的动画计数与关键帧跨度，扫全部图层、按合成分页）"
+          },
+          "folderIndex": {
+            "type": "integer",
+            "description": "文件夹索引（1-based），browse 用。不传查根目录；指向非文件夹或越界报错"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "递归深度，browse 用，默认1，-1 全量（每层仍受 itemLimit 分页，子层超出标 truncatedCount，用 folderIndex 深入子文件夹）"
+          },
+          "typeFilter": {
+            "type": "string",
+            "enum": ["folder", "comp", "footage"],
+            "description": "类型过滤，browse 用。文件夹始终保留+递归，过滤只对 comp/footage 生效"
+          },
+          "nameFilter": {
+            "type": "string",
+            "description": "名称过滤（子串匹配，大小写不敏感），browse/overview 用；browse 行为同 typeFilter，overview 只过滤合成名"
+          },
+          "compositionIndex": {
+            "type": "integer",
+            "description": "合成索引（1-based，位置键）。layers 必需（或给 compositionId）；search 可选（限定范围）；overview 可选（只统计该合成）。须为 number 类型的正整数且不超过项目条目数、指向合成；0/浮点/布尔/字符串/越界/非合成直接报错并点明收到的值（与 queryDetails 的 compositionIndex 同口径）"
+          },
+          "compositionId": {
+            "type": "integer",
+            "description": "合成稳定 id（Item.id）。layers 用，与 compositionIndex 二选一；overview 可选（只统计该合成）；两者都给时以 id 为准。索引会随项目面板增删移位，跨多次调用定位同一合成用 id；须为 number 类型的正整数——0/负数/浮点/布尔/字符串（如 \"922\"）直接报错并点明收到的值，不落回索引分支（字符串不按 Number 归一，与 queryDetails 的 compositionId 同口径）"
+          },
+          "compositionIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "合成稳定 id 列表（批量），overview 用：只统计这些合成。必须传非空数组；元素须为 number 或纯数字字符串的正整数，布尔/数组/对象/浮点/空串报错并点名第几项。任一 id 找不到时整批报错（不返回半批）。"
+          },
+          "layerType": {
+            "type": "string",
+            "enum": ["text", "shape", "camera", "light", "null", "adjustment", "av", "unknown"],
+            "description": "图层类型过滤。layers 与 layerName 同时满足才匹配；search(searchType=layer) 与 name 同时满足"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "图层名称过滤（子串匹配，大小写不敏感），layers 用，与 layerType 同时满足"
+          },
+          "searchType": {
+            "type": "string",
+            "enum": ["comp", "layer", "expression"],
+            "description": "搜索类型，search 必需：comp=合成名；layer=图层名；expression=表达式"
+          },
+          "name": {
+            "type": "string",
+            "description": "搜索关键字（子串匹配，大小写不敏感），search 必需"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["project", "timeline"],
+            "description": "选中范围，selected 必需：project=项目面板；timeline=时间轴选中图层"
+          },
+          "layerOffset": {
+            "type": "integer",
+            "description": "图层分页偏移（0-based），layers 用，默认0"
+          },
+          "layerLimit": {
+            "type": "integer",
+            "description": "图层分页大小，layers 用，默认 30、上限 100。单页超 12KB 时 content/anim 被剥，该条带 contentOmitted=true。"
+          },
+          "itemOffset": {
+            "type": "integer",
+            "description": "分页偏移（0-based），browse/renderQueue/search/selected/overview 用，默认0"
+          },
+          "itemLimit": {
+            "type": "integer",
+            "description": "分页大小，browse/renderQueue/search/selected/overview 用；通用默认 30、上限 100，overview 默认 20、上限 50。selected(scope=timeline) 的单页超 12KB 时 content/anim 被剥，该条带 contentOmitted=true。"
+          },
+          "includeContent": {
+            "type": "boolean",
+            "description": "layers/selected 用：是否返回图层内容摘要 content（effects/masks/keyframes/textAnimators/layerStyles 计数，text 为布尔）与动画指纹 anim，默认 true。两者同一开关：关掉可同时省掉这两项提取的宿主属性访问（大合成或需缩短单次调用耗时时置 false）"
+          }
+        },
+        "required": ["target"]
+      },
+      "shortDescription": "浏览项目整体结构"
+    },
+    {
+      "name": "queryDetails",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "layer",
+      "extendScript": "result = queryDetails(__args);",
+      "stub": false,
+      "description": "查询单个/批量对象完整详情。target：comp=合成基本信息（尺寸/帧率/时长/图层数等）；layer=单层细节；footage=素材；selected=当前选中（scope=project/timeline）；effect=效果属性树（写入后回读）。对象用稳定键定位（引用 chip 给出的即 compositionId/layerId/footageId），索引与名字会随增删重排变化；id/index 参数传 null 等于未传。\n\nincludeTimeline:true 时 comp 附事件表 timeline：按合成帧排序的关键帧与图层入出/标记事件。扫描面看 timelineScope 与 timelineUnscanned（未扫族不计 0），分族条数看 timelineScopeCounts；timelineScannedTotal 是截断前真实事件数，timelineTotal 是截断后可翻页的事件总数（只受 5000 硬上限影响、不受本页字节预算影响，故逐页稳定；timelineCapped=false 时两者相等）。事件 time/frame 为合成时间（time=layer.startTime+keyTime，frame=round(time×frameRate)），layerTime 为层本地秒；stretch≠100 的层关键帧不产事件，索引列入 timelineNonLinearSkipped（上限 100，总数看 timelineNonLinearSkippedTotal）；蒙版事件带 maskIndex（1-based）与 maskName；嵌套合成只列不展开（nestedLayers），续页用 timelineOffset/timelineLimit，嵌套分页用 timelineNestedOffset（含 timelineNestedNextOffset）。分页不降低扫描成本：每次调用全量扫当前合成，多合成线性叠加。分页参数与 target 不匹配时结果带 warnings（字符串数组，说明哪些分页参数被忽略）。\n\ntarget=layer 与 selected(scope=timeline) 返回（条目带 parent，{index,name}，无父层为 null）：蒙版（形态与关键帧、羽化/不透明度/扩展；顶点需 includeMaskVertices:true，vertexLimit 默认 200、上限 2000，超出置 verticesTruncated）、文本（样式、Source Text 关键帧、Text Animator）、图层样式、效果清单、形状树 shapeContents（默认骨架 name/matchName/kind，叶子值需 includeShapeValues:true；受 shapeNodeLimit 约束，超出置 shapeTruncated；叶子关键帧只计形状预算）、trackMatte、timeMap、帧字段 inFrame/outFrame/startFrame/durationFrames（帧=秒×所属合成帧率）。关键帧带 interpolationIn/interpolationOut，空间属性另带 spatialIn/spatialOut。selected(scope=timeline) 只对返回页 itemOffset/itemLimit 提取详情，失败项原位 status=error，totalCount 为总选中数、extractedCount/failedCount 为页内计数。\n\n表达式字段为 <属性>Expression（空串=无）；三处表达式口径不同：图层变换六属性（含 audioLevels）与 Source Text 超 800 字符截断，给 <属性>ExpressionTruncated/Length（Source Text 为 sourceTextExpression 系字段）；timeMap.timeRemap 同 800，字段在 timeRemap 内（如 timeRemap.expressionTruncated）；shapeContents 叶子超 500 字符只给 expression/expressionTruncated；target=effect 另按节点体积截断，给 expressionTruncated/expressionLength。text 超 2000 字符截断，给 textTruncated/textLength。textAnimators 与 layerStyles 各受本层 6000B 约束（给 textAnimatorsTotal/textAnimatorsTruncated 与 layerStylesTotal/layerStylesTruncated，字节超限另置 textAnimatorsBytesTruncated/layerStylesBytesTruncated）；单条动画器自身超 6000B 时按本次响应剩余额度判定：够则上限抬到该条自身大小、本页优先返回该条（仍可能被结果级兜底收缩），不够则置 textAnimatorsStarved 并给 hint（不按 nextTextAnimatorOffset 重试）。includeEffectAnimation:true 时每效果给 effectAnimation（只计数；节点上限 300/层，超出置 effectAnimationCapped，字节超限置 effectAnimationTruncated）。\n\ntarget=effect 读效果（含 AS_Effect Host）属性树/关键帧/表达式，用于写入后回读；AS_Effect Host 参数上百，用 propertyFilter/propertyLimit/maxNodes 收窄。两层分页：顶层 propertyOffset/propertyLimit；组用 childrenOffset/childrenHasMore 或 groupPath+groupOffset（取上一页 nextGroupOffset，groupHasMore=false 即末页）；叶子关键帧明细用 keyframeOffset/keyframeLimit（默认 0/100、单属性上限 200），keyframesHasMore=true 时用 keyframeOffset = keyframesOffset + keyframes 续页。节点带 path（0-based 索引点分串）；顶层 hasMore 表示还有匹配属性未返回，nextOffset 为下一条偏移（byteBudgetExhausted/nodeBudgetExhausted=true 时也用它续读）。该 target 不接受 compName（用 compositionId/compositionIndex）。\n\nfields 只返回所列块，[\"*\"]=全量；不传=默认（layer 详情默认不含 content 摘要，要 content 需 fields 含 content 或 [\"*\"]）；出现 markers/references/tree(timeline) 等价开启对应开关，不出现的块即使 include* 为 true 也不返回；includeTextAnimators/includeLayerStyles/includeShapeContents 为 false 时整块关闭（与 fields 取交集）；合法组清单见参数说明。未知 field 返回 status=error 并列出合法清单；未知 keyframeOffsets 键回显到 keyframeOffsetsIgnored。\n\n关键帧分页与续页一律按回执字段，不要按固定步长猜：timeline→timelineOffset；masks→maskOffset；effects→effectOffset；textAnimators→textAnimatorOffset；关键帧→keyframeOffset 或逐属性 keyframeOffsets[属性]=该属性 KeyframesOffset+本页实际条数（各属性条数可能不同，不能用一个标量套），每属性给 <属性>KeyframesTotal/Limit/Offset/HasMore/Truncated（0 条另给 Dropped）；形状叶子同窗口。同页多层共用 offset：未返回完的层带 multiLayerPagination=true，续读改用 layerIndices 或单层查询。本页某组 0 条但组内有内容时置 masksStarved/effectsStarved/textAnimatorsStarved=true 并给对应 hint，HasMore=false，不要按 nextMaskOffset/nextEffectOffset/nextTextAnimatorOffset 重试；selected 时结果级另给 starvedLayerIndexes。\n\n预算（单位 JSON.stringify 字符数，非 UTF-8 字节）：动态部分 24000（固定字段不计），关键帧/形状/载荷/事件各另有 12KB 分项；分项超出各置对应标记（payloadBytesTruncated/keyframesBudgetExhausted/shapeBytesTruncated/timelineBytesTruncated），兜底收缩只置 responseBytesTruncated。masksTruncated/effectsTruncated 表示本页非全集（offset>0 也置位）；时间线本页 0 条但组内有内容时置 timelineEventsStarved，改用单个 compositionId 续读。markers 单层上限 100、references 每次上限 200（同 comp 各层共用）；layer 标记被裁时另给 markersTotal（该层真实总数），references 被裁时另给 referencesTotal（裁前条数 ≤200）；是否还有更多看各自 Truncated。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": ["comp", "layer", "footage", "selected", "effect"],
+            "description": "查询目标（必须用 enum 精确值）：comp=合成详情（需 compositionIndex/Indices 或 compositionId/Ids）；layer=图层详情（需 compositionId+layerId 或 compositionIndex+layerIndex 等）；footage=素材详情（需 footageId/Ids 或 footageIndex/Indices）；selected=选中对象详情（需 scope）；effect=效果详情（需 compositionId+layerId 或 compositionIndex+layerIndex，+ effectName 或 effectIndex）"
+          },
+          "compositionIndex": {
+            "type": "integer",
+            "description": "合成索引（1-based，位置键）。comp/layer/effect 用（或给 compositionId 用稳定键），三个 target 同口径：须为 number 类型的正整数且不超过项目条目数、指向合成；0/浮点/布尔/字符串/越界/非合成直接报错并点明收到的值（字符串 \"1\" 不按 Number 归一）。layer/comp 两个键都没给即报错（不回退活动合成）；effect 两个键都没给时回退活动合成。与 compositionIndices 单值同口径"
+          },
+          "compositionIndices": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "合成索引列表（批量），comp 用；必须传数组且不能为空数组，元素是 1-based 正整数且指向合成；任一元素无效/越界/不是合成即整批报错（不返回半批）"
+          },
+          "compositionId": {
+            "type": "integer",
+            "description": "合成稳定 id（Item.id），comp/layer/effect 用，优先于 compositionIndex（两者同给时以 id 为准）。查不到（合成被删）报错，不退回位置键；须为 number 类型的正整数——0/负数/非数字/字符串/布尔/浮点直接报错并点明收到的值（\"922\" 不按 Number 归一），不落回索引分支。layer/comp 两个键都没给即报错；effect 都没给时回退活动合成"
+          },
+          "compositionIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "合成稳定 id 列表（批量），comp 用；必须传数组且不能为空数组，元素须为 number 或纯数字字符串的正整数（布尔/数组/对象/浮点报错并点名第几项），任一 id 失效即整批报错"
+          },
+          "layerId": {
+            "type": "integer",
+            "description": "图层稳定 id（Layer.id），layer/effect 用，优先于 layerIndex/layerName；须与 compositionId（或 compositionIndex）配合定位所在合成。id 找不到或不属于该合成即报错，不退回位置键；须为 number 或纯数字字符串的正整数（布尔/浮点/0 报错并点明收到的值）"
+          },
+          "layerIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "图层稳定 id 列表（批量），layer 用；必须传数组且不能为空数组，元素须为 number 或纯数字字符串的正整数（布尔/数组/对象/浮点报错并点名第几项），任一 id 失效即整批报错（不返回半批）"
+          },
+          "layerIndex": {
+            "type": "integer",
+            "description": "图层索引（1-based，位置键），layer/effect 用（effect 至少传 layerIndex/layerId/layerName 之一）。layer 侧 layerId/layerIds/layerIndex/layerIndices/layerName/layerType 至少传一个；查看全部用 queryProject(target=layers)。须为 number 正整数且不超过该合成图层数，0/浮点/布尔/字符串/越界直接报错（layer 与 effect 同口径，与 layerIndices 单值一致）"
+          },
+          "layerIndices": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "图层索引列表（批量），layer 用；必须传数组且不能为空数组，元素是 1-based 正整数且不超过该合成图层数；任一元素无效/越界即整批报错（不返回半批），与 layerIds 同口径。同上至少传一个"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "图层名称过滤（子串匹配，大小写不敏感）。layer 用（与 layerType 同时满足）；effect 用作图层选择器（layerIndex/layerId 精确、layerName 子串不敏感；三者都给时按 layerId > layerIndex > layerName）。target=layer 与 target=effect 同一语义"
+          },
+          "layerType": {
+            "type": "string",
+            "enum": ["text", "shape", "camera", "light", "null", "adjustment", "av", "unknown"],
+            "description": "图层类型过滤，layer 用，与 layerName 同时满足"
+          },
+          "includeTree": {
+            "type": "boolean",
+            "description": "是否返回匹配图层在合成中的父子树位置（响应键 layerTree），layer 用，默认false"
+          },
+          "references": {
+            "type": "boolean",
+            "description": "是否附带向上嵌套引用链（comp/layer/footage 用），默认 false；超出上限置 referencesTruncated 与 referencesTotal（裁前条数）。"
+          },
+          "markers": {
+            "type": "boolean",
+            "description": "是否附带标记（comp 返回合成标记，layer 返回图层标记），默认 false；layer 超出单层上限置 markersTruncated，总数见 markersTotal。"
+          },
+          "footageId": {
+            "type": "integer",
+            "description": "素材稳定 id（Item.id），footage 用，与 footageIndex 二选一；两者都给时以 id 为准。id 找不到即报错，不退回索引。索引会随项目面板增删移位，跨多次调用定位同一素材用 id"
+          },
+          "footageIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "素材稳定 id 列表（批量），footage 用；必须传数组且不能为空数组（与 layerIds/compositionIds 同口径），元素须为 number 或纯数字字符串的正整数（布尔/数组/对象/浮点报错并点名第几项），任一 id 失效即整批报错（不返回半批）"
+          },
+          "footageIndex": {
+            "type": "integer",
+            "description": "素材索引（1-based，位置键），footage 用（或用 footageIndices 批量）；须为 number 正整数且不超过项目条目数、指向素材，0/浮点/非数字/越界/指向合成或文件夹直接报错（与 footageIndices 单值同口径）"
+          },
+          "footageIndices": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "素材索引列表（批量），footage 用；必须传数组且不能为空数组，元素是 1-based 正整数且指向素材；任一元素无效/越界/不是素材即整批报错（不返回半批）"
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["project", "timeline"],
+            "description": "选中范围，selected 必需：project=项目面板；timeline=时间轴选中图层"
+          },
+          "layerOffset": {
+            "type": "integer",
+            "description": "图层分页偏移（0-based），layer 用，默认0"
+          },
+          "layerLimit": {
+            "type": "integer",
+            "description": "图层分页大小，layer 用，默认5，上限10"
+          },
+          "includeMaskVertices": {
+            "type": "boolean",
+            "description": "layer/selected 用：蒙版路径是否展开顶点坐标（[[x,y],...]），默认 false 只给 vertexCount/closed 与关键帧条目；置 true 后静态形态给 vertices，截断置 verticesTruncated（关键帧形态的 vertices/verticesTruncated 在每条关键帧上），vertexCount 恒为真实顶点数。"
+          },
+          "vertexLimit": {
+            "type": "integer",
+            "description": "layer/selected 用：includeMaskVertices:true 时单个顶点数组上限，默认 200、上限 2000（须 number 且 >0，其余回退默认）；超出只给前 vertexLimit 个顶点并置 verticesTruncated。"
+          },
+          "maskOffset": {
+            "type": "integer",
+            "description": "layer/selected 用：蒙版清单分页偏移（0-based），默认0；只影响返回页，不改变总数字段"
+          },
+          "maskLimit": {
+            "type": "integer",
+            "description": "蒙版清单分页大小（layer/selected 用），默认 20、上限 100（正整数至少 1，非 number/非有限/≤0 回退默认）。每层给 masksTotal/masksOffset/masksLimit/masksHasMore/nextMaskOffset，截断时置 masksTruncated。续页用 nextMaskOffset 当下一层的 maskOffset。"
+          },
+          "effectOffset": {
+            "type": "integer",
+            "description": "layer/selected 用：效果清单分页偏移（0-based），默认0；只影响返回页"
+          },
+          "effectLimit": {
+            "type": "integer",
+            "description": "效果清单分页大小（layer/selected 用），默认 20、上限 100。每层给 effectsTotal/effectsOffset/effectsLimit/effectsHasMore/nextEffectOffset，截断时置 effectsTruncated。续页用 nextEffectOffset 当下一层的 effectOffset。"
+          },
+          "textAnimatorOffset": {
+            "type": "integer",
+            "description": "layer/selected 用：文本动画器清单分页偏移（0-based），默认0；只影响返回页，不改变 textAnimatorsTotal"
+          },
+          "textAnimatorLimit": {
+            "type": "integer",
+            "description": "文本动画器清单分页大小（layer/selected 用），默认 20、上限 100。每层给 textAnimators 与 textAnimatorsTotal/Offset/Limit/HasMore/nextTextAnimatorOffset/Truncated；fields 不含 textAnimators 或 includeTextAnimators:false 时整块省略，非文本层或无动画器给空数组。续页用 nextTextAnimatorOffset 当下一层的 textAnimatorOffset。"
+          },
+          "includeTextAnimators": {
+            "type": "boolean",
+            "description": "layer/selected 用：是否返回文本动画器 textAnimators（动画器属性值 + 范围选择器属性），默认 true；非文本层或没有动画器时为空数组"
+          },
+          "includeLayerStyles": {
+            "type": "boolean",
+            "description": "layer/selected 用：是否返回图层样式 layerStyles（只列已启用样式的参数 + 全局光 layerStyleLighting），默认 true"
+          },
+          "includeEffectAnimation": {
+            "type": "boolean",
+            "description": "layer/selected 用：是否为每个效果返回 effectAnimation（[{effectName,effectIndex,animatedProps,hasExpression,truncated?}]，animatedProps = 属性树里有键或表达式的叶子数），默认 false；无效果时为空数组；fields 不含 effects 时不返回。"
+          },
+          "includeShapeContents": {
+            "type": "boolean",
+            "description": "layer/selected 用：是否返回形状图层内容树 shapeContents（从 Root Vectors Group 递归的组/属性节点），默认 true；默认只给骨架（name/matchName/kind，组另带 numProperties/children），叶子值需 includeShapeValues:true，节点数受 shapeNodeLimit 约束；非形状层为 null"
+          },
+          "includeShapeValues": {
+            "type": "boolean",
+            "description": "layer/selected 用：shapeContents 叶子是否带 value/numKeys/keyframes/expression（路径值仍只给 vertexCount/closed，表达式截 500 字符），默认 false 只给骨架；开启后宿主调用与结果体积随叶子数与关键帧数上升"
+          },
+          "shapeNodeLimit": {
+            "type": "integer",
+            "description": "shapeContents 节点预算（layer/selected 用），默认 200、上限 2000（须 number 且 >0，正数至少 1，否则回退默认）；仍有节点放不下时置 shapeTruncated=true，shapeNodeCount 报实际导出节点数（整棵丢弃时为 0）。字节超限另置 shapeBytesTruncated=true；多层同页共用同一 12KB 形状分项，需要完整树时按层分层查询。"
+          },
+          "fields": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "layer/comp/selected(scope=timeline) 用：只返回所列块。layer 合法组 base/content/transform/timeRemap/masks/text/textAnimators/layerStyles/effects/shapeContents/trackMatte/timeMap/frames/markers/references/tree（selected(scope=timeline) 用同一份清单，layerIndex 恒带）；comp 合法组 base/markers/references/timeline；selected(scope=project) 拒绝 fields。"
+          },
+          "itemOffset": {
+            "type": "integer",
+            "description": "分页偏移（0-based），comp/footage/selected 用，默认0"
+          },
+          "itemLimit": {
+            "type": "integer",
+            "description": "分页大小，comp/footage/selected 用，默认5，上限10"
+          },
+          "includeTimeline": {
+            "type": "boolean",
+            "description": "comp 用：是否返回事件表 timeline（按合成帧排序的关键帧/图层入出/合成标记事件），默认 false；开启时逐层扫变换/时间重映射/蒙版/文本关键帧"
+          },
+          "timelineOffset": {
+            "type": "integer",
+            "description": "事件表分页偏移（0-based），comp 用，默认0；只影响返回页"
+          },
+          "timelineLimit": {
+            "type": "integer",
+            "description": "事件表分页大小（comp 用），默认 100、上限 500。事件 12KB 分项整响应共用。装不下时按实际条数返回并置该合成 timelineBytesTruncated=true，续页用 timelineNextOffset。nestedLayers 每页上限 100 条：任一截断或 timelineNestedOffset>0 置 timelineNestedTruncated=true，下一批起点看 timelineNestedNextOffset。"
+          },
+          "timelineNestedOffset": {
+            "type": "integer",
+            "description": "nestedLayers 分页偏移（0-based，comp 用），默认 0；只影响 nestedLayers 本页切片。"
+          },
+          "effectName": {
+            "type": "string",
+            "description": "效果名或 matchName（如 'AS_Effect Host'/'AS_Effect_Host'），effect 用，与 effectIndex 二选一"
+          },
+          "effectIndex": {
+            "type": "integer",
+            "description": "效果在图层 Effects 组里的序号（1-based），effect 用，与 effectName 二选一；两者都传时 effectIndex 优先。须为 number 正整数且在 1..该图层效果数：布尔/字符串/浮点/0/越界直接报错点明值与范围；index 无效时不回退 effectName"
+          },
+          "includeKeyframes": {
+            "type": "boolean",
+            "description": "是否返回关键帧明细列表（keyframeList：时间/值/插值类型/入出速度与影响；effect 用），默认 true。明细按 keyframeOffset/keyframeLimit 分页，叶子给 keyframes（本页条数；false 时仍为 numKeys）/keyframesTotal/keyframesHasMore；被压到 0 时 keyframesLimit=0（明细不可读看 keyframeDetailsDropped）。"
+          },
+          "keyframeOffset": {
+            "type": "integer",
+            "description": "关键帧窗口偏移（0-based，按每个属性各自计；effect 与 layer/selected(scope=timeline) 用），默认 0。layer：每个关键帧属性各自一页（transform 六属性 / 蒙版四属性含 Mask Path / timeRemap / timeMap / Source Text / shapeContents 叶子），这是未点名属性的回退值，逐属性起点用 keyframeOffsets 对象。"
+          },
+          "keyframeOffsets": {
+            "type": "object",
+            "description": "逐属性关键帧起点（0-based）：{属性键: offset}，layer/selected(scope=timeline) 用。键按输出字段前缀做大小写不敏感匹配（position/scale/rotation/opacity/anchorPoint/audioLevels/timeRemap/sourceText/maskPath/maskOpacity/maskFeather/maskExpansion/shapeContents），也可用该属性的 matchName（精确匹配）；未点名的属性回退 keyframeOffset 标量。值须为 number 且 ≥0（负数/字符串/布尔忽略）。"
+          },
+          "keyframeLimit": {
+            "type": "integer",
+            "description": "每个属性的关键帧窗口大小（effect 与 layer/selected 用），默认：effect 100、layer 30；上限 200（超出按 200 处理，正数至少 1，非 number/非有限/≤0 回退默认）。effect 单节点超 16KB 时窗口进一步收缩并置 keyframesTruncated=true，最坏压到 0（keyframeDetailsDropped=true）；layer 受 12KB 分项预算约束，可为 0 条并置该属性 keyframesDropped 与层级 keyframesBudgetExhausted。"
+          },
+          "includeExpression": {
+            "type": "boolean",
+            "description": "是否返回表达式文本、启用状态与 expressionError，effect 用，默认 true；表达式超节点体积上限时省略并置 expressionTruncated=true + expressionLength（原文仍在 AE 中）"
+          },
+          "atTime": {
+            "type": "number",
+            "description": "可选：在该时间点（秒）对每个叶子属性求值（valueAtTime），用于核对时变曲线/表达式在指定时刻的值，effect 用；valueAtTime 超节点体积上限时省略并置 valueAtTimeTruncated=true + valueAtTimeSize；求值失败返回 evaluationError"
+          },
+          "propertyFilter": {
+            "type": "string",
+            "description": "属性过滤（子串匹配 name 或 matchName，大小写不敏感），effect 用，只返回命中的顶层属性；结果级 matchedCount 报匹配的顶层属性数"
+          },
+          "propertyOffset": {
+            "type": "integer",
+            "description": "顶层属性分页偏移（0-based），effect 用，默认 0"
+          },
+          "propertyLimit": {
+            "type": "integer",
+            "description": "顶层属性分页大小（effect 用），默认 40、上限 200。返回 propertyOffset/propertyLimit/hasMore/nextOffset（nextOffset = 本页起点 + 本页实际返回条数）。嵌套组被截断时组节点带 childrenOffset/childrenHasMore/childrenTotal/nextChildrenOffset，续读用该组 path + groupOffset=nextChildrenOffset。childrenTruncated 表示该组本页未展开完（含 groupOffset>0 的前序未给），childrenHasMore 只表示后面还有子项。"
+          },
+          "maxNodes": {
+            "type": "integer",
+            "description": "属性树节点预算（effect 用），默认 300、上限 500。节点内超限时省略对应内容并置 expressionTruncated+expressionLength、valueAtTimeTruncated+valueAtTimeSize+valueAtTimeType、valueTruncated+valueType+valueSize（尽量给 valuePreview）；valueType 与 valueAtTimeType 取值同表：null/array/object/string/number/boolean。下一个节点放不下时置 nodeBudgetExhausted；字节预算约 16KB（组骨架可略超），超出置 byteBudgetExhausted。groupPath 模式按至少 2 计。"
+          },
+          "groupPath": {
+            "type": "string",
+            "description": "嵌套组续读（effect 用）：点分 0-based 索引串（如 \"2.0.1\"），只展开该组；配合 groupOffset/groupLimit 输出该组子节点（仍是 children 数组），响应带 scope=\"group\" 与 groupPath/groupOffset/groupLimit/groupHasMore/nextGroupOffset，不返回其它顶层属性，也不输出 matchedCount。只适用于组内续读：与 propertyFilter/propertyOffset 同给直接报错。本页 0 子项时 groupHasMore=false 并置 groupEmptyPage=true。"
+          },
+          "groupOffset": {
+            "type": "integer",
+            "description": "嵌套组子项续读偏移（0-based），effect 用，默认 0；与 groupPath 同用，取上一页的 nextGroupOffset"
+          },
+          "groupLimit": {
+            "type": "integer",
+            "description": "嵌套组单页子项上限，effect 用，默认沿用 propertyLimit（默认 40），上限 200；与 groupPath 同用"
+          }
+        },
+        "required": ["target"]
+      },
+      "shortDescription": "查询对象完整详情（含效果参数）"
+    },
+    {
+      "name": "queryEnvironment",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "utility",
+      "extendScript": "result = queryEnvironment(__args);",
+      "stub": true,
+      "description": "查询 AE 环境。availableEffects 返回效果列表（数据来自面板效果缓存）：未生成、已跳过或生成中不报错，返回 status=unavailable 与 reason、howToGenerate、alternatives（如改用 queryAeApi 查 matchName），生成中另带 progress；就绪时回执 effects/count/totalCount/hasMore。diagnostics 返回丢失素材与表达式错误（missingFootage/expressionErrors 及各自数量）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": ["installPath", "availableEffects", "diagnostics"],
+            "description": "查询目标：installPath=安装路径；availableEffects=可用效果列表（支持 effectFilter/category 过滤和分页）；diagnostics=错误检查（丢失素材+表达式错误，大项目可能较慢）"
+          },
+          "effectFilter": {
+            "type": "string",
+            "description": "效果名或 matchName 过滤（子串匹配，大小写不敏感，任一命中即匹配，如 effectFilter=高斯 命中\"高斯模糊\"ADBE Gaussian Blur 2），availableEffects 用"
+          },
+          "category": {
+            "type": "string",
+            "description": "效果分类过滤（子串匹配 category，大小写不敏感），availableEffects 用"
+          },
+          "itemOffset": {
+            "type": "integer",
+            "description": "分页偏移（0-based），availableEffects 用，默认0"
+          },
+          "itemLimit": {
+            "type": "integer",
+            "description": "分页大小，availableEffects 用，默认20，上限100"
+          }
+        },
+        "required": ["target"]
+      },
+      "shortDescription": "查询环境信息：安装路径/可用效果/错误诊断"
+    },
+    {
+      "name": "executeExtendScript",
+      "scope": { "type": "module", "moduleIds": ["agent", "external-mcp"] },
+      "enabled": true,
+      "category": "utility",
+      "extendScript": "result = executeExtendScript(__args);",
+      "stub": false,
+      "description": "执行自定义 ExtendScript 代码（仅限 AE 对象模型操作）。action 必填（一句话说明本次操作目的）。无 return 时 result 为 undefined（属正常）；查询请用 queryProject/queryDetails（效果参数回读用 queryDetails target=\"effect\"）。返回 {status:'success'|'error', result, message}，result 即代码 return 的值（对象保持对象）；失败回执可能另含 partial:\"unknown\"（抛错前脚本可能已部分执行）与 recovery（回滚提示：本次调用由框架包撤销组时可用 undoLastOperation 整体回滚）。撤销组可自行写 beginUndoGroup/endUndoGroup 精确控制撤销粒度；不写则框架自动兜底包裹。代码契约：复杂操作拆成多个简单步骤分批执行（如批量改属性+创建图层+加效果拆 3 次调用）；仅 ES3 语法（var/function/双引号拼接）；错误用 return 返回结构化信息；禁止 alert/confirm/prompt/Window 弹窗；诊断信息随 return 返回，不用 $.writeln；属性/效果名用 matchName；文件操作优先用内置工具（readFile/importFile/listFolderFiles）。system.callSystem（系统域）/Socket（网络域）/File/Folder（文件域）需用户开启对应能力域（默认关闭，未开启时 AST 门直接拦截）。铁律（任何情况不可违反）：BridgeTalk、$.global/$.evalFile、eval/Function/String.fromCharCode 动态构造、沙箱内部引用（__ael*/__aeS*/_cs 等）无能力域开关，任何形式（直接调用/拼接/中括号/$旁路）均被拦截。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "用一句话简述本次操作目的（中文，≤30字），如「批量设置图层不透明度」「创建3个文本图层」「预合成选中图层」。将显示在工具 UI 上供用户快速理解。"
+          },
+          "code": {
+            "type": "string",
+            "description": "ExtendScript 代码。ES3 语法。"
+          }
+        },
+        "required": ["action", "code"]
+      },
+      "shortDescription": "执行ExtendScript代码（需说明操作目的）"
+    },
+    {
+      "name": "importFile",
+      "scope": { "type": "module", "moduleIds": ["agent", "external-mcp"] },
+      "enabled": true,
+      "category": "utility",
+      "extendScript": "result = importFile(__args);",
+      "description": "把文件导入项目面板根目录（不进入当前选中的文件夹）。文件须存在；路径非法或文件不存在返回 error。默认 importAs='auto'：.psd/.psb 不论层数均按合成导入——根目录新增合成，AE 另建子文件夹存放每层素材（名称随 AE 界面语言本地化），回执给 layers；其余文件保持 AE 默认导入类型（如 .aep 项目导入）。importAs='comp'/'compCropped' 强制按合成导入（仅当 canImportAs 为 true，否则 error），'footage' 强制合并为单条素材。asSequence 与合成导入互斥（序列只能按素材）。不覆盖已存在的项目项，重复导入会各自新增一项。回执 importAs：comp/compCropped/footage=实际采用的导入方式，default=未指定、走 AE 默认类型；item 带 name/index/id/type（comp/footage/other）；合成导入另给 layers（合成图层数，可为 0）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filePath": { "type": "string", "description": "要导入的文件绝对路径" },
+          "importAs": { "type": "string", "description": "导入方式：auto（默认；.psd/.psb 不论层数按合成导入，其余保持默认）/ footage（合并为单条素材）/ comp（按合成导入，每个源图层一条素材）/ compCropped（按合成导入并裁剪图层）。大小写不敏感；分层文件想合并导入时传 footage。必须是字符串；传 comp/compCropped 而文件不能按合成导入、或与 asSequence 同用时返回 error。" },
+          "asSequence": { "type": "boolean", "description": "是否作为序列帧导入，默认 false；与 comp/compCropped 互斥" }
+        },
+        "required": ["filePath"]
+      },
+      "shortDescription": "导入文件到项目"
+    },
+    {
+      "name": "replaceFootage",
+      "scope": { "type": "module", "moduleIds": ["agent", "external-mcp"] },
+      "enabled": true,
+      "category": "utility",
+      "extendScript": "result = replaceFootage(__args);",
+      "description": "替换素材项的源文件。只接受素材（FootageItem）：指向合成或文件夹返回 error；新文件必须存在，否则 error。定位二选一：itemIndex 优先（项目面板位置，1 起），否则 itemName 全等匹配（非子串）。都不命中返回 error。不校验新旧文件的尺寸与帧率是否一致。回执 itemName 与 newPath。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "itemName": { "type": "string", "description": "要替换的项目素材名称" },
+          "itemIndex": { "type": "number", "description": "素材在项目面板中的索引" },
+          "newFilePath": { "type": "string", "description": "替换用的新文件路径" }
+        },
+        "required": ["newFilePath"]
+      },
+      "shortDescription": "替换素材源文件"
+    },
+    {
+      "name": "saveProject",
+      "scope": { "type": "module", "moduleIds": ["agent", "external-mcp"] },
+      "enabled": true,
+      "category": "utility",
+      "extendScript": "result = saveProject(__args);",
+      "description": "保存 AE 工程。带 filePath 另存；省略则存回原路径——工程从未保存过且省略 filePath 时报错。另存后当前工程路径随之改变，后续省略 filePath 的保存落到新路径。覆盖写、不产生备份。回执 mode（save|saveAs）/savedPath/verified/bytes；落盘未确认时返回 error 与 verified=false。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filePath": { "type": "string", "description": "另存目标绝对路径（.aep）；省略则存回原路径" }
+        }
+      },
+      "shortDescription": "保存/另存 AE 工程"
+    },
+    {
+      "name": "renderComp",
+      "scope": { "type": "module", "moduleIds": ["agent", "external-mcp"] },
+      "enabled": true,
+      "category": "render",
+      "extendScript": "result = renderComp(__args);",
+      "stub": true,
+      "description": "渲染合成到指定输出路径（输出目录必须已存在，本工具不建目录）。省略 renderPreset 沿用新建队列项默认；省略 outputModulePreset 时按产物扩展名自动挑兼容模板（规则见该参数），挑不到时报错列出可用模板，不把不兼容组合交给渲染。预设名是 AE 本地化名：先读 app.project.renderQueue.item(n).templates 与 outputModule(1).templates 取可用名，不要按英文名猜。执行：新建队列项并应用预设，校验失败只撤新项、不动旧项；通过后移除同合成旧项（回执 removedOldItems）、设输出路径、旧产物改名 .prev 留一代（回执 backup），再同步渲染。产物命名：影片写请求路径；序列输出模块在请求路径后接帧号（请求 X.png 实落 X.png00000，请求路径本身不存在）——单帧图片产物改名成请求的精确文件名（回执 renamedFrom），多帧不改名，给 products（只列前 100 帧）、productCount（全量）与 productNote。回执：status/comp/productExists/productSize/productPath/productCount/requestedPath、outputPath、outputModule、removedOldItems、backup、elapsedMs、itemStatus，自动套模板时另带 outputModulePresetAuto；渲染失败附可用输出模块预设。已配好队列可直接 executeExtendScript 调 renderQueue.render()。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "outputPath": { "type": "string", "description": "输出文件绝对路径（如 D:\\out\\final.mp4）。需绝对路径；不得含 %、控制字符、引号、. / .. 路径段或 DOS 设备名；不得指向系统目录/盘根或凭据类文件（.ssh/.env/id_rsa 等）" },
+          "compName": { "type": "string", "description": "要渲染的合成名；不传则用当前选中的合成。找不到时报错并列出可用合成名" },
+          "renderPreset": { "type": "string", "description": "渲染设置预设名（AE 本地模板名）。不存在时报错并列出可用名" },
+          "outputModulePreset": { "type": "string", "description": "输出模块预设名（如「无损」「H.264 - 匹配渲染设置 - 15 Mbps」）。省略时：产物 .mp4/.m4v 自动挑 H.264 类模板（自动套用模板时回执 outputModulePresetAuto=true）；其他扩展名沿用 AE 新建队列项默认模块。不存在时报错并列出可用名" }
+        },
+        "required": ["outputPath"]
+      },
+      "shortDescription": "渲染合成到指定输出路径（免 file 域；可带预设、旧产物留一代）"
+    },
+    {
+      "name": "listFolderFiles",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "utility",
+      "extendScript": "result = listFolderFiles(__args);",
+      "stub": true,
+      "description": "列出文件夹内的文件和子文件夹（不递归）。条目带 name/type/path，文件另有 size/modified、文件夹另有 uri；totalFiles/totalFolders 是全量真计数，items 受 maxResults（默认 200、上限 2000）限制，超出时 truncated=true——无 offset 参数，续读靠调大 maxResults 或缩小范围（加 pattern、换子目录）；目录超 20000 条时 scanLimitReached=true，两个总数仅为已扫描前缀。pattern 大小写不敏感，'*.ext' 按真实后缀匹配（'*.png' 不命中 archive.png.txt），图片扩展名另接受「扩展名+纯数字」结尾以命中 AE 序列产物（X.png00000）。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "folderPath": { "type": "string", "description": "要浏览的文件夹绝对路径" },
+          "pattern": { "type": "string", "description": "文件过滤模式，如 '*.ffx'" },
+          "maxResults": { "type": "number", "description": "最大返回条目数，默认 200" }
+        },
+        "required": ["folderPath"]
+      },
+      "shortDescription": "列出文件夹内容"
+    },
+    {
+      "name": "getPreviewFrame",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "utility",
+      "extendScript": "result = getPreviewFrame(__args);",
+      "description": "获取 After Effects 当前活动合成的预览帧截图。单时间点（timeInSeconds）返回一张 PNG；多时间点（timesInSeconds，2–6 个）逐帧抓取后合成一张带时间标签的联系表，用于检查动画连续性、出场层次、形变是否连贯。截图会自动注入上下文供视觉分析。核对局部细节（文字、UI、边缘）时传 region 或 zoom：注入的是裁切放大图，整帧仍在 fullFramePath（单帧）或 frames[].filePath（多帧）。回执带解析出的 compositionId 与 compName；compName 命中多个同名合成时返回 error 与 matchedCompositionIds，改用 compositionId 指定目标（不静默取首个）。timeInSeconds 越界钳制到 [0, duration]，此时回执带 timeClamped=true 与 requestedAt。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "compName": { "type": "string", "description": "合成名称，不传则用当前活动合成" },
+          "compositionId": { "type": "integer", "description": "合成稳定 id（Item.id）：优先于 compName；同名合成时必须用 id 指定目标" },
+          "timeInSeconds": { "type": "number", "description": "截图时间点（秒），默认当前时间指针位置" },
+          "timesInSeconds": { "type": "array", "items": { "type": "number" }, "description": "多时间点抓帧（秒，2–6 个）：≥2 个时合成一张联系表，每格左上角为该帧时间；1 个等同 timeInSeconds。与 timeInSeconds 二选一，本参数优先。抓帧预算按帧数伸缩（2 帧 27s 起，6 帧最多 75s），预算内没抓完会返回 partial 与 timesMissing，补齐时把未抓的时间点再传一次即可" },
+          "region": {
+            "type": "object",
+            "description": "局部裁切放大（0–1 归一化，左上角为原点）：{x,y,width,height}，如 {x:0.25,y:0.7,width:0.5,height:0.2} 取画面下部一条。越界自动钳制；裁切后长边不足 960 时最多放大 2 倍。与 zoom 二选一，region 优先",
+            "required": ["width", "height"],
+            "properties": {
+              "x": { "type": "number", "description": "裁切区左上角 x（0–1），缺省 0" },
+              "y": { "type": "number", "description": "裁切区左上角 y（0–1），缺省 0" },
+              "width": { "type": "number", "description": "裁切区宽度占比（0–1）" },
+              "height": { "type": "number", "description": "裁切区高度占比（0–1）" }
+            }
+          },
+          "zoom": { "type": "number", "minimum": 1, "maximum": 16, "description": "中心放大倍数（1–16）：1 等同整帧；2 = 取中心 1/2 宽、1/2 高；4 = 取中心 1/4 宽、1/4 高。与 region 二选一" }
+        },
+        "required": []
+      },
+      "shortDescription": "获取预览帧截图/多帧联系表"
+    },
+    {
+      "name": "analyzeImage",
+      "scope": { "type": "module", "moduleIds": ["agent", "script", "external-mcp"] },
+      "enabled": true,
+      "readOnly": true,
+      "category": "utility",
+      "extendScript": "result = analyzeImage(__args);",
+      "description": "分析图片像素并返回量化指标。不传 filePath：抓当前合成帧后分析，帧图在主模型可看图或配了视觉代理时随结果注入上下文（compName/compositionId/compositionIndex 或活动合成，timeInSeconds 单点、timesInSeconds 多点）。传 filePath：只分析该 PNG/JPEG 的指标，不回图。返回 analysis：亮度分布（均值/中位数/标准差/分位数/直方图/过曝欠曝/动态范围/对比度/熵）、RGB 与 HSV 统计、主色与覆盖度、色数/灰度/色彩丰富度、alpha、3×3/4×4 灰度网格与暗角、边缘/清晰度/噪声、8×8 aHash/dHash/vHash、可选矩形区域；多帧另给帧间统计。传 comparePath：输出 compare（MAE/RMSE/PSNR/SSIM/变化像素占比/直方图相似度/汉明距离/分档判定），多帧逐帧对比并给最佳帧。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filePath": { "type": "string", "description": "要分析的图片绝对路径（PNG/JPEG；也接受渲染序列产物名如 X.png00000）。给了就只回指标不回图、不抓帧" },
+          "comparePath": { "type": "string", "description": "可选：参考图绝对路径（PNG/JPEG）。给了就输出 compare 对比指标（对比对象=分析的图片或抓到的帧；多帧模式逐帧对比同一张参考图）" },
+          "compName": { "type": "string", "description": "抓帧模式的合成名；不传则用当前活动合成。仅在不传 filePath 时生效" },
+          "compositionId": { "type": "number", "description": "抓帧模式的合成 Item.id（稳定键，优先于 compName 与活动合成）" },
+          "compositionIndex": { "type": "number", "description": "抓帧模式的合成索引（工程面板顺序，1 起）。无 id 时使用" },
+          "timeInSeconds": { "type": "number", "description": "抓帧模式的时间点（秒），默认当前时间指针位置" },
+          "timesInSeconds": { "type": "array", "items": { "type": "number" }, "description": "多时间点抓帧（2–6 个，秒）：逐帧分析并合成带时间标签的联系表注入上下文；与 timeInSeconds 二选一，本参数优先。抓帧预算按帧数伸缩（最多 75s），未抓完返回 partial 与 timesMissing，补齐时把未抓时间点再传一次即可" },
+          "maxEdge": { "type": "number", "description": "分析采样图的最长边像素，默认 1024。只影响统计精度与耗时，不改变回送的抓帧图" },
+          "topColors": { "type": "number", "description": "主色返回数量，默认 8（最多 16）" },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
+              },
+              "required": ["x", "y", "width", "height"]
+            },
+            "description": "可选矩形区域统计（最多 8 个），坐标按源图像素（左上角为原点）。逐区域返回亮度均值/标准差、过曝欠曝比例、RGB 均值、饱和度均值"
+          }
+        },
+        "required": []
+      },
+      "shortDescription": "分析图片像素指标/对比参考图（可抓当前合成帧并回图）"
+    }
+  ]
+}

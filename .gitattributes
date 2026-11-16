@@ -1,0 +1,4 @@
+# 批处理脚本行尾固定 CRLF：cmd.exe 按 CRLF 切行，标签查找/多行 call 依赖它。
+# 公开树不含 vendor 二进制（LFS 规则只在私有库根 .gitattributes，导出时被本文件整文件覆盖）。
+*.bat text eol=crlf
+*.cmd text eol=crlf

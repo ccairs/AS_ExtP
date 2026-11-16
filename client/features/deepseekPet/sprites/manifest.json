@@ -1,0 +1,22 @@
+{
+  "frameWidth": 320,
+  "frameHeight": 320,
+  "states": {
+    "appear":     { "file": "appear.png",     "frames": 97,  "cols": 10, "rows": 10, "fps": 24, "loop": false },
+    "idle":       { "file": "idle.png",       "frames": 48,  "cols": 10, "rows": 5,  "fps": 24, "loop": true  },
+    "walkRight":  { "file": "walkRight.png",  "frames": 97,  "cols": 10, "rows": 10, "fps": 24, "loop": false },
+    "walkLeft":   { "file": "walkLeft.png",   "frames": 110, "cols": 10, "rows": 13, "fps": 24, "loop": false },
+    "click":      { "file": "click.png",      "frames": 92,  "cols": 10, "rows": 10, "fps": 24, "loop": false },
+    "clickRage":  { "file": "clickRage.png",  "frames": 67,  "cols": 10, "rows": 8,  "fps": 24, "loop": false },
+    "stretch":    { "file": "stretch.png",    "frames": 49,  "cols": 10, "rows": 5,  "fps": 24, "loop": false },
+    "potHead":    { "file": "potHead.png",    "frames": 97,  "cols": 10, "rows": 10, "fps": 24, "loop": false },
+    "eat":        { "file": "eat.png",        "frames": 121, "cols": 10, "rows": 13, "fps": 24, "loop": false },
+    "sleepStart": { "file": "sleepStart.png", "frames": 60,  "cols": 10, "rows": 6,  "fps": 24, "loop": false },
+    "sleep":      { "file": "sleepLoop.png",  "frames": 47,  "cols": 10, "rows": 5,  "fps": 24, "loop": true  },
+    "wakeUp":     { "file": "wakeUp.png",     "frames": 87,  "cols": 10, "rows": 9,  "fps": 24, "loop": false },
+    "dragStart":  { "file": "dragStart.png",  "frames": 51,  "cols": 10, "rows": 7,  "fps": 24, "loop": false },
+    "drag":       { "file": "dragging.png",   "frames": 78,  "cols": 10, "rows": 8,  "fps": 24, "loop": true  },
+    "dragEnd":    { "file": "dragEnd.png",    "frames": 25,  "cols": 10, "rows": 3,  "fps": 24, "loop": false },
+    "crash":      { "file": "crash.png",      "frames": 97,  "cols": 10, "rows": 10, "fps": 24, "loop": true  }
+  }
+}

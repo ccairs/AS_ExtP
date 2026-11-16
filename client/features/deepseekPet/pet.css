@@ -1,0 +1,998 @@
+/* pet.css — 大肥鱼桌宠模块样式 */
+
+/* ========== 桌宠容器 ========== */
+.dspet-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 160px;
+    height: 160px;
+    z-index: 9998;
+    pointer-events: none;
+    user-select: none;
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+}
+
+/* canvas 元素：宽高由 JS 通过 style.width/height 控制（与 _displayScale 同步）
+   background-* 属性对 canvas 无效但保留兼容旧 div 写法 */
+.dspet-sprite {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: auto;
+    cursor: pointer;
+    background-repeat: no-repeat;
+    background-color: transparent;
+    image-rendering: pixelated;
+    transform-origin: center center;
+    will-change: transform;
+}
+
+.dspet-sprite.dragging {
+    cursor: grabbing;
+}
+
+.dspet-sprite.sleeping {
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* ========== 长按读条 ========== */
+/* 圆形进度条：橙色环在长按阈值（600ms）内填满一圈，填满即触发聊天框
+   位置：对齐聊天框（bottom: 160px），ring 显示在聊天框同一水平线上方
+   尺寸：缩小到序列帧的 28%（之前 40%），不遮挡桌宠本体
+   实现：SVG 双 circle（track + progress），progress 用 stroke-dashoffset
+         动画从 100（空）到 0（满），线性填充 */
+.dspet-longpress-ring {
+    position: absolute;
+    bottom: 170px;
+    left: 50%;
+    width: 28%;
+    height: 28%;
+    margin-left: -14%;
+    pointer-events: none;
+    z-index: 10001;
+    box-sizing: border-box;
+}
+
+.dspet-longpress-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);  /* 进度从 12 点钟方向开始 */
+}
+
+.dspet-longpress-ring .dspet-ring-track {
+    stroke: rgba(var(--accent-rgb), 0.15);
+    stroke-width: 2.5;
+}
+
+.dspet-longpress-ring .dspet-ring-progress {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-dasharray: 100;       /* ≈ 2 * π * 15.9 ≈ 99.9，取 100 简化 */
+    stroke-dashoffset: 100;
+    animation: dspet-longpress-fill 600ms linear forwards;
+}
+
+@keyframes dspet-longpress-fill {
+    to { stroke-dashoffset: 0; }
+}
+
+/* ========== 点击扩散圆 ========== */
+/* 点击桌宠时在点击位置生成白色细环涟漪动画，400ms 扩散淡出 */
+.dspet-click-ripple {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+    z-index: 9999;
+    animation: dspet-ripple-spread 400ms ease-out forwards;
+}
+
+@keyframes dspet-ripple-spread {
+    from {
+        width: 12px;
+        height: 12px;
+        margin-left: -6px;
+        margin-top: -6px;
+        opacity: 1;
+    }
+    to {
+        width: 120px;
+        height: 120px;
+        margin-left: -60px;
+        margin-top: -60px;
+        opacity: 0;
+    }
+}
+
+/* ========== 右键菜单 ========== */
+.dspet-context-menu {
+    position: fixed;
+    z-index: 10003;
+    min-width: 120px;
+    background: var(--surface-1, #1a1e24);
+    border: 1px solid var(--border, #353a44);
+    border-radius: 5px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    padding: 3px 0;
+    opacity: 0;
+    transform: scale(0.95) translateY(-4px);
+    transform-origin: top left;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    pointer-events: none;
+}
+
+.dspet-context-menu.visible {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
+}
+
+.dspet-context-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 5px 12px;
+    font-size: 11px;
+    color: var(--text-main, #f0f2f5);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s ease;
+}
+
+.dspet-context-menu-item:hover {
+    background: var(--accent-soft, rgba(251, 191, 36, 0.15));
+    color: var(--accent, #fbbf24);
+}
+
+.dspet-context-menu-item.danger {
+    color: var(--danger-vivid);
+}
+
+.dspet-context-menu-item.danger:hover {
+    background: rgba(var(--danger-vivid-rgb),.15);
+}
+
+.dspet-context-menu-separator {
+    height: 1px;
+    margin: 2px 0;
+    background: var(--border, #353a44);
+}
+
+.dspet-emoji-fallback {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 160px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 80px;
+    background: rgba(100, 120, 160, 0.3);
+    border-radius: 12px;
+    pointer-events: auto;
+    cursor: grab;
+}
+
+/* ========== 气泡 ========== */
+/* 文本气泡：深色系，与聊天框样式统一
+   不限制 max-height，长文本自适应（避免被裁切）
+   hover 时 JS 取消自动隐藏 timer，鼠标移开重新计时 */
+.dspet-bubble {
+    position: absolute;
+    bottom: 160px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 280px;
+    width: max-content;
+    min-height: 24px;
+    padding: 8px 12px;
+    background: rgba(33, 38, 48, 0.96);
+    color: #e0e4ec;
+    border: 1px solid rgba(var(--link-rgb),.3);
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 9999;
+    box-sizing: border-box;
+}
+
+.dspet-bubble.visible {
+    opacity: 1;
+}
+
+.dspet-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    margin-left: -6px;
+    border: 6px solid transparent;
+    border-top-color: rgba(33, 38, 48, 0.96);
+    border-bottom: 0;
+}
+
+/* ========== 对话输入框 ========== */
+/* 独立于气泡样式，深色系符合项目风格，不裁切输入框
+   定位：桌宠下方（top: 100% + 6px 间隙），气泡在桌宠上方 */
+.dspet-chat-input {
+    position: absolute;
+    top: calc(100% + 6px);
+    bottom: auto;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 8px;
+    width: 260px;
+    left: 50%;
+    margin-left: -130px;
+    background: rgba(33, 38, 48, 0.96);
+    border: 1px solid rgba(var(--link-rgb),.4);
+    border-radius: 8px;
+    box-sizing: border-box;
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+    transform-origin: center top;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+}
+
+.dspet-chat-input.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.dspet-chat-input.hiding {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+}
+
+.dspet-chat-input input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 13px;
+    background: var(--border-modal-light);
+    color: #e0e4ec;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.dspet-chat-input input::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.dspet-chat-input input:focus {
+    border-color: var(--link);
+    background: rgba(var(--link-rgb),.1);
+}
+
+.dspet-chat-input button {
+    flex-shrink: 0;
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    background: var(--border-modal-light);
+    color: var(--btn-text);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.dspet-chat-input button:hover {
+    border-color: var(--link);
+    background: rgba(var(--link-rgb),.15);
+}
+
+.dspet-chat-loading {
+    color: var(--text-muted, #7a8090);
+    font-size: 12px;
+    font-style: italic;
+}
+
+.dspet-chat-error {
+    color: var(--danger-vivid);
+    font-size: 12px;
+}
+
+.dspet-chat-history-btn {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    font-size: 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.dspet-chat-history-btn:hover {
+    opacity: 1;
+}
+
+/* ========== 活动区域选择器 ========== */
+.dspet-zone-selector {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9997;
+    pointer-events: auto;
+    cursor: default;
+    /* 默认不模糊，通过 .blur 类控制 */
+    transition: backdrop-filter 0.2s, background 0.2s;
+}
+
+/* 模糊压暗背景：复选框开启时加 .blur 类到 overlay */
+.dspet-zone-selector.blur {
+    backdrop-filter: blur(4px) brightness(0.5);
+    -webkit-backdrop-filter: blur(4px) brightness(0.5);
+    background: rgba(0, 0, 0, 0.35);
+}
+
+/* 复选框容器：扁平样式 */
+.dspet-zone-blur-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--btn-text);
+}
+
+.dspet-zone-blur-toggle input {
+    margin: 0;
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+    /* 去掉 focus 时的橙色竖条（浏览器默认 focus ring 渲染在 input 内部） */
+    outline: none;
+    -webkit-focus-ring-color: transparent;
+}
+
+.dspet-zone-blur-toggle input:focus {
+    outline: none;
+}
+
+.dspet-zone-blur-toggle:hover {
+    color: var(--text-main);
+}
+
+.dspet-zone-box {
+    position: absolute;
+    border: 2px solid var(--accent, #fbbf24);
+    background: rgba(var(--accent-rgb), 0.08);
+    cursor: move;
+    box-sizing: border-box;
+}
+
+.dspet-zone-handle {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: var(--accent, #fbbf24);
+    border: 2px solid var(--app-bg);
+    border-radius: 50%;
+    box-sizing: border-box;
+    z-index: 1;
+}
+.dspet-zone-handle.nw { top: -7px; left: -7px; cursor: nwse-resize; }
+.dspet-zone-handle.ne { top: -7px; right: -7px; cursor: nesw-resize; }
+.dspet-zone-handle.sw { bottom: -7px; left: -7px; cursor: nesw-resize; }
+.dspet-zone-handle.se { bottom: -7px; right: -7px; cursor: nwse-resize; }
+
+.dspet-zone-rect {
+    position: absolute;
+    border: 2px dashed var(--accent, #fbbf24);
+    background: rgba(var(--accent-rgb), 0.1);
+}
+
+.dspet-zone-hint {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    background: rgba(26, 30, 36, 0.92);
+    color: var(--text-main);
+    border: 1px solid var(--border-modal);
+    border-radius: 999px;  /* 胶囊形 */
+    font-size: 13px;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;  /* 关键：禁止换行，避免文字竖排 */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(8px);
+}
+
+.dspet-zone-hint span {
+    white-space: nowrap;
+    color: var(--btn-text);
+}
+
+.dspet-zone-hint button {
+    padding: 5px 14px;
+    border: none;
+    border-radius: 999px;
+    background: var(--border-modal);
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background 0.15s, transform 0.1s;
+}
+
+.dspet-zone-hint button:active {
+    transform: scale(0.96);
+}
+
+.dspet-zone-hint button[data-act="confirm"] {
+    background: var(--accent, #fbbf24);
+    color: var(--app-bg);
+    font-weight: 600;
+}
+
+.dspet-zone-hint button[data-act="confirm"]:hover {
+    background: #fcd34d;
+}
+
+.dspet-zone-hint button[data-act="skip"]:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* ========== 历史面板 ========== */
+.dspet-history-panel {
+    position: fixed;
+    top: 60px;
+    right: 20px;
+    width: 380px;
+    max-height: 50vh;
+    background: var(--surface-1, #1a1e24);
+    border: 1px solid var(--border, #353a44);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+    transform-origin: top right;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+}
+
+.dspet-history-panel.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+}
+
+.dspet-history-panel.hiding {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+    pointer-events: none;
+}
+
+.dspet-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border, #353a44);
+}
+
+.dspet-history-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.dspet-history-tab {
+    padding: 4px 12px;
+    border: 1px solid var(--border, #353a44);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #7a8090);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.dspet-history-tab.active {
+    background: var(--accent-soft, rgba(var(--accent-rgb),.15));
+    color: var(--accent, #fbbf24);
+    border-color: var(--accent, #fbbf24);
+}
+
+.dspet-history-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #7a8090);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+}
+
+.dspet-history-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 14px;
+    min-height: 0;
+}
+
+.dspet-history-toolbar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.dspet-history-search {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    border: 1px solid var(--border, #353a44);
+    border-radius: 4px;
+    background: var(--input-bg, rgba(20,26,32,.6));
+    color: var(--text-main, #f0f2f5);
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.dspet-history-clear-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: 1px solid rgba(var(--danger-vivid-rgb),.3);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--danger-vivid);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.dspet-history-clear-btn:hover {
+    background: rgba(var(--danger-vivid-rgb),.1);
+    border-color: rgba(var(--danger-vivid-rgb),.5);
+}
+
+.dspet-history-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    background: var(--surface-3, rgba(20,26,32,0.6));
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dspet-history-item .role {
+    flex-shrink: 0;
+    font-weight: bold;
+    color: var(--accent, #fbbf24);
+    margin-right: 2px;
+}
+
+.dspet-history-item .role.tool {
+    color: #58b7ff;
+}
+
+.dspet-history-item .role.assistant {
+    color: var(--signal-green);
+}
+
+.dspet-history-item .content {
+    flex: 1;
+    min-width: 0;
+    word-wrap: break-word;
+}
+
+/* 统一删除按钮样式：历史和记忆面板共用 */
+.dspet-history-item .mem-del,
+.dspet-memory-item .mem-del {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted, #7a8090);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1.4;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.dspet-history-item .mem-del:hover,
+.dspet-memory-item .mem-del:hover {
+    color: var(--danger-vivid);
+    border-color: rgba(var(--danger-vivid-rgb),.3);
+    background: rgba(var(--danger-vivid-rgb),.08);
+}
+
+.dspet-history-summary {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    border: 1px dashed var(--border, #353a44);
+    background: rgba(var(--accent-rgb), 0.05);
+    font-size: 11px;
+    color: var(--text-muted, #7a8090);
+}
+
+/* 记忆卡片：块级布局（原为 flex 行：正文与标签/删除按钮同一行，
+   长正文被挤成窄列、按钮漂在卡片中部） */
+.dspet-memory-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    background: var(--surface-3, rgba(20,26,32,0.6));
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* 头部行：标签靠左、删除靠右 */
+.dspet-memory-item .mem-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.dspet-memory-item .mem-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.dspet-memory-item .mem-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--accent-soft, rgba(var(--accent-rgb),.15));
+    color: var(--accent, #fbbf24);
+    font-size: 10px;
+}
+
+/* 正文：pre-wrap 保留记忆自身的换行（LLM 写的分段不再挤成一坨）；
+   超长折叠 4 行（-webkit-line-clamp 在 CEF/Chromium 可用），
+   是否折叠由 petHistoryPanel._isLongMemory 按字数/行数判定 */
+.dspet-memory-item .mem-content {
+    display: block;
+    margin-top: 4px;
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: pre-wrap;
+    color: var(--text-main, #f0f2f5);
+}
+
+.dspet-memory-item .mem-content.mem-clamped {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+}
+
+.dspet-memory-item .mem-toggle {
+    margin-top: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--accent, #fbbf24);
+    font-size: 11px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.dspet-memory-item .mem-toggle:hover {
+    text-decoration: underline;
+}
+
+.dspet-memory-importance-high {
+    border-left: 3px solid var(--danger-vivid);
+}
+
+.dspet-memory-importance-medium {
+    border-left: 3px solid var(--accent);
+}
+
+.dspet-memory-importance-low {
+    border-left: 3px solid var(--text-muted);
+}
+
+.dspet-memory-filter {
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--border, #353a44);
+    border-radius: 4px;
+    background: var(--input-bg, rgba(20,26,32,.6));
+    color: var(--text-main, #f0f2f5);
+    font-size: 12px;
+    outline: none;
+}
+
+/* ========== 桌宠设置弹窗 ========== */
+#petSettingsModal {
+    z-index: 10002;
+}
+
+/* 与 model-manager.css 的 .modal-mask.open 一致：用 .open 类切显示，
+   不能只切 style.display ——.modal-mask 默认 opacity:0，必须同时切 opacity。
+   .modal 也默认 opacity:0 + translateY(10px) scale(.98)，需一并切到可见态。 */
+#petSettingsModal.open {
+    display: flex;
+    opacity: 1;
+}
+
+#petSettingsModal.open .modal {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+#petSettingsModal .modal {
+    max-width: 500px;
+    width: min(500px, 92vw);
+}
+
+.pet-settings-modal .modal-head {
+    border-bottom: 1px solid var(--border, #353a44);
+}
+
+.pet-settings-modal .modal-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main, #f0f2f5);
+}
+
+/* —— body：纵向滚动，禁止横向滚动 —— */
+.pet-settings-body {
+    padding: 4px 18px 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 72vh;
+}
+
+/* —— 行：统一 padding，所有 row 一致间距 —— */
+.pet-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    gap: 16px;
+    border-bottom: 1px solid rgba(53, 58, 68, 0.4);
+}
+
+.pet-settings-row:last-of-type {
+    border-bottom: none;
+}
+
+/* 文本输入框（如"你的名字"） */
+.pet-settings-text-input {
+    width: 140px;
+    padding: 4px 8px;
+    border: 1px solid var(--border, #353a44);
+    border-radius: 4px;
+    font-size: 13px;
+    background: rgba(53, 58, 68, 0.4);
+    color: var(--text-main, #f0f2f5);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s, background 0.2s;
+}
+.pet-settings-text-input:focus {
+    border-color: var(--link);
+    background: rgba(var(--link-rgb),.15);
+}
+.pet-settings-text-input::placeholder {
+    color: var(--text-muted, #8b94a3);
+}
+
+/* 多行 row（含子内容堆叠）也保持相同的上下 padding */
+.pet-settings-row-col {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+/* 多行 row 内的顶部水平行（label + 状态/数值） */
+.pet-settings-row-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* —— label 文本 + 说明小字 —— */
+.pet-settings-label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pet-settings-label-text {
+    font-size: 13px;
+    color: var(--text-main, #f0f2f5);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pet-settings-label-tip {
+    font-size: 11px;
+    color: var(--text-muted, #7a8090);
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* —— 控件宽度 —— */
+#petSettingModel {
+    min-width: 0;
+    flex: 1;
+    max-width: 240px;
+}
+
+/* —— 闲时播报：双滑块 —— */
+.pet-range-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+}
+
+.pet-range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pet-range-label {
+    font-size: 11px;
+    color: var(--text-muted, #7a8090);
+    width: 30px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.pet-range-value {
+    width: 40px;
+    text-align: left;
+    color: var(--text-main, #f0f2f5);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.pet-range-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+}
+
+.pet-settings-interval-value {
+    font-size: 12px;
+    color: var(--text-muted, #7a8090);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+/* —— 活动区域：状态 + 按钮组放同一行 —— */
+.pet-zone-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+.pet-zone-actions .btn {
+    padding: 4px 10px;
+    font-size: 11px;
+}
+
+.pet-zone-status {
+    font-size: 11px;
+    color: var(--text-main, #f0f2f5);
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--accent-soft, rgba(251, 191, 36, 0.12));
+    border: 1px solid rgba(var(--accent-rgb), 0.3);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.pet-zone-status.is-empty {
+    color: var(--text-muted, #7a8090);
+    background: var(--surface-3, rgba(20, 26, 32, 0.6));
+    border-color: var(--border, #353a44);
+}
+
+/* —— 危险按钮 —— */
+.pet-btn-danger {
+    background: #a12828 !important;
+    color: #fff !important;
+    border-color: #7a1f1f !important;
+    padding: 5px 12px;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.pet-btn-danger:hover {
+    background: #b83232 !important;
+}
+
+.pet-btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pet-settings-section-danger .pet-settings-label-text {
+    color: var(--danger-vivid);
+}
+
+/* —— 关于卡片 —— */
+.pet-settings-about {
+    padding: 12px 14px;
+    margin-top: 14px;
+    border-radius: 6px;
+    background: var(--surface-3, rgba(20, 26, 32, 0.6));
+    border: 1px solid var(--border, #353a44);
+    text-align: center;
+}
+
+.pet-settings-about-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main, #f0f2f5);
+    margin-bottom: 4px;
+}
+
+.pet-settings-about-line {
+    font-size: 11px;
+    color: var(--text-muted, #7a8090);
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.pet-settings-about-tip {
+    font-size: 11px;
+    color: var(--text-muted, #7a8090);
+    line-height: 1.5;
+}
+
+.pet-settings-about-tip code,
+.pet-settings-about-line code {
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: var(--accent-soft, rgba(251, 191, 36, 0.15));
+    color: var(--accent, #fbbf24);
+    font-family: ui-monospace, "JetBrains Mono", Consolas, monospace;
+    font-size: 10px;
+}

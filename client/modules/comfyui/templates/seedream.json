@@ -1,0 +1,131 @@
+{
+    "id": "seedream",
+    "name": "Seedream",
+    "description": "ByteDance Seedream 4.5/5.0 云端文生图（需要 ComfyUI 账户积分）",
+    "category": "image",
+    "mode": "txt2img",
+    "cloud": true,
+    "parameters": [
+        { "key": "prompt", "label": "提示词", "type": "textarea", "required": true },
+        { "key": "model", "label": "模型", "type": "select", "choices": ["seedream 5.0 lite", "seedream-4-5-251128", "seedream-4-0-250828"], "default": "seedream 5.0 lite" },
+        { "key": "model.size_preset", "label": "尺寸", "type": "select", "choices": [
+            "(2K) 2048x2048 (1:1)",
+            "(2K) 1728x2304 (3:4)",
+            "(2K) 2304x1728 (4:3)",
+            "(2K) 2848x1600 (16:9)",
+            "(2K) 1600x2848 (9:16)",
+            "(2K) 1664x2496 (2:3)",
+            "(2K) 2496x1664 (3:2)",
+            "(2K) 3136x1344 (21:9)",
+            "(4K) 4096x4096 (1:1)",
+            "(4K) 3520x4704 (3:4)",
+            "(4K) 4704x3520 (4:3)",
+            "(4K) 5504x3040 (16:9)",
+            "(4K) 3040x5504 (9:16)",
+            "(4K) 3328x4992 (2:3)",
+            "(4K) 4992x3328 (3:2)",
+            "(4K) 6240x2656 (21:9)",
+            "Custom"
+        ], "default": "(2K) 2048x2048 (1:1)" },
+        { "key": "model.width", "label": "自定义宽度", "type": "number", "default": 2048, "min": 1024, "max": 6240, "step": 2 },
+        { "key": "model.height", "label": "自定义高度", "type": "number", "default": 2048, "min": 1024, "max": 4992, "step": 2 },
+        { "key": "model.max_images", "label": "生成数量", "type": "number", "default": 1, "min": 1, "max": 15, "step": 1 },
+        { "key": "reference_image", "label": "参考图片(可选)", "type": "image", "multiple": true, "maxCount": 10 },
+        { "key": "batch_size", "label": "批量生成", "type": "number", "default": 1, "min": 1, "max": 20, "step": 1 },
+        { "key": "seed", "label": "种子", "type": "number", "default": 0, "min": 0, "max": 2147483647 },
+        { "key": "watermark", "label": "水印", "type": "boolean", "default": false },
+        { "key": "model.fail_on_partial", "label": "部分失败中止", "type": "boolean", "default": false }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "ByteDanceSeedreamNodeV2",
+            "inputs": {
+                "prompt": "{{prompt}}",
+                "model": "{{model}}",
+                "model.size_preset": "{{model.size_preset}}",
+                "model.width": "{{model.width}}",
+                "model.height": "{{model.height}}",
+                "model.max_images": "{{model.max_images}}",
+                "model.images.image_1": ["ref_image_loader_1", 0],
+                "model.images.image_2": ["ref_image_loader_2", 0],
+                "model.images.image_3": ["ref_image_loader_3", 0],
+                "model.images.image_4": ["ref_image_loader_4", 0],
+                "model.images.image_5": ["ref_image_loader_5", 0],
+                "model.images.image_6": ["ref_image_loader_6", 0],
+                "model.images.image_7": ["ref_image_loader_7", 0],
+                "model.images.image_8": ["ref_image_loader_8", 0],
+                "model.images.image_9": ["ref_image_loader_9", 0],
+                "model.images.image_10": ["ref_image_loader_10", 0],
+                "seed": "{{seed}}",
+                "watermark": "{{watermark}}",
+                "model.fail_on_partial": "{{model.fail_on_partial}}"
+            }
+        },
+        "2": {
+            "class_type": "PreviewImage",
+            "inputs": {
+                "images": ["1", 0]
+            }
+        },
+        "ref_image_loader_1": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_1}}"
+            }
+        },
+        "ref_image_loader_2": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_2}}"
+            }
+        },
+        "ref_image_loader_3": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_3}}"
+            }
+        },
+        "ref_image_loader_4": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_4}}"
+            }
+        },
+        "ref_image_loader_5": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_5}}"
+            }
+        },
+        "ref_image_loader_6": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_6}}"
+            }
+        },
+        "ref_image_loader_7": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_7}}"
+            }
+        },
+        "ref_image_loader_8": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_8}}"
+            }
+        },
+        "ref_image_loader_9": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_9}}"
+            }
+        },
+        "ref_image_loader_10": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_10}}"
+            }
+        }
+    }
+}

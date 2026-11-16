@@ -1,0 +1,15 @@
+node_modules/
+/build/
+/dist/
+/deploy/
+/vendor/
+/temp/
+.env*
+*.pem
+*.key
+*.local.json
+secrets*
+sess_*.json
+*.log
+.DS_Store
+Thumbs.db

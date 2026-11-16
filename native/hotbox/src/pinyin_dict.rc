@@ -1,0 +1,3 @@
+// pinyin_dict.rc — pinyin-data dictionary embedded as RCDATA (loaded by search.cpp)
+// Path is resolved by rc.exe relative to this file.
+PINYIN_DICT RCDATA "../third_party/PinIn4Cpp/test_data/pinyin.txt"

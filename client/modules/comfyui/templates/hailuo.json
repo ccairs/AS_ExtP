@@ -1,0 +1,44 @@
+{
+    "id": "hailuo",
+    "name": "海螺视频",
+    "description": "MiniMax Hailuo-02 云端视频生成，支持纯文生视频或加首帧图生视频（需要 ComfyUI 账户积分）",
+    "category": "video",
+    "mode": "txt2vid",
+    "cloud": true,
+    "parameters": [
+        { "key": "prompt_text", "label": "提示词", "type": "textarea", "required": true },
+        { "key": "first_frame_image", "label": "首帧图片(可选)", "type": "image" },
+        { "key": "prompt_optimizer", "label": "提示词优化", "type": "boolean", "default": true },
+        { "key": "duration", "label": "时长(秒)", "type": "number", "default": 6, "min": 6, "max": 10, "step": 4 },
+        { "key": "resolution", "label": "分辨率", "type": "select", "choices": ["768P", "1080P"], "default": "768P" },
+        { "key": "seed", "label": "种子", "type": "number", "default": 0, "min": 0, "max": 2147483647 }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "MinimaxHailuoVideoNode",
+            "inputs": {
+                "prompt_text": "{{prompt_text}}",
+                "seed": "{{seed}}",
+                "first_frame_image": ["first_frame_loader", 0],
+                "prompt_optimizer": "{{prompt_optimizer}}",
+                "duration": "{{duration}}",
+                "resolution": "{{resolution}}"
+            }
+        },
+        "2": {
+            "class_type": "SaveVideo",
+            "inputs": {
+                "video": ["1", 0],
+                "filename_prefix": "video/ComfyUI",
+                "format": "auto",
+                "codec": "auto"
+            }
+        },
+        "first_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{first_frame_image}}"
+            }
+        }
+    }
+}

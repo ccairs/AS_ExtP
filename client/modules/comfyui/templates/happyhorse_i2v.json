@@ -1,0 +1,45 @@
+{
+    "id": "happyhorse_i2v",
+    "name": "HappyHorse 图生视频",
+    "description": "HappyHorse 首帧图生视频（需要 ComfyUI 账户积分）",
+    "category": "video",
+    "mode": "img2vid",
+    "cloud": true,
+    "parameters": [
+        { "key": "first_frame", "label": "首帧图片", "type": "image", "required": true },
+        { "key": "prompt", "label": "提示词", "type": "textarea" },
+        { "key": "resolution", "label": "分辨率", "type": "select", "choices": ["720P", "1080P"], "default": "720P" },
+        { "key": "duration", "label": "时长(秒)", "type": "number", "default": 5, "min": 3, "max": 15, "step": 1 },
+        { "key": "seed", "label": "种子", "type": "number", "default": 0, "min": 0, "max": 2147483647 },
+        { "key": "watermark", "label": "水印", "type": "boolean", "default": false }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "HappyHorseImageToVideoApi",
+            "inputs": {
+                "model": "happyhorse-1.0-i2v",
+                "model.prompt": "{{prompt}}",
+                "model.resolution": "{{resolution}}",
+                "model.duration": "{{duration}}",
+                "first_frame": ["first_frame_loader", 0],
+                "seed": "{{seed}}",
+                "watermark": "{{watermark}}"
+            }
+        },
+        "2": {
+            "class_type": "SaveVideo",
+            "inputs": {
+                "video": ["1", 0],
+                "filename_prefix": "video/ComfyUI",
+                "format": "auto",
+                "codec": "auto"
+            }
+        },
+        "first_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{first_frame}}"
+            }
+        }
+    }
+}

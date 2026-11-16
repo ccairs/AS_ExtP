@@ -1,0 +1,136 @@
+{
+    "id": "nano_banana2",
+    "name": "Nano Banana 2",
+    "description": "Google Gemini Nano Banana 2 文生图（需要 ComfyUI 账户积分或 API Key）",
+    "category": "image",
+    "mode": "txt2img",
+    "cloud": true,
+    "parameters": [
+        { "key": "prompt", "label": "提示词", "type": "textarea", "required": true },
+        { "key": "model", "label": "模型", "type": "select", "choices": ["Nano Banana 2 (Gemini 3.1 Flash Image)"], "default": "Nano Banana 2 (Gemini 3.1 Flash Image)" },
+        { "key": "model.aspect_ratio", "label": "宽高比", "type": "select", "choices": ["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:4", "4:1", "8:1", "1:8"], "default": "auto" },
+        { "key": "model.resolution", "label": "分辨率", "type": "select", "choices": ["1K", "2K", "4K"], "default": "2K" },
+        { "key": "model.thinking_level", "label": "思考深度", "type": "select", "choices": ["MINIMAL", "HIGH"], "default": "MINIMAL" },
+        { "key": "seed", "label": "种子", "type": "number", "default": 42, "min": 0, "max": 2147483647 },
+        { "key": "reference_image", "label": "参考图片(可选)", "type": "image", "multiple": true, "maxCount": 14 },
+        { "key": "response_modalities", "label": "输出模式", "type": "select", "choices": ["IMAGE", "IMAGE+TEXT"], "default": "IMAGE" }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "GeminiNanoBanana2V2",
+            "inputs": {
+                "prompt": "{{prompt}}",
+                "model": "{{model}}",
+                "model.aspect_ratio": "{{model.aspect_ratio}}",
+                "model.resolution": "{{model.resolution}}",
+                "model.thinking_level": "{{model.thinking_level}}",
+                "model.images.image_1": ["ref_image_loader_1", 0],
+                "model.images.image_2": ["ref_image_loader_2", 0],
+                "model.images.image_3": ["ref_image_loader_3", 0],
+                "model.images.image_4": ["ref_image_loader_4", 0],
+                "model.images.image_5": ["ref_image_loader_5", 0],
+                "model.images.image_6": ["ref_image_loader_6", 0],
+                "model.images.image_7": ["ref_image_loader_7", 0],
+                "model.images.image_8": ["ref_image_loader_8", 0],
+                "model.images.image_9": ["ref_image_loader_9", 0],
+                "model.images.image_10": ["ref_image_loader_10", 0],
+                "model.images.image_11": ["ref_image_loader_11", 0],
+                "model.images.image_12": ["ref_image_loader_12", 0],
+                "model.images.image_13": ["ref_image_loader_13", 0],
+                "model.images.image_14": ["ref_image_loader_14", 0],
+                "seed": "{{seed}}",
+                "response_modalities": "{{response_modalities}}"
+            }
+        },
+        "2": {
+            "class_type": "PreviewImage",
+            "inputs": {
+                "images": ["1", 0]
+            }
+        },
+        "ref_image_loader_1": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_1}}"
+            }
+        },
+        "ref_image_loader_2": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_2}}"
+            }
+        },
+        "ref_image_loader_3": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_3}}"
+            }
+        },
+        "ref_image_loader_4": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_4}}"
+            }
+        },
+        "ref_image_loader_5": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_5}}"
+            }
+        },
+        "ref_image_loader_6": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_6}}"
+            }
+        },
+        "ref_image_loader_7": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_7}}"
+            }
+        },
+        "ref_image_loader_8": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_8}}"
+            }
+        },
+        "ref_image_loader_9": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_9}}"
+            }
+        },
+        "ref_image_loader_10": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_10}}"
+            }
+        },
+        "ref_image_loader_11": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_11}}"
+            }
+        },
+        "ref_image_loader_12": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_12}}"
+            }
+        },
+        "ref_image_loader_13": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_13}}"
+            }
+        },
+        "ref_image_loader_14": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{reference_image_14}}"
+            }
+        }
+    }
+}

@@ -1,0 +1,61 @@
+{
+    "id": "kling_start_end",
+    "name": "Kling 起止帧生成视频(旧版)",
+    "description": "Kling 首尾帧视频生成，在首帧与尾帧之间补帧过渡（需要 ComfyUI 账户积分）",
+    "category": "video",
+    "mode": "img2vid",
+    "cloud": true,
+    "parameters": [
+        { "key": "start_frame", "label": "首帧图片", "type": "image", "required": true },
+        { "key": "end_frame", "label": "尾帧图片", "type": "image", "required": true },
+        { "key": "prompt", "label": "提示词", "type": "textarea" },
+        { "key": "negative_prompt", "label": "负面提示词", "type": "textarea" },
+        { "key": "cfg_scale", "label": "提示词相关性", "type": "number", "default": 0.5, "min": 0, "max": 1, "step": 0.1 },
+        { "key": "aspect_ratio", "label": "宽高比", "type": "select", "choices": ["16:9", "9:16", "1:1"], "default": "16:9" },
+        { "key": "mode", "label": "模式/时长/模型", "type": "select", "choices": [
+            "pro mode / 5s duration / kling-v2-5-turbo",
+            "pro mode / 10s duration / kling-v2-5-turbo",
+            "pro mode / 5s duration / kling-v2-1",
+            "pro mode / 10s duration / kling-v2-1",
+            "pro mode / 5s duration / kling-v1-6",
+            "pro mode / 10s duration / kling-v1-6",
+            "pro mode / 5s duration / kling-v1-5",
+            "pro mode / 10s duration / kling-v1-5"
+        ], "default": "pro mode / 5s duration / kling-v2-5-turbo" }
+    ],
+    "workflow": {
+        "1": {
+            "class_type": "KlingStartEndFrameNode",
+            "inputs": {
+                "start_frame": ["start_frame_loader", 0],
+                "end_frame": ["end_frame_loader", 0],
+                "prompt": "{{prompt}}",
+                "negative_prompt": "{{negative_prompt}}",
+                "cfg_scale": "{{cfg_scale}}",
+                "aspect_ratio": "{{aspect_ratio}}",
+                "mode": "{{mode}}"
+            }
+        },
+        "2": {
+            "class_type": "SaveVideo",
+            "inputs": {
+                "video": ["1", 0],
+                "filename_prefix": "video/ComfyUI",
+                "format": "auto",
+                "codec": "auto"
+            }
+        },
+        "start_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{start_frame}}"
+            }
+        },
+        "end_frame_loader": {
+            "class_type": "LoadImage",
+            "inputs": {
+                "image": "{{end_frame}}"
+            }
+        }
+    }
+}
