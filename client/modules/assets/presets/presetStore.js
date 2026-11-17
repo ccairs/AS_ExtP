@@ -4,6 +4,8 @@
     var NS = 'presets';
 
     function _norm(f) { return String(f || '').replace(/^\/+|\/+$/g, ''); }
+    // 路径首段（归一分隔符、去前导分隔符后取第一段）：系统目录守卫用，防正/反斜杠写法绕过判定
+    function _firstSeg(p) { return String(p || '').replace(/\\/g, '/').replace(/^\/+/, '').split('/')[0]; }
     // 归档态判定（热路径内联判据；语义与 AEAssetsShared.isArchived 一致）
     function _isArch(it) { return !!(it && it.archived); }
     // 系统目录（归档区/垃圾区）判定：孤儿收编与空目录扫描一律跳过——
@@ -160,7 +162,7 @@
         // ── 扫描物理空目录（无 .ffx 的目录一律列入，含中间目录）──
         // 归档区/垃圾区子树整体跳过（系统目录不参与"空文件夹"呈现，也不该被空目录清理 rmdir）
         async function _scanEmptyDirs(dirPath, relativePath, out) {
-            if (relativePath && _isSystemDirName(String(relativePath).split('/')[0])) return;
+            if (relativePath && _isSystemDirName(_firstSeg(relativePath))) return;
             var hasFfx = false;
             try {
                 var files = await _AEFS.listFilesAsync(dirPath);
@@ -197,7 +199,7 @@
             for (var i = 0; i < dirRels.length; i++) {
                 var rel = _norm(dirRels[i]);
                 if (!rel || seen.indexOf(rel) !== -1) continue;
-                if (_isSystemDirName(rel.split('/')[0])) continue;   // 归档区/垃圾区不参与空文件夹缓存
+                if (_isSystemDirName(_firstSeg(rel))) continue;   // 归档区/垃圾区不参与空文件夹缓存
                 seen.push(rel);
                 var hasFfx = false;
                 try {
@@ -352,7 +354,7 @@
         // ── 自动发现孤儿 .ffx ──
         // 归档区/垃圾区跳过（不跳过则归档条目下次 load 被收编回正常条目——假归档）
         async function _discoverOrphans(dirPath, relativePath) {
-            if (relativePath && _isSystemDirName(String(relativePath).split('/')[0])) return;
+            if (relativePath && _isSystemDirName(_firstSeg(relativePath))) return;
             var files = [];
             try { files = await _AEFS.listFilesAsync(dirPath); } catch (_) { files = []; }
             var candidates = [];   // 通过全部过滤的候选 → 批量探测元数据后再落条目
@@ -636,6 +638,9 @@
                 if (_items[i].id === id) {
                     found = true;
                     var old = _items[i];
+                    if (_isArch(old)) throw new Error(AEI18n.t('条目已归档，不能重命名（请先 restore 恢复）: ') + id);
+                    // missing 条目无实体文件：只改索引路径，不调 renameFile（文件不存在会失败）
+                    var wasMissing = !!old.missing;
                     var newFfxPath = old.ffxPath.replace(/[^\\/]+\.ffx$/i, function () { return newName + '.ffx'; });
                     if (newFfxPath !== old.ffxPath) {
                         // 重名检测（对齐 _moveInner 的 existsAsync 惯例）——renameFile 的契约是
@@ -652,13 +657,15 @@
                         old.name = newName; old.ffxPath = newFfxPath;
                         try { await _flushIndex(); }
                         catch (e) { old.name = savedName; old.ffxPath = savedFfx; throw e; }
-                        try {
-                            var renFfx = await _AEFS.renameFile(savedFfx, newFfxPath);
-                            if (!renFfx) throw new Error(AEI18n.t('ffx 改名失败'));
-                        } catch (e) {
-                            old.name = savedName; old.ffxPath = savedFfx;
-                            try { await _flushIndex(); } catch (_) { console.error('[presetStore] rename 回滚 flush 失败'); }
-                            throw e;
+                        if (!wasMissing) {
+                            try {
+                                var renFfx = await _AEFS.renameFile(savedFfx, newFfxPath);
+                                if (!renFfx) throw new Error(AEI18n.t('ffx 改名失败'));
+                            } catch (e) {
+                                old.name = savedName; old.ffxPath = savedFfx;
+                                try { await _flushIndex(); } catch (_) { console.error('[presetStore] rename 回滚 flush 失败'); }
+                                throw e;
+                            }
                         }
                     } else {
                         var savedName2 = old.name;
@@ -694,12 +701,15 @@
         async function _moveInner(id, targetFolder, dirRels, skipFlush) {
             for (var i = 0; i < _items.length; i++) {
                 if (_items[i].id === id) {
+                    if (_isArch(_items[i])) throw new Error(AEI18n.t('条目已归档，不能移动（请先 restore 恢复）: ') + id);
+                    // missing 条目无实体文件：只改索引路径，不做复制/删除
+                    var wasMissing = !!_items[i].missing;
                     var oldPath = _items[i].ffxPath;
                     var bn = _baseNameFromFile(oldPath);
                     var tf = _norm(targetFolder || '');
                     // 目标不得是系统目录（归档区/垃圾区）——否则条目"物理在归档区、
                     // 索引活跃"，孤儿收编排除 + 清扫不认领，状态无法自愈
-                    if (tf && _isSystemDirName(String(tf).split('/')[0])) {
+                    if (tf && _isSystemDirName(_firstSeg(tf))) {
                         throw new Error(AEI18n.t('不能移动到系统目录（归档区/垃圾区）: ') + tf);
                     }
                     var newPath = tf ? (_base + '/' + tf + '/' + bn) : (_base + '/' + bn);
@@ -723,8 +733,10 @@
                     var mkOk = await _AEFS.mkdirAsync(targetDir);
                     if (mkOk !== true) throw new Error(AEI18n.t('无法创建目标目录'));
 
-                    var cpOk = await _AEFS.copyFileAsync(oldPath, newPath);
-                    if (!cpOk) throw new Error(AEI18n.t('文件复制失败'));
+                    if (!wasMissing) {
+                        var cpOk = await _AEFS.copyFileAsync(oldPath, newPath);
+                        if (!cpOk) throw new Error(AEI18n.t('文件复制失败'));
+                    }
 
                     var savedPath = _items[i].ffxPath, savedFolder = _items[i].folder, savedName = _items[i].name;
                     _items[i].ffxPath = newPath;
@@ -737,16 +749,18 @@
                         try { await _flushIndex(); }
                         catch (e) {
                             _items[i].ffxPath = savedPath; _items[i].folder = savedFolder; _items[i].name = savedName;
-                            try { await _AEFS.deleteFile(newPath); } catch (_) {}
+                            if (!wasMissing) { try { await _AEFS.deleteFile(newPath); } catch (_) {} }
                             throw e;
                         }
                     }
 
-                    var delOk = await _AEFS.deleteFile(oldPath);
-                    // 回包丢失但源已删 → 视为删除成功、不记 undeleted（否则留下 missing 幽灵条目）
-                    if (!delOk && await _sourceStillExists(oldPath)) {
-                        console.warn('[presetStore] move: 旧文件删除失败 ' + oldPath + '，已记入 missing 条目防孤儿重索引');
-                        await _recordUndeleted([oldPath], skipFlush);
+                    if (!wasMissing) {
+                        var delOk = await _AEFS.deleteFile(oldPath);
+                        // 回包丢失但源已删 → 视为删除成功、不记 undeleted（否则留下 missing 幽灵条目）
+                        if (!delOk && await _sourceStillExists(oldPath)) {
+                            console.warn('[presetStore] move: 旧文件删除失败 ' + oldPath + '，已记入 missing 条目防孤儿重索引');
+                            await _recordUndeleted([oldPath], skipFlush);
+                        }
                     }
                     // 局部刷新：只重判源目录（可能变空）与目标目录（必然非空）两个点，避免全树扫描。
                     // 批量场景由 moveBatch 统一刷新，此处仅收集目录。
@@ -795,12 +809,15 @@
         }
 
         // ── 删除条目 ──
+        // 归档条目的物理文件在归档区，删除它等于绕过归档语义的永久清理（且会破坏归档区路径判据）；
+        // 归档件的清理由 restore / purgeArchive 承接，此处显式拒绝
         async function remove(id) { return _serialized(function () { return _removeInner(id); }); }
         async function _removeInner(id) {
             var found = false;
             for (var i = 0; i < _items.length; i++) {
                 if (_items[i].id === id) {
                     found = true;
+                    if (_isArch(_items[i])) throw new Error(AEI18n.t('条目已归档，不能直接删除（请用 restore 恢复或从归档区永久清理）: ') + id);
                     var removed = _items.splice(i, 1)[0];
                     try { await _flushIndex(); }
                     catch (e) { _items.splice(i, 0, removed); throw e; }
@@ -960,7 +977,7 @@
         async function _renameFolderInner(oldPath, newPath, skipHousekeeping) {
             var oldN = _norm(oldPath), newN = _norm(newPath);
             // 重命名目标不得落在系统目录下（如 'a' → '___archive__/a' 会把物理目录搬进归档区）
-            if (newN && _isSystemDirName(String(newN).split('/')[0])) {
+            if (newN && _isSystemDirName(_firstSeg(newN))) {
                 throw new Error(AEI18n.t('不能重命名到系统目录（归档区/垃圾区）: ') + newN);
             }
             if (oldN === newN) return;
@@ -970,12 +987,17 @@
                 throw new Error(AEI18n.t('不能重命名到自身子路径下: ') + newN);
             }
 
-            // 收集受影响条目
+            // 收集受影响条目。归档条目的 ffxPath 指向 ___archive__（物理文件不在 oldN 目录树下），
+            // 只平移 folder（恢复目标跟随新路径）：当作活跃条目迁移会把 ffxPath 改写成本不存在的
+            // 活跃路径（同父），或把归档件复制出归档区再删掉原件（跨父）——恢复时误报
+            // 「归档副本已丢失」，或在恢复目标处恢复出重名副本。
             var affected = [];
+            var archivedAffected = [];
             for (var i = 0; i < _items.length; i++) {
                 var f = _norm(_items[i].folder);
                 if (f === oldN || (oldN.length > 0 && f.indexOf(oldN + '/') === 0)) {
-                    affected.push({ idx: i, oldFfx: _items[i].ffxPath, oldFolder: _items[i].folder });
+                    if (_isArch(_items[i])) archivedAffected.push({ idx: i });
+                    else affected.push({ idx: i, oldFfx: _items[i].ffxPath, oldFolder: _items[i].folder });
                 }
             }
 
@@ -992,6 +1014,9 @@
                 // 契约（copyFile 链自动避让，非静默合并）。oldN 子树条目随迁移不算占用
                 if (newN) {
                     for (var gi = 0; gi < _items.length; gi++) {
+                        // 归档条目不占物理位置（ffxPath 在归档区，folder 只是恢复目标）——
+                        // 计入占用会把实际不存在的目标文件夹误报「目标文件夹已存在」
+                        if (_isArch(_items[gi])) continue;
                         var gf = _norm(_items[gi].folder);
                         if (gf === oldN || gf.indexOf(oldN + '/') === 0) continue;
                         if (gf === newN || gf.indexOf(newN + '/') === 0) {
@@ -1000,6 +1025,14 @@
                     }
                     if (_emptyDirs.indexOf(newN) !== -1) {
                         throw new Error(AEI18n.t('目标文件夹已存在: ') + newN);
+                    }
+                    // 物理探测兜底：只含未索引 .ffx 的目录不进 _emptyDirs（该缓存只认全库扫描结果），
+                    // renameDir 的覆盖语义会把目标内容并吞。大小写仅变更视为同一目录
+                    // （Windows 大小写不敏感，探测必然命中自身），交给 renameDir 处理。
+                    if (String(newN).toLowerCase() !== String(oldN).toLowerCase()) {
+                        var dstOnDisk = false;
+                        try { dstOnDisk = (await _AEFS.existsAsync(_base + '/' + newN)) === true; } catch (_) {}
+                        if (dstOnDisk) throw new Error(AEI18n.t('目标文件夹已存在: ') + newN);
                     }
                 }
                 var renDirOk = await _AEFS.renameDir(_base + '/' + oldN, _base + '/' + newN);
@@ -1014,10 +1047,12 @@
                     _items[a.idx].ffxPath = newFfx;
                     _items[a.idx].folder = _folderFromPath(newFfx, _base);
                 }
+                var archSaved = _shiftArchivedFolders(archivedAffected, oldN, newN);
                 if (skipHousekeeping) return;
                 try { await _flushIndex(); }
                 catch (e) {
                     for (var r = 0; r < saved.length; r++) { _items[saved[r].idx].ffxPath = saved[r].ffxPath; _items[saved[r].idx].folder = saved[r].folder; }
+                    _restoreArchivedFolders(archSaved);
                     // 磁盘目录一并回滚（尽力）：renameDir 已先行，索引写失败若不还原目录，
                     // 磁盘指向新路径而索引停在旧路径，下次 load 的孤儿发现会把新路径文件
                     // 重新索引成重复条目（对齐跨目录分支的磁盘回滚与单条 rename 的回滚语义）
@@ -1035,7 +1070,7 @@
                     var fOld = _norm(affected[k].oldFolder);
                     var relNew = fOld === oldN ? newN : _norm(newN + '/' + fOld.slice(oldN.length + 1));
                     var nf = relNew ? (_base + '/' + relNew + '/' + bnk) : (_base + '/' + bnk);
-                    todo.push({ idx: affected[k].idx, oldFfx: affected[k].oldFfx, newFfx: nf, newFolder: relNew });
+                    todo.push({ idx: affected[k].idx, oldFfx: affected[k].oldFfx, newFfx: nf, newFolder: relNew, missing: !!_items[affected[k].idx].missing });
                 }
                 // 建目标目录
                 var created = [];
@@ -1074,14 +1109,17 @@
                         todo[n].newFfx = newFfxN;
                         todo[n].dedupName = stemN + '_' + dedupN;
                     }
-                    var cpOk = await _AEFS.copyFile(todo[n].oldFfx, todo[n].newFfx);
-                    if (!cpOk) {
-                        for (var rb = 0; rb < n; rb++) { if (todo[rb].oldFfx !== todo[rb].newFfx) try { await _AEFS.deleteFile(todo[rb].newFfx); } catch (_) {} }
-                        // 回滚补目录清理——只删本次新建的目标目录（倒序先删深层；rmdir 拒绝
-                        // 非空，部分文件未清时自然失败跳过），否则空目录残留被下次 load 收入
-                        // _emptyDirs 成树上幽灵目录
-                        for (var rd = created.length - 1; rd >= 0; rd--) { try { await _AEFS.rmdir(created[rd]); } catch (_) {} }
-                        throw new Error(AEI18n.t('文件复制失败'));
+                    // missing 条目无实体文件：只改索引路径，不做复制
+                    if (!todo[n].missing) {
+                        var cpOk = await _AEFS.copyFile(todo[n].oldFfx, todo[n].newFfx);
+                        if (!cpOk) {
+                            for (var rb = 0; rb < n; rb++) { if (!todo[rb].missing && todo[rb].oldFfx !== todo[rb].newFfx) try { await _AEFS.deleteFile(todo[rb].newFfx); } catch (_) {} }
+                            // 回滚补目录清理——只删本次新建的目标目录（倒序先删深层；rmdir 拒绝
+                            // 非空，部分文件未清时自然失败跳过），否则空目录残留被下次 load 收入
+                            // _emptyDirs 成树上幽灵目录
+                            for (var rd = created.length - 1; rd >= 0; rd--) { try { await _AEFS.rmdir(created[rd]); } catch (_) {} }
+                            throw new Error(AEI18n.t('文件复制失败'));
+                        }
                     }
                 }
                 // 更新索引
@@ -1092,11 +1130,13 @@
                     _items[todo[p].idx].folder = todo[p].newFolder;
                     if (todo[p].dedupName) _items[todo[p].idx].name = todo[p].dedupName;
                 }
+                var archSaved2 = _shiftArchivedFolders(archivedAffected, oldN, newN);
                 if (!skipHousekeeping) {
                     try { await _flushIndex(); }
                     catch (e) {
                         for (var r2 = 0; r2 < saved2.length; r2++) { _items[saved2[r2].idx].ffxPath = saved2[r2].ffxPath; _items[saved2[r2].idx].folder = saved2[r2].folder; _items[saved2[r2].idx].name = saved2[r2].name; }
-                        for (var rb2 = 0; rb2 < todo.length; rb2++) { if (todo[rb2].oldFfx !== todo[rb2].newFfx) try { await _AEFS.deleteFile(todo[rb2].newFfx); } catch (_) {} }
+                        _restoreArchivedFolders(archSaved2);
+                    for (var rb2 = 0; rb2 < todo.length; rb2++) { if (!todo[rb2].missing && todo[rb2].oldFfx !== todo[rb2].newFfx) try { await _AEFS.deleteFile(todo[rb2].newFfx); } catch (_) {} }
                         // 回滚补目录清理——只删本次新建的目标目录（对齐复制失败分支
                         // 的同一做法：倒序先删深层，rmdir 拒绝非空自然跳过），否则空目录残留
                         // 被下次 load 收入 _emptyDirs 成树上幽灵目录
@@ -1104,9 +1144,9 @@
                         throw e;
                     }
                 }
-                // 删旧文件
+                // 删旧文件（missing 条目无实体可删）
                 for (var q = 0; q < todo.length; q++) {
-                    if (todo[q].oldFfx === todo[q].newFfx) continue;
+                    if (todo[q].missing || todo[q].oldFfx === todo[q].newFfx) continue;
                     var delOk = await _AEFS.deleteFile(todo[q].oldFfx);
                     // 回包丢失但源已删 → 视为删除成功、不记 undeleted（否则留下 missing 幽灵条目）
                     if (!delOk && await _sourceStillExists(todo[q].oldFfx)) {
@@ -1150,9 +1190,42 @@
                     await _collectFfxPaths(_base + '/' + oldN, leftover);
                     await _recordUndeleted(leftover, skipHousekeeping);
                 }
+                // 目录已物理移动/清理后，才平移归档恢复目标（ffxPath 在归档区，不参与目录复制/删除）：
+                // 取消或抛错时索引未动，内存态与磁盘一致
+                var archSaved3 = _shiftArchivedFolders(archivedAffected, oldN, newN);
                 // 目录整体平移不改变空文件夹事实，仅路径前缀整体平移（无全树扫描）
                 _shiftEmptyDirsPrefix(oldN, newN);
+                // 归档条目 folder 的平移需单独落盘（无活跃条目时不产生索引写）：
+                // 目录已移动，写失败按 _flushAfterMove 口径不回滚内存
+                if (archSaved3.length && !skipHousekeeping) {
+                    await _flushAfterMove(AEI18n.t('若在补齐前重启面板，归档条目的恢复目标仍是旧路径（归档件本身不受影响）'));
+                }
+            } else if (archivedAffected.length) {
+                // oldN/newN 至少一侧为空：没有可迁移的物理目录（工具与视图入口都拒绝根路径，
+                // 仅直接调用 store 可能走到）。只平移归档恢复目标并落盘，避免静默 no-op；
+                // 无磁盘变更，写失败可回滚内存
+                var archSaved4 = _shiftArchivedFolders(archivedAffected, oldN, newN);
+                if (!skipHousekeeping) {
+                    try { await _flushIndex(); }
+                    catch (e) { _restoreArchivedFolders(archSaved4); throw e; }
+                }
             }
+        }
+
+        // 归档条目的 folder 随文件夹改名/移动平移（恢复目标跟随新路径）；ffxPath 与归档标记
+        // 不动——其物理文件在 ___archive__ 下，不属于被改名的目录树。返回快照供索引写失败回滚。
+        function _shiftArchivedFolders(list, oldN, newN) {
+            var saved = [];
+            for (var i = 0; i < list.length; i++) {
+                var it = _items[list[i].idx];
+                var fn = _norm(it.folder);
+                saved.push({ idx: list[i].idx, folder: it.folder });
+                it.folder = fn === oldN ? newN : _norm(newN + '/' + fn.slice(oldN.length + 1));
+            }
+            return saved;
+        }
+        function _restoreArchivedFolders(saved) {
+            for (var i = 0; i < saved.length; i++) _items[saved[i].idx].folder = saved[i].folder;
         }
 
         // 把 _emptyDirs 中以 oldN 或 oldN/ 开头的路径替换为 newN 前缀（renameDir 原子重命名专用，无全树扫描）
@@ -1199,6 +1272,11 @@
         async function _removeFolderInner(folderPath, keepItems, onProgress, isCancelled) {
             var fN = _norm(folderPath);
             var result = 0;
+            // 系统目录（归档区/垃圾区）不可作为删除目标：归档件物理文件在归档区，删目录=绕过
+            // 归档语义的批量物理删除（keepItems=true 也会把归档条目当活跃条目处理的前提已不存在）
+            if (fN && _isSystemDirName(_firstSeg(fN))) {
+                throw new Error(AEI18n.t('不能删除系统目录（归档区/垃圾区）: ') + fN);
+            }
             function _under(f, prefix) {
                 if (f === prefix) return true;
                 if (prefix.length > 0 && f.indexOf(prefix + '/') === 0) return true;
@@ -1213,6 +1291,9 @@
                 // 到根目录，删除失败仍如实记 missing。
                 var targets = [];
                 for (var kk = 0; kk < _items.length; kk++) {
+                    // 归档件不在物理目录里（ffxPath 在归档区），folder 是恢复目标原位置——
+                    // 「保留条目」不动它：既不能复制出归档区，也不该丢掉恢复目标
+                    if (_isArch(_items[kk])) continue;
                     if (_under(_norm(_items[kk].folder), fN)) targets.push(_items[kk]);
                 }
                 var kTotal = targets.length;
@@ -1226,6 +1307,8 @@
                     var oldPath = it.ffxPath;
                     var bn = _baseNameFromFile(oldPath);
                     var newPath = _base + '/' + bn;
+                    // missing 条目无实体文件：只改索引路径（提升语义照样成立）
+                    var wasMissing = !!it.missing;
 
                     // 同路径（条目已在根目录）须在重名检测前短路：
                     // exists 探测的是文件自身，放后面会把 newPath 挤成 _1 后缀 → 自我复制
@@ -1242,24 +1325,28 @@
                         newPath = _base + '/' + bn;
                     }
 
-                    var cpOk = await _AEFS.copyFile(oldPath, newPath);
-                    if (!cpOk) throw new Error(AEI18n.t('文件复制失败: ') + bn);
+                    if (!wasMissing) {
+                        var cpOk = await _AEFS.copyFile(oldPath, newPath);
+                        if (!cpOk) throw new Error(AEI18n.t('文件复制失败: ') + bn);
+                    }
                     var savedPath = it.ffxPath, savedFolder = it.folder, savedName = it.name;
                     it.ffxPath = newPath; it.folder = '';
                     if (dedupCounter2 > 0) it.name = nameStem2 + '_' + dedupCounter2;
                     try { await _flushIndex(); }
                     catch (e) {
                         it.ffxPath = savedPath; it.folder = savedFolder; it.name = savedName;
-                        try { await _AEFS.deleteFile(newPath); } catch (_) {}
+                        if (!wasMissing) { try { await _AEFS.deleteFile(newPath); } catch (_) {} }
                         throw e;
                     }
-                    var delOk = await _AEFS.deleteFile(oldPath);
-                    // 回包丢失但源已删 → 视为删除成功、不记 undeleted（否则留下 missing 幽灵条目）
-                    if (!delOk && await _sourceStillExists(oldPath)) {
-                        if (!recordedUndeleted[oldPath]) {
-                            console.warn('[presetStore] removeFolder: 旧文件删除失败 ' + oldPath + '，已记入 missing 条目防孤儿重索引');
-                            await _recordUndeleted([oldPath], false);
-                            recordedUndeleted[oldPath] = true;
+                    if (!wasMissing) {
+                        var delOk = await _AEFS.deleteFile(oldPath);
+                        // 回包丢失但源已删 → 视为删除成功、不记 undeleted（否则留下 missing 幽灵条目）
+                        if (!delOk && await _sourceStillExists(oldPath)) {
+                            if (!recordedUndeleted[oldPath]) {
+                                console.warn('[presetStore] removeFolder: 旧文件删除失败 ' + oldPath + '，已记入 missing 条目防孤儿重索引');
+                                await _recordUndeleted([oldPath], false);
+                                recordedUndeleted[oldPath] = true;
+                            }
                         }
                     }
                 }
@@ -1287,10 +1374,14 @@
                     console.warn('[presetStore] removeFolder 拒删 presets 根: ' + targetDir);
                     throw new Error(AEI18n.t('不能删除预设根目录'));
                 }
-                // 收集匹配条目（按 item.folder 前缀匹配）
+                // 收集匹配条目（按 item.folder 前缀匹配）。归档条目的物理文件在归档区，不随
+                // 目录删除；删除文件夹时与活跃条目一致地永久清理（对齐 purgeArchive 语义）
                 var toRemove = [];
+                var archivedUnder = [];
                 for (var m = 0; m < _items.length; m++) {
-                    if (_under(_norm(_items[m].folder), fN)) toRemove.push(_items[m]);
+                    if (!_under(_norm(_items[m].folder), fN)) continue;
+                    if (_isArch(_items[m])) archivedUnder.push(_items[m]);
+                    else toRemove.push(_items[m]);
                 }
                 // 删目录（含所有 .ffx + 子目录 + 孤儿文件）
                 // 用户取消 AEFS 内部确认弹窗 → removeDirRecursive 抛 {code:'CANCELLED'}。
@@ -1349,19 +1440,62 @@
                         try { await _pvF.deleteOne(removed[pr].item.id); } catch (_) {}
                     }
                 }
-                if (delFailures.length) {
+                // 归档件永久清理：文件夹被永久删除后，归档条目的"原位置"已不存在；失败如实并入回执
+                var archPurged = { deleted: 0, failed: [], flushError: '', flushCode: '' };
+                if (archivedUnder.length) {
+                    try { archPurged = await _deleteArchivedItems(archivedUnder); }
+                    catch (e2) {
+                        // 物理删除已完成、索引落盘失败：_deleteArchivedItems 把真实结果挂在 e.partial，
+                        // 按其结果合并（未挂时按内存是否已 splice 兜底），逐条原因保留
+                        var flushMsg = (e2 && e2.message) || String(e2);
+                        var partial = e2 && e2.partial;
+                        if (partial) {
+                            archPurged = {
+                                deleted: partial.deleted || 0,
+                                failed: (partial.failed || []).slice(),
+                                flushError: flushMsg,
+                                flushCode: (e2 && e2.code) || ''
+                            };
+                        } else {
+                            var goneCount = 0, stillIndexed = [];
+                            for (var au = 0; au < archivedUnder.length; au++) {
+                                if (_items.indexOf(archivedUnder[au]) === -1) goneCount++;
+                                else stillIndexed.push(archivedUnder[au]);
+                            }
+                            archPurged = {
+                                deleted: goneCount,
+                                failed: stillIndexed.map(function (x) {
+                                    return { id: x.id, name: x.name, path: x.ffxPath, error: flushMsg };
+                                }),
+                                flushError: flushMsg,
+                                flushCode: (e2 && e2.code) || ''
+                            };
+                        }
+                    }
+                }
+                var archFailed = archPurged.failed || [];
+                if (delFailures.length || archFailed.length || archPurged.flushError) {
                     // 部分文件删除失败如实抛错（对齐单条 remove 的删除失败抛错语义；调用方
                     // folderViewMixin catch 后走「删除失败」错误 toast）——若 removed.length>0
                     // 时仅 console.warn 后正常 resolve，UI 误报「已删除文件夹」成功 toast。成功条目
                     // 已 splice+flush；失败条目保留索引与磁盘文件，可重试（removed.length===0 的
-                    // 旧「全失败才抛错」路径同样被覆盖）。
-                    throw new Error(AEI18n.t('部分文件删除失败（成功 ') + removed.length + AEI18n.t(' 个，失败 ') + delFailures.length + AEI18n.t(' 个）: ') + delFailures.map(function (f) { return f.ffxPath; }).join(', '));
+                    // 旧「全失败才抛错」路径同样被覆盖）。落盘失败单独成句，避免与部分失败计数自相矛盾。
+                    var errParts = [];
+                    if (delFailures.length || archFailed.length) {
+                        var failedPaths = delFailures.map(function (f) { return f.ffxPath; })
+                            .concat(archFailed.map(function (f) { return (f.name || '') + ' ' + (f.path || f.id || '') + (f.error ? '（' + f.error + '）' : ''); }));
+                        errParts.push(AEI18n.t('部分文件删除失败（成功 ') + (removed.length + (archPurged.deleted || 0)) + AEI18n.t(' 个，失败 ') + (delFailures.length + archFailed.length) + AEI18n.t(' 个）: ') + failedPaths.join(', '));
+                    }
+                    if (archPurged.flushError) errParts.push(archPurged.flushError);
+                    var delErr = new Error(errParts.join((typeof AEI18n.punct === 'function') ? AEI18n.punct('；', '; ') : '；'));
+                    if (archPurged.flushCode) delErr.code = archPurged.flushCode;
+                    throw delErr;
                 }
                 // 回退删除后，仅清理被删文件夹自身及其子目录（不扫全树，避免误删用户手动创建的空文件夹）
                 if (!recOk) {
                     await _cleanupEmptyDirs(targetDir, fN);
                 }
-                result = removed.length;
+                result = removed.length + (archPurged.deleted || 0);
             }
             // 删除整棵子树：从空文件夹缓存中移除被删文件夹 fN 及其所有子目录（无全树扫描）
             for (var ek2 = _emptyDirs.length - 1; ek2 >= 0; ek2--) {
@@ -1605,7 +1739,7 @@
             if (!fN) throw new Error(AEI18n.t('不能归档根目录（请指定子文件夹）'));
             // 系统目录（归档区/垃圾区）不可作为归档目标：其下文件不属于活跃条目，
             // 收编+搬移会破坏归档命名，且空目录清理可能 rmdir 归档区本身
-            if (_isSystemDirName(String(fN).split('/')[0])) {
+            if (_isSystemDirName(_firstSeg(fN))) {
                 throw new Error(AEI18n.t('不能归档系统目录（') + global.AEAssetsShared.ARCHIVE_DIR_NAME + ' / ___trash__' + AEI18n.punct('）', ')'));
             }
             var dirPath = _base + '/' + fN;
@@ -1671,14 +1805,15 @@
         // （下次 scanMissing 标 missing），归档件成"未登记"孤儿且永不被清扫认领。
         // 重试一次（瞬时故障）；仍失败则保留与磁盘一致的内存态并抛错，等下次任意成功写入
         // （含下次 load 的收尾 _flushIndex）补齐——错误码 FLUSH_FAILED_AFTER_MOVE 便于上层如实措辞。
-        async function _flushAfterMove() {
+        // tailMsg：本次物理变更的真实后果（不同调用点落盘失败的影响不同），缺省为归档/恢复后的后果。
+        async function _flushAfterMove(tailMsg) {
             try { await _flushIndex(); return; }
             catch (e1) {
                 try { await _flushIndex(); return; }
                 catch (e2) {
                     var err = new Error(AEI18n.t('磁盘状态已变更但索引落盘失败（') + (e2 && e2.message ? e2.message : e2)
                         + AEI18n.t('）：本次操作已生效，索引将在下次成功写入时补齐；')
-                        + AEI18n.t('若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）'));
+                        + (tailMsg || AEI18n.t('若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）')));
                     err.code = 'FLUSH_FAILED_AFTER_MOVE';
                     throw err;
                 }
@@ -1717,7 +1852,14 @@
                 _items.splice(idx, 1);
                 undo.push({ kind: 'drop', it: del[k], idx: idx });
             }
-            if (undo.length) await _flushAfterMove();   // 不回滚：物理状态已变更（见 _flushAfterMove 注释）
+            if (undo.length) {
+                try { await _flushAfterMove(AEI18n.t('若在补齐前重启面板，归档区可能仍显示这些条目（物理文件已删除，重新清理即可）')); }   // 不回滚：物理状态已变更（见 _flushAfterMove 注释）
+                catch (e) {
+                    // 物理删除已完成、索引未落盘：把部分结果挂在错误上，调用方据真实结果合并回执
+                    e.partial = { deleted: del.length, failed: failed };
+                    throw e;
+                }
+            }
             // 索引移除已落盘 → 连带删预览目录（仅对物理删除成功的归档件；失败项保留预览等下次）
             var _pvA = _previewStore();
             if (_pvA && del.length) {

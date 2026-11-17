@@ -4,7 +4,7 @@
 
 > Une plateforme d’extension multi-modules (CEP) qui intègre l’IA à After Effects.
 >
-> Version : v1.0.1
+> Version : v1.0.2
 
 AS_ExtP est une plateforme d’extension IA pour After Effects — un panneau CEP et deux greffons natifs AE (l’hôte d’effets GLSL et le Hotbox AE). Le panneau se compose de plusieurs modules : **Agent** (pilotage conversationnel par grand modèle de langage), **ComfyUI** (génération d’images / de vidéos par IA), **Bibliothèque d’actifs** (gestion des actifs de projet et des préréglages), ainsi que **MCP / Skill / Mémoire / Gestion des modèles** (extension et configuration des capacités).
 

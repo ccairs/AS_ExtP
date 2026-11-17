@@ -2015,7 +2015,7 @@
     "不能归档系统目录（": "Ein Systemverzeichnis kann nicht archiviert werden (",
     "目标路径不在预设目录内: ": "Zielpfad liegt nicht im Vorgabenverzeichnis: ",
     "磁盘状态已变更但索引落盘失败（": "Datenträger geändert, aber Index konnte nicht geschrieben werden (",
-    "）：本次操作已生效，索引将在下次成功写入时补齐；": "): Der Vorgang ist wirksam; der Index wird beim nächsten erfolgreichen Schreiben ergänzt;",
+    "）：本次操作已生效，索引将在下次成功写入时补齐；": "): Der Vorgang ist wirksam; der Index wird beim nächsten erfolgreichen Schreiben ergänzt; ",
     "若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）": "wird das Bedienfeld vorher neu gestartet, erscheinen archivierte Einträge als „nicht registriert“ (die Dateien liegen weiterhin in ___archive__ und lassen sich manuell wiederherstellen)",
     "路径不在归档区，跳过": "Pfad liegt nicht im Archiv; übersprungen",
     "文件删除失败": "Datei konnte nicht gelöscht werden",
@@ -3451,6 +3451,12 @@
     "标识符不在能力白名单内": "Die Kennung liegt außerhalb der Fähigkeits-Whitelist",
     "成员不在能力白名单内": "Das Element liegt außerhalb der Fähigkeits-Whitelist",
     "代码未通过能力白名单校验": "Der Code hat die Fähigkeits-Whitelist nicht bestanden",
-    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "Der Vorschaubereich enthält bereits Inhalt. Das Laden des Effekts „{name}“ überschreibt den aktuellen Code. Fortfahren?"
+    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "Der Vorschaubereich enthält bereits Inhalt. Das Laden des Effekts „{name}“ überschreibt den aktuellen Code. Fortfahren?",
+    "条目已归档，不能重命名（请先 restore 恢复）: ": "Element ist archiviert und kann nicht umbenannt werden (zuerst mit restore wiederherstellen): ",
+    "条目已归档，不能移动（请先 restore 恢复）: ": "Element ist archiviert und kann nicht verschoben werden (zuerst mit restore wiederherstellen): ",
+    "条目已归档，不能直接删除（请用 restore 恢复或从归档区永久清理）: ": "Element ist archiviert und kann nicht direkt gelöscht werden (mit restore wiederherstellen oder im Archiv endgültig löschen): ",
+    "若在补齐前重启面板，归档条目的恢复目标仍是旧路径（归档件本身不受影响）": "Wird das Panel vor dem Schreiben des Index neu gestartet, behalten archivierte Elemente das alte Wiederherstellungsziel (die archivierten Dateien selbst sind nicht betroffen)",
+    "不能删除系统目录（归档区/垃圾区）: ": "Systemordner (Archiv/Papierkorb) kann nicht gelöscht werden: ",
+    "若在补齐前重启面板，归档区可能仍显示这些条目（物理文件已删除，重新清理即可）": "Wird das Panel vor dem Schreiben des Index neu gestartet, können diese Elemente weiterhin im Archiv erscheinen (ihre Dateien sind bereits gelöscht; erneutes Aufräumen entfernt sie)"
 }]);
 })(typeof window !== 'undefined' ? window : this);

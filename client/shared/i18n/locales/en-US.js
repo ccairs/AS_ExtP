@@ -2213,7 +2213,7 @@
     "不能归档系统目录（": "Cannot archive a system directory (",
     "目标路径不在预设目录内: ": "Target path is outside the presets directory: ",
     "磁盘状态已变更但索引落盘失败（": "Disk changed but index write failed (",
-    "）：本次操作已生效，索引将在下次成功写入时补齐；": "): the operation took effect; the index will be completed on the next successful write;",
+    "）：本次操作已生效，索引将在下次成功写入时补齐；": "): the operation took effect; the index will be completed on the next successful write; ",
     "若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）": "if the panel restarts before that, archived items show as \"unregistered\" (files are still in ___archive__ and can be restored manually)",
     "路径不在归档区，跳过": "Path is not in the archive area; skipped",
     "文件删除失败": "File deletion failed",
@@ -3451,6 +3451,12 @@
     "标识符不在能力白名单内": "The identifier is outside the capability whitelist",
     "成员不在能力白名单内": "The member is outside the capability whitelist",
     "代码未通过能力白名单校验": "The code did not pass the capability whitelist check",
-    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "The preview area already has content. Loading effect \"{name}\" will overwrite the current code. Continue?"
+    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "The preview area already has content. Loading effect \"{name}\" will overwrite the current code. Continue?",
+    "条目已归档，不能重命名（请先 restore 恢复）: ": "Item is archived and cannot be renamed (restore it first): ",
+    "条目已归档，不能移动（请先 restore 恢复）: ": "Item is archived and cannot be moved (restore it first): ",
+    "条目已归档，不能直接删除（请用 restore 恢复或从归档区永久清理）: ": "Item is archived and cannot be deleted directly (use restore, or clean it up permanently from the Archive): ",
+    "若在补齐前重启面板，归档条目的恢复目标仍是旧路径（归档件本身不受影响）": "If the panel restarts before the index is written, archived items keep the old restore target (the archived files themselves are unaffected)",
+    "不能删除系统目录（归档区/垃圾区）: ": "Cannot delete a system folder (archive/trash): ",
+    "若在补齐前重启面板，归档区可能仍显示这些条目（物理文件已删除，重新清理即可）": "If the panel restarts before the index is written, these items may still appear in the Archive (their files are already deleted; clean them up again to remove them)"
 }]);
 })(typeof window !== 'undefined' ? window : this);

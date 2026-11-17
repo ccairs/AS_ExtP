@@ -936,6 +936,19 @@
                 if (_items[i].id === id) {
                     found = true;
                     var old = _items[i];
+                    // 归档条目的 targetFolder 指向归档区的归档包目录：改名的物理动作会把整包
+                    // 改名/搬出归档区（归档区外路径），必须禁止；归档件改名请先 restore
+                    if (_isArch(old)) throw new Error(AEI18n.t('条目已归档，不能重命名（请先 restore 恢复）: ') + id);
+                    // missing 条目无实体目录/文件：只改索引字段，跳过两次物理改名。
+                    // missing 可能已陈旧（文件被放回但扫描尚未更新）：先做存在性确认，
+                    // 文件仍在则按实体改名走，避免真包留在旧路径被孤立；通道故障按"仍存在"保守处理
+                    var wasMissing = !!old.missing;
+                    if (wasMissing) {
+                        // missing 可能陈旧（文件被放回而扫描未更新）：三态确认后决定走实体改名还是
+                        // 仅改索引；通道不可判时维持仅改索引（不因拿不到而误报改名失败）
+                        var missState = await _probePathState(old.aepPath);
+                        if (missState === 'exists') wasMissing = false;
+                    }
                     var newFolder = old.targetFolder.replace(/[^\\/]+$/, function () { return newName; });
                     if (newFolder !== old.targetFolder) {
                         // 双重查重（对齐 presetStore.rename 的语义），检查
@@ -967,45 +980,63 @@
                         var savedName = old.name;
                         var savedAep = old.aepPath;
                         var savedFolder = old.targetFolder;
+                        var savedMissing = !!old.missing;
                         // 先更新内存
                         old.aepPath = old.aepPath.replace(old.targetFolder, newFolder);
                         old.targetFolder = newFolder;
                         old.name = newName;
-                        // ① 改文件夹名
-                        var renOk = await _AEFS.renameDir(savedFolder, newFolder);
-                        if (!renOk) {
-                            old.name = savedName;
-                            old.aepPath = savedAep;
-                            old.targetFolder = savedFolder;
-                            throw new Error(AEI18n.t('文件夹改名失败'));
-                        }
-                        // ② 对齐 .aep 文件名（文件夹改名后里面的 .aep 还是旧名）
-                        var aepAfterFolderRename = old.aepPath;  // .../NewName/OldName.aep
-                        var newAepPath = newFolder + '/' + newName + '.aep';
-                        if (aepAfterFolderRename !== newAepPath) {
-                            var renFileOk = await _AEFS.renameFile(aepAfterFolderRename, newAepPath);
-                            if (!renFileOk) {
+                        if (!wasMissing) {
+                            // 实体仍在（可能此前 missing 误标）：随改名清除 missing，防改名后
+                            // remove() 走 missing 分支只删索引、把实体留成孤儿
+                            old.missing = false;
+                            // ① 改文件夹名
+                            var renOk = await _AEFS.renameDir(savedFolder, newFolder);
+                            if (!renOk) {
+                                old.name = savedName;
+                                old.aepPath = savedAep;
+                                old.targetFolder = savedFolder;
+                                old.missing = savedMissing;
+                                throw new Error(AEI18n.t('文件夹改名失败'));
+                            }
+                            // ② 对齐 .aep 文件名（文件夹改名后里面的 .aep 还是旧名）
+                            var aepAfterFolderRename = old.aepPath;  // .../NewName/OldName.aep
+                            var newAepPath = newFolder + '/' + newName + '.aep';
+                            if (aepAfterFolderRename !== newAepPath) {
+                                var renFileOk = await _AEFS.renameFile(aepAfterFolderRename, newAepPath);
+                                if (!renFileOk) {
+                                    try { await _AEFS.renameDir(newFolder, savedFolder); } catch (_) {}
+                                    old.name = savedName;
+                                    old.aepPath = savedAep;
+                                    old.targetFolder = savedFolder;
+                                    old.missing = savedMissing;
+                                    throw new Error(AEI18n.t('aep 文件改名失败'));
+                                }
+                                old.aepPath = newAepPath;
+                            }
+                            // ③ 写索引
+                            try {
+                                await _flushIndex();
+                            } catch (e) {
+                                // 回滚：先把 .aep 文件名恢复、再恢复文件夹名
+                                if (old.aepPath !== savedAep) {
+                                    try { await _AEFS.renameFile(newAepPath, aepAfterFolderRename); } catch (_) {}
+                                }
                                 try { await _AEFS.renameDir(newFolder, savedFolder); } catch (_) {}
                                 old.name = savedName;
                                 old.aepPath = savedAep;
                                 old.targetFolder = savedFolder;
-                                throw new Error(AEI18n.t('aep 文件改名失败'));
+                                old.missing = savedMissing;
+                                throw e;
                             }
-                            old.aepPath = newAepPath;
-                        }
-                        // ③ 写索引
-                        try {
-                            await _flushIndex();
-                        } catch (e) {
-                            // 回滚：先把 .aep 文件名恢复、再恢复文件夹名
-                            if (old.aepPath !== savedAep) {
-                                try { await _AEFS.renameFile(newAepPath, aepAfterFolderRename); } catch (_) {}
+                        } else {
+                            old.aepPath = newFolder + '/' + newName + '.aep';
+                            try { await _flushIndex(); }
+                            catch (e) {
+                                old.name = savedName;
+                                old.aepPath = savedAep;
+                                old.targetFolder = savedFolder;
+                                throw e;
                             }
-                            try { await _AEFS.renameDir(newFolder, savedFolder); } catch (_) {}
-                            old.name = savedName;
-                            old.aepPath = savedAep;
-                            old.targetFolder = savedFolder;
-                            throw e;
                         }
                     } else {
                         var savedName3 = old.name;
@@ -1056,6 +1087,9 @@
                 if (_items[i].id === id) {
                     found = true;
                     var m = _items[i];
+                    // 归档条目的 targetFolder/aepPath 指向归档区：物理删除=绕过归档语义的永久清理，
+                    // 且会绕过归档区路径判据；归档件清理由 restore / purgeArchive 承接
+                    if (_isArch(m)) throw new Error(AEI18n.t('条目已归档，不能直接删除（请用 restore 恢复或从归档区永久清理）: ') + id);
                     if (!m.missing) {
                         // 正常删除：删实体文件夹（含 .aep + 资产）
                         var result = await _removeEntity(m);
@@ -1365,6 +1399,8 @@
                 return false;
             }
             if (keepItems) {
+                // 归档条目的 folder 只是归档面板分组（恢复目标 archivedFrom 是绝对路径，不随之改变），
+                // 随「保留条目」一并移到根组；无物理动作
                 var saved = [];
                 for (var i = 0; i < _items.length; i++) {
                     if (_under(_norm(_items[i].folder), fN)) {
@@ -1383,12 +1419,16 @@
                 }
                 result = 0;
             } else {
-                // 删文件夹内的所有条目（含实体文件），批量处理只写一次 index.json
+                // 删文件夹内的所有条目（含实体文件），批量处理只写一次 index.json。
+                // 归档条目的 targetFolder/aepPath 指向归档区：物理文件不随目录删除，单独走
+                // _deleteArchivedPackages（skipRecycle + 归档区路径复核，与 purgeArchive 同口径）；
+                // 文件夹被永久删除时其归档件一并清理
                 var toRemove = [];
+                var archivedUnder = [];
                 for (var m = 0; m < _items.length; m++) {
-                    if (_under(_norm(_items[m].folder), fN)) {
-                        toRemove.push(_items[m]);
-                    }
+                    if (!_under(_norm(_items[m].folder), fN)) continue;
+                    if (_isArch(_items[m])) archivedUnder.push(_items[m]);
+                    else toRemove.push(_items[m]);
                 }
                 var allFailures = [];
                 var cancelled = false;
@@ -1442,14 +1482,59 @@
                     }
                     throw e;
                 }
-                if (allFailures.length) {
+                // 归档包永久清理：文件夹被永久删除后，归档条目的"原位置"已不存在；失败如实并入回执
+                var archPurged = { deleted: 0, failed: [], flushError: '', flushCode: '' };
+                if (archivedUnder.length) {
+                    try { archPurged = await _deleteArchivedPackages(archivedUnder); }
+                    catch (e2) {
+                        // 物理删除已完成、索引落盘失败：_deleteArchivedPackages 把真实结果挂在
+                        // e.partial，按其结果合并（未挂时按内存是否已 splice 兜底），逐条原因保留
+                        var flushMsg = (e2 && e2.message) || String(e2);
+                        var partial = e2 && e2.partial;
+                        if (partial) {
+                            archPurged = {
+                                deleted: partial.deleted || 0,
+                                failed: (partial.failed || []).slice(),
+                                flushError: flushMsg,
+                                flushCode: (e2 && e2.code) || ''
+                            };
+                        } else {
+                            var goneCount = 0, stillIndexed = [];
+                            for (var au = 0; au < archivedUnder.length; au++) {
+                                if (_items.indexOf(archivedUnder[au]) === -1) goneCount++;
+                                else stillIndexed.push(archivedUnder[au]);
+                            }
+                            archPurged = {
+                                deleted: goneCount,
+                                failed: stillIndexed.map(function (x) {
+                                    return { id: x.id, name: x.name, path: x.targetFolder || x.aepPath, error: flushMsg };
+                                }),
+                                flushError: flushMsg,
+                                flushCode: (e2 && e2.code) || ''
+                            };
+                        }
+                    }
+                }
+                var archFailed = archPurged.failed || [];
+                if (allFailures.length || archFailed.length || archPurged.flushError) {
                     // 部分实体删除失败如实抛错（对齐单条 remove 的 failures 抛错语义；调用方
                     // folderViewMixin catch 后走「删除失败」错误 toast）——若仅 console.warn 后
                     // 正常 resolve，UI 误报「已删除文件夹」成功 toast。成功条目已 splice+flush 保留
                     // 删除效果；失败条目保留索引与磁盘文件（防下次 load 重新索引"复活"），可重试。
-                    throw new Error(AEI18n.t('部分删除失败（成功 ') + removed.length + AEI18n.t(' 个，失败 ') + allFailures.length + AEI18n.t(' 个）: ') + allFailures.join(', '));
+                    // 落盘失败单独成句，避免与部分失败计数自相矛盾。
+                    var errParts = [];
+                    if (allFailures.length || archFailed.length) {
+                        var failedPaths = allFailures.concat(archFailed.map(function (f) {
+                            return (f.name || '') + ' ' + (f.path || f.id || '') + (f.error ? '（' + f.error + '）' : '');
+                        }));
+                        errParts.push(AEI18n.t('部分删除失败（成功 ') + (removed.length + (archPurged.deleted || 0)) + AEI18n.t(' 个，失败 ') + (allFailures.length + archFailed.length) + AEI18n.t(' 个）: ') + failedPaths.join(', '));
+                    }
+                    if (archPurged.flushError) errParts.push(archPurged.flushError);
+                    var delErr = new Error(errParts.join((typeof AEI18n.punct === 'function') ? AEI18n.punct('；', '; ') : '；'));
+                    if (archPurged.flushCode) delErr.code = archPurged.flushCode;
+                    throw delErr;
                 }
-                result = removed.length;
+                result = removed.length + (archPurged.deleted || 0);
             }
             _fm.syncFoldersOnRemove(fN, _under);
             return result;
@@ -1901,14 +1986,14 @@
         // （下次 scanMissing 标 missing），归档件成"未登记"孤儿且永不被清扫认领。
         // 重试一次（瞬时故障）；仍失败则保留与磁盘一致的内存态并抛错，等下次任意成功写入
         // （含下次 load 的收尾 _flushIndex）补齐——错误码 FLUSH_FAILED_AFTER_MOVE 便于上层如实措辞。
-        async function _flushAfterMove() {
+        async function _flushAfterMove(tailMsg) {
             try { await _flushIndex(); return; }
             catch (e1) {
                 try { await _flushIndex(); return; }
                 catch (e2) {
                     var err = new Error(AEI18n.t('磁盘状态已变更但索引落盘失败（') + (e2 && e2.message ? e2.message : e2)
                         + AEI18n.t('）：本次操作已生效，索引将在下次成功写入时补齐；')
-                        + AEI18n.t('若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）'));
+                        + (tailMsg || AEI18n.t('若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）')));
                     err.code = 'FLUSH_FAILED_AFTER_MOVE';
                     throw err;
                 }
@@ -1923,15 +2008,41 @@
         // 只有 existsResult 的 NOT_FOUND 是权威"真不存在"才放行"已删除"；通道故障/
         // 拒绝/超时一律按"仍未删除"处理（宁可下次清扫重试，不可移除索引）。旧 mock/
         // 旧版 AEFS 无 existsResult 时回退 existsAsync 两态（保持逐分支等价）。
-        async function _probeArchiveSourceGone(p) {
+        // 存在性三态：'exists' / 'gone'（权威 NOT_FOUND）/ 'unknown'（通道故障、拒绝、旧接口不可判）
+        async function _probePathState(p) {
             if (typeof _AEFS.existsResult === 'function') {
                 var r = null;
-                try { r = await _AEFS.existsResult(p); } catch (_) { return false; }
-                return !!(r && r.ok === false && r.error && r.error.code === 'NOT_FOUND');
+                try { r = await _AEFS.existsResult(p); } catch (_) { return 'unknown'; }
+                if (r && r.ok === true) return 'exists';
+                if (r && r.ok === false && r.error && r.error.code === 'NOT_FOUND') return 'gone';
+                return 'unknown';
             }
-            var alive = true;
-            try { alive = await _AEFS.existsAsync(p); } catch (_) { alive = true; }
-            return !alive;
+            try {
+                var alive = await _AEFS.existsAsync(p);
+                return alive ? 'exists' : 'gone';
+            } catch (_) { return 'unknown'; }
+        }
+
+        async function _probePathGone(p) {
+            return (await _probePathState(p)) === 'gone';
+        }
+
+        // 目录包"真不存在"复核：exists 单判据在瞬态故障（离线共享/权限拒绝）下会误判；
+        // 追加父目录列表交叉校验——列表可读且仍含该目录 ⇒ 仍存在；列表不可读 ⇒ 不敢判 gone。
+        // 必须用三态 listDirsResult：listDirsAsync 会把 NOT_FOUND/CHANNEL_FAILURE/REJECTED
+        // 统一折叠成 []，无法区分"空目录"与"读不到"。
+        async function _probeArchiveDirGone(dirPath) {
+            if (!(await _probePathGone(dirPath))) return false;
+            var fwd = String(dirPath).replace(/\\/g, '/').replace(/\/+$/, '');
+            var slash = fwd.lastIndexOf('/');
+            if (slash < 0) return false;
+            var parent = fwd.slice(0, slash), leaf = fwd.slice(slash + 1);
+            if (typeof _AEFS.listDirsResult !== 'function') return false;   // 旧 AEFS 无三态：保守
+            var r = null;
+            try { r = await _AEFS.listDirsResult(parent); } catch (_) { return false; }
+            if (r && r.ok === false && r.error && r.error.code === 'NOT_FOUND') return true;   // 父目录不存在 ⇒ 目录必不存在
+            if (!r || r.ok !== true || !Array.isArray(r.data)) return false;   // 列表不可读：按仍存在
+            return r.data.indexOf(leaf) === -1;
         }
 
         // 删除核（sweep 与 purgeArchive 共用）：物理删归档包 + 删索引。
@@ -1952,9 +2063,13 @@
                 if (it.targetFolder) {
                     var rmRes = await _removeDir(it.targetFolder, { skipRecycle: true });
                     okOne = !!(rmRes && rmRes.success === true);
+                    // 目录包也可能已被外部删除/崩溃中断：与裸文件同口径做"真不存在"复核，
+                    // 否则 purge/sweep 对已消失的包永远失败，条目成僵尸；用父目录列表交叉校验，
+                    // 避免瞬态 exists 失败被当成"已消失"而移除索引
+                    if (!okOne) okOne = await _probeArchiveDirGone(it.targetFolder);
                 } else {
                     try { okOne = await _AEFS.deleteFile(it.aepPath); } catch (_) { okOne = false; }
-                    if (!okOne) okOne = await _probeArchiveSourceGone(it.aepPath);
+                    if (!okOne) okOne = await _probePathGone(it.aepPath);
                 }
                 if (!okOne) { failed.push({ id: it.id, name: it.name, path: p, error: AEI18n.t('归档包删除失败') }); continue; }
                 del.push(it);
@@ -1965,7 +2080,14 @@
                 _items.splice(idx, 1);
                 undo.push({ kind: 'drop', it: del[k], idx: idx });
             }
-            if (undo.length) await _flushAfterMove();   // 不回滚：物理状态已变更（见 _flushAfterMove 注释）
+            if (undo.length) {
+                try { await _flushAfterMove(AEI18n.t('若在补齐前重启面板，归档区可能仍显示这些条目（物理文件已删除，重新清理即可）')); }   // 不回滚：物理状态已变更（见 _flushAfterMove 注释）
+                catch (e) {
+                    // 物理删除已完成、索引未落盘：把部分结果挂在错误上，调用方据真实结果合并回执
+                    e.partial = { deleted: del.length, failed: failed };
+                    throw e;
+                }
+            }
             // 索引移除已落盘 → 连带删预览目录（仅对物理删除成功的目标；失败项保留预览等下次）
             var _pvDel = _previewStore();
             if (_pvDel) {

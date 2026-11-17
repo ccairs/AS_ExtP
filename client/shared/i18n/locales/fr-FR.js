@@ -2015,7 +2015,7 @@
     "不能归档系统目录（": "Impossible d’archiver un répertoire système (",
     "目标路径不在预设目录内: ": "Le chemin cible n’est pas dans le répertoire des préréglages : ",
     "磁盘状态已变更但索引落盘失败（": "Le disque a été modifié, mais l’écriture de l’index a échoué (",
-    "）：本次操作已生效，索引将在下次成功写入时补齐；": ") : l’opération a pris effet ; l’index sera complété lors de la prochaine écriture réussie ;",
+    "）：本次操作已生效，索引将在下次成功写入时补齐；": ") : l’opération a pris effet ; l’index sera complété lors de la prochaine écriture réussie ; ",
     "若在补齐前重启面板，归档件会显示为「未登记」（文件仍在 ___archive__ 内，可手工恢复）": "si le panneau redémarre avant ce complément, les éléments archivés apparaissent comme « non enregistrés » (les fichiers restent dans ___archive__ et peuvent être restaurés manuellement)",
     "路径不在归档区，跳过": "Chemin hors des archives ; ignoré",
     "文件删除失败": "Échec de la suppression du fichier",
@@ -3451,6 +3451,12 @@
     "标识符不在能力白名单内": "L'identifiant est hors de la liste blanche de capacités",
     "成员不在能力白名单内": "Le membre est hors de la liste blanche de capacités",
     "代码未通过能力白名单校验": "Le code n'a pas passé la liste blanche de capacités",
-    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "La zone d’aperçu contient déjà du contenu. Charger l’effet « {name} » remplacera le code actuel. Continuer ?"
+    "预览区已有内容，读取效果「{name}」将覆盖当前代码。是否继续？": "La zone d’aperçu contient déjà du contenu. Charger l’effet « {name} » remplacera le code actuel. Continuer ?",
+    "条目已归档，不能重命名（请先 restore 恢复）: ": "L'élément est archivé et ne peut pas être renommé (restaurez-le d'abord avec restore) : ",
+    "条目已归档，不能移动（请先 restore 恢复）: ": "L'élément est archivé et ne peut pas être déplacé (restaurez-le d'abord avec restore) : ",
+    "条目已归档，不能直接删除（请用 restore 恢复或从归档区永久清理）: ": "L'élément est archivé et ne peut pas être supprimé directement (utilisez restore ou nettoyez-le définitivement depuis l'Archive) : ",
+    "若在补齐前重启面板，归档条目的恢复目标仍是旧路径（归档件本身不受影响）": "Si le panneau redémarre avant l'écriture de l'index, les éléments archivés conservent l'ancienne cible de restauration (les fichiers archivés eux-mêmes ne sont pas affectés)",
+    "不能删除系统目录（归档区/垃圾区）: ": "Impossible de supprimer un dossier système (archive/corbeille) : ",
+    "若在补齐前重启面板，归档区可能仍显示这些条目（物理文件已删除，重新清理即可）": "Si le panneau redémarre avant l'écriture de l'index, ces éléments peuvent encore apparaître dans l'Archive (leurs fichiers sont déjà supprimés ; relancez le nettoyage pour les retirer)"
 }]);
 })(typeof window !== 'undefined' ? window : this);
