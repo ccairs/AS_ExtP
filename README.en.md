@@ -4,7 +4,7 @@
 
 > A multi-module extension platform (CEP) that brings AI into After Effects.
 >
-> Version: v1.0.0
+> Version: v1.0.1
 
 AS_ExtP is an AI extension platform for After Effects — a CEP panel plus two native AE plug-ins (a GLSL effect host and the AE Hotbox). The panel consists of several modules: **Agent** (conversational control through large language models), **ComfyUI** (AI image / video generation), **Asset Library** (project assets and presets), and **MCP / Skill / Memory / Model management** (capability extension and configuration).
 

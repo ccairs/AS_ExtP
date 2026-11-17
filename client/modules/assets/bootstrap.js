@@ -16,6 +16,13 @@
  *   - asset_refs.add 允许任意 originalPath；project_assets/presets 的 addMeta 不暴露
  *   - importToAE / applyToAE 不设防（balanced 不弹）
  *   - 归档条目除 get/restore 外一律拒绝修改（fail-closed）
+ *   - move 支持 id 单个与 ids 批量；批量走 store.moveBatch（批内索引只写 1 次，
+ *     与 UI 多选拖拽同一接口），批量前逐条校验未知 id / 归档态并整批拒绝
+ *   - moveFolder 移动文件夹（folder 单个 / folders 批量）到 targetFolder 下：目标父
+ *     文件夹须已存在（根除外），目标已有同名文件夹时拒绝
+ *   - createFolder 支持 folder 单个与 folders 批量（父链自动创建；已存在项不重复建；
+ *     回执区分「已创建」与「已存在」）
+ *   - renameFolder 只做同层改名（name 为单段新名称），跨层搬移一律走 moveFolder
  *
  * Store 实例存到 global.AEAssetsShared._sharedStores，assets/index.js mount 时复用，
  * 避免 LLM 工具与 UI 各持一份内存导致状态不一致。
@@ -112,7 +119,9 @@
     }
 
     // ── 通用小工具 ──
-    function _normF(f) { return String(f || '').replace(/^\/+|\/+$/g, ''); }
+    // 文件夹路径归一化：去首尾斜杠 + 折叠重复斜杠（'a//b' 与 'a/b' 是同一路径，
+    // 不折叠会在 .folders.json 落两条记录且按任一路径都删不掉另一条）
+    function _normF(f) { return String(f || '').replace(/^\/+|\/+$/g, '').replace(/\/{2,}/g, '/'); }
 
     // 父链：'根 > 角色 > 眼睛'（回执统一口径）
     function _chain(folder) {
@@ -337,13 +346,13 @@
                 + ' presets 预设（.ffx 实体，UI 拖入入库，LLM 不入库）。'
                 + '按 mode 操作：'
                 + ' 读（不弹确认）：list/get/search/listFolders/listEmptyFolders/listMissing/scanMissing/listArchive；'
-                + ' 写：rename/move/createFolder/renameFolder/removeFolder（仅空文件夹）/updateMeta（备注覆盖写；notes 空串=清除；上限 ' + NOTES_MAX + ' 字）；'
+                + ' 写：rename/move（条目；id 单个或 ids 批量）/moveFolder（文件夹；folder 或 folders 移到 targetFolder 下）/createFolder（folder 单个或 folders 批量，父链自动创建）/renameFolder（name 单段新名称；跨层搬移用 moveFolder）/removeFolder（仅空文件夹）/updateMeta（备注覆盖写；notes 空串=清除；上限 ' + NOTES_MAX + ' 字）；'
                 + ' 归档（=删除）：archive / restore（ids 数组批量，或 folder 路径整夹，二选一）——用户要求「删除/清理/移除」素材或文件夹时一律用 archive；'
                 + ' 本工具没有永久删除：移入归档区，7 天后自动清理，期间可 restore。归档条目仅 get/restore 可用，其余 mode 一律拒绝。'
                 + ' folder 整夹归档=递归含子层；空文件夹请用 removeFolder（无内容可归档）。'
                 + ' 导入 AE：importToAE（asset_refs/project_assets；ids 数组；project_assets 仅单条可传 name 覆盖工程名）；'
                 + ' applyToAE（presets；不传图层参数=应用到选中图层；或 compName+layerIndex/layerName 指定图层）。'
-                + '仅 asset_refs 有 add/originalPath/targetFolder；仅 presets 有 applyToAE。',
+                + '仅 asset_refs 有 add/originalPath；targetFolder 用于 moveFolder（三库）与 importToAE（仅 asset_refs）；仅 presets 有 applyToAE。',
             input_schema: {
                 type: 'object',
                 properties: {
@@ -356,18 +365,18 @@
                         type: 'string',
                         enum: ['list', 'get', 'search', 'listFolders', 'listEmptyFolders',
                             'listMissing', 'scanMissing', 'listArchive',
-                            'add', 'rename', 'move', 'createFolder', 'renameFolder', 'removeFolder',
+                            'add', 'rename', 'move', 'createFolder', 'renameFolder', 'moveFolder', 'removeFolder',
                             'updateMeta', 'archive', 'restore', 'importToAE', 'applyToAE']
                     },
-                    id: { type: 'string', description: 'get/rename/move/updateMeta/applyToAE 用：条目 id（单个）' },
-                    ids: { type: 'array', items: { type: 'string' }, description: 'archive/restore/importToAE 用：条目 id 列表（单次上限 ' + _maxIds() + '；archive/restore 与 folder 二选一）' },
-                    folder: { type: 'string', description: 'add/move/createFolder/removeFolder 用：目标文件夹路径；archive/restore 用：整夹归档/恢复的文件夹路径（递归含子层，与 ids 二选一）' },
-                    newFolder: { type: 'string', description: 'renameFolder 必填：新文件夹路径' },
-                    name: { type: 'string', description: 'add/rename/createFolder 用；importToAE（project_assets）仅单条时可选：导入后的 AE 工程名（AE 里显示为 <名>.aep，重名自动加 _N）' },
+                    id: { type: 'string', description: 'get/rename/move/updateMeta/applyToAE 用：条目 id（单个；move 批量请用 ids）' },
+                    ids: { type: 'array', items: { type: 'string' }, description: 'archive/restore/importToAE 用：条目 id 列表（单次上限 ' + _maxIds() + '；archive/restore 与 folder 二选一）；move 用：批量移动的条目 id 列表（与 id 二选一，上限同）' },
+                    folder: { type: 'string', description: 'add/move/createFolder/removeFolder 用：目标文件夹路径（move 传空或省略=移到根目录）；moveFolder 用：要移动的源文件夹路径（单个）；renameFolder 用：原文件夹路径（同层改名，新名称传 name）；archive/restore 用：整夹归档/恢复的文件夹路径（递归含子层，与 ids 二选一）' },
+                    folders: { type: 'array', items: { type: 'string' }, description: 'moveFolder 用：要移动的源文件夹路径列表（批量；与 folder 二选一，单次上限 ' + _maxIds() + '），目标父文件夹见 targetFolder；createFolder 用：要创建的文件夹路径列表（批量，父链自动创建，已存在项不重复建；与 folder 二选一，上限同）' },
+                    name: { type: 'string', description: 'add/rename/renameFolder 用：条目/文件夹名称（renameFolder 为同层新名称：单段、不含 /）；importToAE（project_assets）仅单条时可选：导入后的 AE 工程名（AE 里显示为 <名>.aep，重名自动加 _N）' },
                     originalPath: { type: 'string', description: 'add（仅 asset_refs）必填：素材绝对路径（如 D:/assets/a.png）' },
                     notes: { type: 'string', description: 'updateMeta/add 用：备注（覆盖写；空串=清除；上限 ' + NOTES_MAX + ' 字）' },
                     query: { type: 'string', description: 'search 必填：关键词（匹配 name/notes）' },
-                    targetFolder: { type: 'string', description: 'importToAE（仅 asset_refs）可选：导入到 AE 工程内的文件夹路径（如 "Scenes/Intro"）' },
+                    targetFolder: { type: 'string', description: 'moveFolder 用：目标父文件夹路径（省略或空串=移到根目录；父文件夹须已存在，可先 createFolder）；importToAE（仅 asset_refs）可选：导入到 AE 工程内的文件夹路径（如 "Scenes/Intro"）' },
                     compName: { type: 'string', description: 'applyToAE 指定图层模式必填：合成名称（传此字段或 layerIndex/layerName 任一即进入指定图层模式，否则用选中图层）' },
                     layerIndex: { type: 'number', description: 'applyToAE 指定图层模式用：图层索引（与 layerName 二选一）' },
                     layerName: { type: 'string', description: 'applyToAE 指定图层模式用：图层名称（与 layerIndex 二选一）' }
@@ -441,6 +450,7 @@
                 case 'move': return _assetMove(lib, store, args);
                 case 'createFolder': return _assetCreateFolder(lib, store, args);
                 case 'renameFolder': return _assetRenameFolder(lib, store, args);
+                case 'moveFolder': return _assetMoveFolder(lib, store, args);
                 case 'removeFolder': return _removeFolderSafe(store, args.folder);
                 case 'updateMeta': return _assetUpdateMeta(lib, store, args);
 
@@ -513,8 +523,62 @@
         }).catch(_asyncErr);
     }
 
+    // move：id 单个与 ids 批量二选一。批量走 store.moveBatch（与 UI 多选拖拽同一接口，
+    // 批内索引只写 1 次）。工具层先逐条校验：未知 id / 归档条目 / 空值或非字符串 id
+    // 一律整批拒绝；回执按条目当前 folder 对账，不依赖 store 返回值。
     function _assetMove(lib, store, args) {
-        if (!args.id) return _err('move 必填 id');
+        var hasIds = args.ids !== undefined && args.ids !== null;
+        var hasSingleId = args.id !== undefined && args.id !== null && String(args.id) !== '';
+        if (hasIds) {
+            if (hasSingleId) {
+                return _err('move 的 id 与 ids 二选一（单个用 id，批量用 ids）');
+            }
+            var raw = Array.isArray(args.ids) ? args.ids : [args.ids];
+            var ids = [], seen = Object.create(null);
+            for (var i = 0; i < raw.length; i++) {
+                if (typeof raw[i] !== 'string' || raw[i] === '') {
+                    return _err('ids 必须是字符串数组（第 ' + (i + 1) + ' 项为空或非字符串）');
+                }
+                if (seen[raw[i]]) continue;
+                seen[raw[i]] = true;
+                ids.push(raw[i]);
+            }
+            if (!ids.length) return _err('move 的 ids 不能为空数组');
+            if (ids.length > _maxIds()) {
+                return _err('ids 超过单次上限 ' + _maxIds() + '（本次 ' + ids.length + ' 条），请分批');
+            }
+            var _idBadB = _idsCheck(lib, ids); if (_idBadB) return _err(_idBadB);
+            var _fBadB = _checkFolderPath(args.folder || ''); if (_fBadB) return _err(_fBadB);
+            var _fResB = _reservedFolderGuard(args.folder || ''); if (_fResB) return _err(_fResB);
+            var items = [], unknown = [], archivedMsg = '';
+            for (var j = 0; j < ids.length; j++) {
+                var one = _getById(store, ids[j]);
+                if (!one) { unknown.push(ids[j]); continue; }
+                if (!archivedMsg) { var gArch = _archivedGuard(one); if (gArch) archivedMsg = gArch; }
+                items.push(one);
+            }
+            if (unknown.length) {
+                return Promise.resolve(_err('条目 id 不存在: ' + unknown.join(', ') + '（请先用 mode=list 确认 id）'));
+            }
+            if (archivedMsg) return Promise.resolve(_err(archivedMsg));
+            if (typeof store.moveBatch !== 'function') {
+                return Promise.resolve(_err('该素材库未实现 moveBatch，无法批量移动'));
+            }
+            var tf = _normF(args.folder || '');
+            var already = 0;
+            for (var k = 0; k < items.length; k++) {
+                if (_normF(items[k].folder) === tf) already++;
+            }
+            return Promise.resolve(store.moveBatch(ids, tf)).then(function () {
+                return _moveBatchReceipt(store, items, ids, tf, already, '');
+            }).catch(function (e) {
+                // 批内中途失败：store 可能已搬走部分（presetStore 先落盘已完成部分再抛），
+                // 按条目当前 folder 复核后如实分报已移动/未移动，不把整批一律报成失败
+                return _moveBatchReceipt(store, items, ids, tf, already,
+                    (e && e.message) ? e.message : String(e));
+            });
+        }
+        if (!args.id) return _err('move 必填 id（单个）或 ids（批量）');
         var _idBad = _idCheck(lib, args.id); if (_idBad) return _err(_idBad);
         var _fBad = _checkFolderPath(args.folder || ''); if (_fBad) return _err(_fBad);
         var _fRes = _reservedFolderGuard(args.folder || ''); if (_fRes) return _err(_fRes);
@@ -529,42 +593,408 @@
         }).catch(_asyncErr);
     }
 
-    function _assetCreateFolder(lib, store, args) {
-        if (!args.folder) return _err('createFolder 必填 folder');
-        var _fBad = _checkFolderPath(args.folder); if (_fBad) return _err(_fBad);
-        var _fRes = _reservedFolderGuard(args.folder); if (_fRes) return _err(_fRes);
-        var fN = _normF(args.folder);
-        return Promise.resolve(store.createFolder(fN)).then(function (ok) {
-            if (ok === false) return _err('创建失败（路径非法或已存在）: ' + args.folder);
-            var empt = (store.listEmptyFolders && store.listEmptyFolders()) || [];
-            return _ok('已创建文件夹 ' + fN + '（父链: ' + _chain(fN) + '）'
-                + '· 该文件夹' + (empt.indexOf(fN) !== -1 ? '当前为空' : '（含子层）共 ' + _folderCount(store.list(), fN) + ' 条'));
-        }).catch(_asyncErr);
+    // 批量条目移动对账：按条目当前 folder 统计已到/未到目标（store.moveBatch 的返回值
+    // 是处理数，批内中途失败时不可作为回执依据），回执分开报已移动与未移动。
+    function _moveBatchReceipt(store, items, ids, tf, already, errMsg) {
+        var arrived = 0, missing = [];
+        for (var i = 0; i < ids.length; i++) {
+            var cur = _getById(store, ids[i]);
+            if (cur && _normF(cur.folder) === tf) arrived++;
+            else missing.push(ids[i]);
+        }
+        var movedNow = Math.max(0, arrived - already);
+        var lines = ['已移动 ' + movedNow + ' 个条目 → ' + (tf ? tf : '根目录')
+            + (already > 0 ? '（另有 ' + already + ' 条原本已在目标，未改动）' : ''),
+            '父链: ' + _chain(tf) + ' · 该文件夹（含子层）共 ' + _folderCount(store.list(), tf) + ' 条'];
+        for (var x = 0; x < items.length; x++) {
+            lines.push('- [' + (items[x].name || '?') + '] id=' + items[x].id);
+        }
+        if (missing.length) lines.push('未移动 ' + missing.length + ' 个: ' + missing.join(', '));
+        if (errMsg) lines.push('失败原因: ' + errMsg);
+        if (missing.length) lines.push('请 mode=list 复核后只重试未移动的条目');
+        if (!missing.length && !errMsg) return _ok(lines.join('\n'));
+        return _err(lines.join('\n'));
     }
 
+    // 文件夹状态摘要（创建/已存在回执共用）：空文件夹记录或含子层条目数
+    function _folderStateFrom(items, empty, fN) {
+        return empty.indexOf(fN) !== -1 ? '当前为空' : '（含子层）共 ' + _folderCount(items, fN) + ' 条';
+    }
+    function _folderStateText(store, fN) {
+        return _folderStateFrom(store.list() || [], (store.listEmptyFolders && store.listEmptyFolders()) || [], fN);
+    }
+    // 把路径及其祖先登记进文件夹集合（批内先建父链时，后建的子路径祖先已随之存在）
+    function _folderSetAdd(set, fN) {
+        var f = _normF(fN);
+        while (f) {
+            if (set[f]) break;
+            set[f] = true;
+            var k = f.lastIndexOf('/');
+            f = k > 0 ? f.slice(0, k) : '';
+        }
+    }
+
+    // 建文件夹：folder 单个或 folders 批量（父链自动创建）。已存在的路径不重复建，
+    // 回执区分「已创建」与「已存在（未重复创建）」——store.createFolder 是幂等语义，
+    // 自身不区分这两者，存在性在工具层用文件夹集合判定。
+    function _assetCreateFolder(lib, store, args) {
+        var hasFolders = args.folders !== undefined && args.folders !== null;
+        var hasFolder = args.folder !== undefined && args.folder !== null && String(args.folder) !== '';
+        if (hasFolder && typeof args.folder !== 'string') {
+            return _err('createFolder 的 folder 必须是字符串（收到 ' + (typeof args.folder) + '）');
+        }
+        if (hasFolders && hasFolder) {
+            return _err('createFolder 的 folder 与 folders 二选一（单个用 folder，批量用 folders）');
+        }
+        if (!hasFolders && !hasFolder) {
+            return _err('createFolder 必填 folder（单个路径）或 folders（路径列表）');
+        }
+        var paths = [];
+        if (hasFolders) {
+            if (!Array.isArray(args.folders)) return _err('createFolder 的 folders 必须是数组');
+            var seen = Object.create(null);
+            for (var i = 0; i < args.folders.length; i++) {
+                if (typeof args.folders[i] !== 'string') {
+                    return _err('folders 必须是字符串数组（第 ' + (i + 1) + ' 项不是字符串）');
+                }
+                var p = _normF(args.folders[i]);
+                if (!p) return _err('folders 的路径不能为空或根路径（第 ' + (i + 1) + ' 项）');
+                if (seen[p]) continue;
+                seen[p] = true;
+                paths.push(p);
+            }
+            if (!paths.length) return _err('createFolder 的 folders 不能为空数组');
+            if (paths.length > _maxIds()) {
+                return _err('folders 超过单次上限 ' + _maxIds() + '（本次 ' + paths.length + ' 个），请分批');
+            }
+        } else {
+            paths.push(_normF(args.folder));
+        }
+        for (var j = 0; j < paths.length; j++) {
+            if (!paths[j]) return _err('createFolder 不支持根路径（folder 不能为空或 "/"）');
+            var _fBad = _checkFolderPath(paths[j]); if (_fBad) return _err('无法创建文件夹 ' + paths[j] + '：' + _fBad);
+            var _fRes = _reservedFolderGuard(paths[j]); if (_fRes) return _err('无法创建文件夹 ' + paths[j] + '：' + _fRes);
+        }
+        var folderSet = _folderSet(store);
+        // 实体库（presets）的「已存在」来自缓存/索引，仍调一次幂等 createFolder 补建目录并刷新缓存
+        function _ensurePhysical(fN) {
+            if (lib !== 'presets') return Promise.resolve(true);
+            return Promise.resolve(store.createFolder(fN));
+        }
+
+        // 单个：已存在只报告（不落空文件夹记录），实体库补一次幂等 mkdir
+        if (!hasFolders) {
+            var fN = paths[0];
+            if (folderSet[fN]) {
+                return _ensurePhysical(fN).then(function (ok) {
+                    if (ok === false) return _err('文件夹已存在但目录不可用（补建失败）: ' + fN);
+                    return _ok('文件夹已存在（未重复创建）: ' + fN + '（父链: ' + _chain(fN) + '）'
+                        + '· 该文件夹' + _folderStateText(store, fN));
+                }).catch(_asyncErr);
+            }
+            return Promise.resolve(store.createFolder(fN)).then(function (ok) {
+                if (ok === false) return _err('创建失败（路径非法）: ' + fN);
+                return _ok('已创建文件夹 ' + fN + '（父链: ' + _chain(fN) + '）· 该文件夹' + _folderStateText(store, fN));
+            }).catch(_asyncErr);
+        }
+
+        // 批量：逐条创建（每文件夹一次索引写）；已存在项只报告、不重复建
+        var created = [], existed = [], failed = [];
+        return paths.reduce(function (chain, fp) {
+            return chain.then(function () {
+                if (folderSet[fp]) {
+                    return _ensurePhysical(fp).then(function (ok) {
+                        if (ok === false) failed.push({ fN: fp, error: '已存在判定后补建目录失败' });
+                        else existed.push(fp);
+                    }, function (e) {
+                        failed.push({ fN: fp, error: (e && e.message) ? e.message : String(e) });
+                    });
+                }
+                return Promise.resolve(store.createFolder(fp)).then(function (ok) {
+                    if (ok === false) { failed.push({ fN: fp, error: '创建失败（路径非法）' }); return; }
+                    created.push(fp);
+                    _folderSetAdd(folderSet, fp);
+                }, function (e) {
+                    failed.push({ fN: fp, error: (e && e.message) ? e.message : String(e) });
+                });
+            });
+        }, Promise.resolve()).then(function () {
+            var snapItems = store.list() || [];
+            var snapEmpty = (store.listEmptyFolders && store.listEmptyFolders()) || [];
+            var lines = [];
+            if (created.length) {
+                lines.push('已创建 ' + created.length + ' 个文件夹：');
+                for (var a = 0; a < created.length; a++) {
+                    lines.push('- ' + created[a] + '（父链: ' + _chain(created[a]) + '）· '
+                        + _folderStateFrom(snapItems, snapEmpty, created[a]));
+                }
+            }
+            if (existed.length) {
+                lines.push('已存在 ' + existed.length + ' 个（未重复创建）：');
+                for (var b = 0; b < existed.length; b++) lines.push('- ' + existed[b]);
+            }
+            if (!created.length && !existed.length) lines.push('未创建新文件夹：');
+            if (failed.length) {
+                lines.push('失败 ' + failed.length + ' 个：');
+                for (var c = 0; c < failed.length; c++) lines.push('- ' + failed[c].fN + '：' + failed[c].error);
+            }
+            var text = lines.join('\n');
+            return (failed.length === paths.length) ? _err(text) : _ok(text);
+        });
+    }
+
+    // 同层改名：参数只要 folder（原路径）+ name（单段新名称），目标路径由工具拼接。
+    // 跨层搬移由 moveFolder 承接——目标父夹存在性/同名占用/跳过清单/批量都在那里校验。
     function _assetRenameFolder(lib, store, args) {
-        if (!args.folder || !args.newFolder) return _err('renameFolder 必填 folder 和 newFolder');
+        if (!args.folder) return _err('renameFolder 必填 folder（原文件夹路径）');
+        if (typeof args.folder !== 'string') {
+            return _err('renameFolder 的 folder 必须是字符串（收到 ' + (typeof args.folder) + '）');
+        }
         // 拒绝根路径——'/' 等空段路径过 invalidFolderPath 校验（空段集不拒），
-        // 归一化后 oldN='' 触发 store「根重命名」分支：全库根级条目被批量迁移进
-        // newFolder（refStore 索引全迁；presetStore 跨目录物理 copy+delete，中途失败
-        // 留半迁移态）。UI 无此入口（treeView 只传实际子文件夹路径），仅 LLM 可达。
+        // oldN='' 触发 store「根重命名」分支，全库根级条目被批量迁移进目标（refStore
+        // 索引全迁；presetStore 跨目录物理 copy+delete，中途失败留半迁移态）。UI 无此
+        // 入口（treeView 只传实际子文件夹路径），仅 LLM 可达。
         if (!_normF(args.folder)) {
             return _err('renameFolder 不支持根路径：folder 不能为 "/"（根目录不可重命名，仅可重命名子文件夹）');
         }
-        // newFolder 归一化后为空（如 '/'）——非空校验只查 truthy，'/' 通过
-        // 后 store 层把 newN='' 当「条目提升到根 / 复制到根」执行，静默改变全库结构
-        if (!_normF(args.newFolder)) {
-            return _err('renameFolder 的 newFolder 不能为 "/"（归一化后为空，不能把文件夹改名为根目录）');
+        if (args.newFolder !== undefined && args.newFolder !== null) {
+            return _err('renameFolder 已改为 name（单段新名称），不再接受 newFolder：同层改名请传 name；'
+                + '跨层搬移请用 mode=moveFolder');
         }
-        var _nfBad = _checkFolderPath(args.newFolder); if (_nfBad) return _err(_nfBad);
-        var _resOld = _reservedFolderGuard(args.folder); if (_resOld) return _err(_resOld);
-        var _resNew = _reservedFolderGuard(args.newFolder); if (_resNew) return _err(_resNew);
-        var oldPath = _normF(args.folder), newPath = _normF(args.newFolder);
+        if (!args.name || typeof args.name !== 'string') {
+            return _err('renameFolder 必填 name（新名称：单段、不含 /）');
+        }
+        // 单段约束不依赖 treeView（_checkName 在 treeView 未加载时是 fail-open）；
+        // 含分隔符的 name 大概率是旧「完整路径」用法，直接给迁移指引
+        if (args.name.indexOf('/') !== -1 || args.name.indexOf('\\') !== -1 ||
+            args.name === '.' || args.name === '..') {
+            return _err('name 必须是单段名称（不含 / 或 \\，且不能是 . / ..）：同层改名只传末段；'
+                + '跨层搬移请用 mode=moveFolder');
+        }
+        var _nameBad = _checkName(args.name); if (_nameBad) return _err(_nameBad);
+        var oldPath = _normF(args.folder);
+        var _ofBad = _checkFolderPath(oldPath); if (_ofBad) return _err(_ofBad);
+        var parent = _folderParent(oldPath);
+        var newPath = parent ? (parent + '/' + args.name) : args.name;
+        var _nfBad = _checkFolderPath(newPath); if (_nfBad) return _err(_nfBad);
+        var _resOld = _reservedFolderGuard(oldPath); if (_resOld) return _err(_resOld);
+        var _resNew = _reservedFolderGuard(newPath); if (_resNew) return _err(_resNew);
+        // 源文件夹必须存在：refStore/projectAssetStore 对不存在的路径是静默 no-op，
+        // 不查会回执「已重命名/名称未变」假成功（归档文件夹在活动树中不可见，同样拒绝）
+        if (!_folderSet(store)[oldPath]) {
+            return _err('文件夹不存在: ' + oldPath + '（请先用 mode=listFolders 确认；归档文件夹请先 mode=restore）');
+        }
+        if (newPath === oldPath) {
+            return _ok('文件夹 ' + oldPath + ' 名称未变（未做改动）');
+        }
         return Promise.resolve(store.renameFolder(oldPath, newPath)).then(function (ok) {
-            if (ok === false) return _err('重命名失败（目标已存在或路径非法）: ' + args.folder);
+            if (ok === false) return _err('重命名失败（目标已存在或路径非法）: ' + oldPath);
             return _ok('已重命名文件夹 ' + oldPath + ' → ' + newPath
                 + '（父链: ' + _chain(newPath) + '）· 该文件夹（含子层）共 ' + _folderCount(store.list(), newPath) + ' 条');
         }).catch(_asyncErr);
+    }
+
+    // 文件夹的父路径（根级文件夹返回空串）
+    function _folderParent(folder) {
+        var n = _normF(folder);
+        return n.indexOf('/') >= 0 ? n.slice(0, n.lastIndexOf('/')) : '';
+    }
+
+    // 全库文件夹集合（隐式父链 + 显式空文件夹记录）。moveFolder / createFolder /
+    // renameFolder 的存在性与占用判定用：虚拟库的文件夹只由条目 folder 前缀与
+    // .folders.json 记录体现，没有独立目录实体。
+    function _folderSet(store) {
+        var set = Object.create(null);
+        var items = store.list() || [];
+        for (var i = 0; i < items.length; i++) {
+            var f = _normF(items[i] && items[i].folder);
+            while (f) {
+                if (set[f]) break;
+                set[f] = true;
+                var k = f.lastIndexOf('/');
+                f = k > 0 ? f.slice(0, k) : '';
+            }
+        }
+        var empty = (store.listEmptyFolders && store.listEmptyFolders()) || [];
+        for (var j = 0; j < empty.length; j++) {
+            // 显式空文件夹记录（如只 createFolder('a/b')）只有叶子路径，父链靠隐式层级
+            // 显示——这里补齐祖先，与面板树/ listFolders 的可见集合一致
+            var ef = _normF(empty[j]);
+            while (ef) {
+                if (set[ef]) break;
+                set[ef] = true;
+                var ek = ef.lastIndexOf('/');
+                ef = ek > 0 ? ef.slice(0, ek) : '';
+            }
+        }
+        return set;
+    }
+    function _folderBaseName(folder) {
+        var n = _normF(folder);
+        return n.indexOf('/') >= 0 ? n.slice(n.lastIndexOf('/') + 1) : n;
+    }
+
+    // 文件夹移动：dst = targetFolder + '/' + 源文件夹末段（与面板拖拽移动同一语义）。
+    // 目标父文件夹须已存在（根除外）；同名目标拒绝（refs/项目库 store 抛错，预设库跨父
+    // 分支会走 _1 改名合并，工具层统一拦截）；不隐式创建父链。
+    function _assetMoveFolder(lib, store, args) {
+        var hasFolders = args.folders !== undefined && args.folders !== null;
+        var hasFolder = args.folder !== undefined && args.folder !== null && String(args.folder) !== '';
+        if (hasFolder && typeof args.folder !== 'string') {
+            return Promise.resolve(_err('moveFolder 的 folder 必须是字符串（收到 ' + (typeof args.folder) + '）'));
+        }
+        if (args.targetFolder !== undefined && args.targetFolder !== null && typeof args.targetFolder !== 'string') {
+            return Promise.resolve(_err('moveFolder 的 targetFolder 必须是字符串（收到 ' + (typeof args.targetFolder) + '）'));
+        }
+        if (hasFolders && hasFolder) {
+            return Promise.resolve(_err('moveFolder 的 folder 与 folders 二选一（单个用 folder，批量用 folders）'));
+        }
+        if (!hasFolders && !hasFolder) {
+            return Promise.resolve(_err('moveFolder 必填 folder（源文件夹）或 folders（源文件夹列表）'));
+        }
+        var srcs = [];
+        var seen = Object.create(null);
+        if (hasFolders) {
+            var raw = Array.isArray(args.folders) ? args.folders : [args.folders];
+            for (var i = 0; i < raw.length; i++) {
+                if (typeof raw[i] !== 'string' || _normF(raw[i]) === '') {
+                    return Promise.resolve(_err('folders 必须是字符串数组（第 ' + (i + 1) + ' 项为空或非字符串；根路径不可移动）'));
+                }
+                var s = _normF(raw[i]);
+                if (seen[s]) continue;
+                seen[s] = true;
+                srcs.push(s);
+            }
+            if (!srcs.length) return Promise.resolve(_err('moveFolder 的 folders 不能为空数组'));
+            if (srcs.length > _maxIds()) {
+                return Promise.resolve(_err('folders 超过单次上限 ' + _maxIds() + '（本次 ' + srcs.length + ' 个），请分批'));
+            }
+        } else {
+            srcs.push(_normF(args.folder));
+        }
+        for (var j = 0; j < srcs.length; j++) {
+            if (!srcs[j]) return Promise.resolve(_err('moveFolder 不支持根路径（folder 不能为空或 "/"）'));
+            var fBad = _checkFolderPath(srcs[j]); if (fBad) return Promise.resolve(_err(fBad));
+            var fRes = _reservedFolderGuard(srcs[j]); if (fRes) return Promise.resolve(_err(fRes));
+        }
+        var tf = _normF(args.targetFolder || '');
+        var tBad = _checkFolderPath(tf); if (tBad) return Promise.resolve(_err(tBad));
+        var tRes = _reservedFolderGuard(tf); if (tRes) return Promise.resolve(_err(tRes));
+
+        var folderSet = _folderSet(store);
+        if (tf && !folderSet[tf]) {
+            return Promise.resolve(_err('目标文件夹不存在: ' + tf
+                + '（请先 mode=createFolder 创建目标父文件夹，或省略 targetFolder 移到根目录）'));
+        }
+
+        // 单个：逐项给出明确原因（不需要"跳过"清单）
+        if (!hasFolders) {
+            var src1 = srcs[0];
+            var dst1 = tf ? (tf + '/' + _folderBaseName(src1)) : _folderBaseName(src1);
+            if (!folderSet[src1]) return Promise.resolve(_err('文件夹不存在: ' + src1));
+            if (src1 === dst1) return Promise.resolve(_ok('文件夹 ' + src1 + ' 已在目标位置（未做改动）'));
+            if (dst1.indexOf(src1 + '/') === 0) {
+                return Promise.resolve(_err('不能把文件夹移动到自身或其子层: ' + src1 + ' → ' + dst1));
+            }
+            if (folderSet[dst1]) {
+                return Promise.resolve(_err('目标位置已有同名文件夹: ' + dst1 + '（不会合并；如需合并请先移动其下条目）'));
+            }
+            return Promise.resolve(store.renameFolder(src1, dst1)).then(function () {
+                // 预设库纯空目录跨父移动在 removeDirRecursive 被取消时 store 回滚后不抛错，
+                // 按目标文件夹是否真实存在复核，避免把未发生的移动报成成功
+                if (!_folderSet(store)[dst1]) {
+                    return _err('移动未完成（可能被取消或已回滚）: ' + src1 + ' → ' + dst1
+                        + '；请 mode=listFolders 复核');
+                }
+                return _ok('已移动文件夹 ' + src1 + ' → ' + dst1 + '（父链: ' + _chain(dst1) + '）'
+                    + '· 该文件夹（含子层）共 ' + _folderCount(store.list(), dst1) + ' 条');
+            }).catch(_asyncErr);
+        }
+
+        // 批量：两段规划——先处理非嵌套源并占用目标位，再判嵌套源（仅当上级真的在移动
+        // 集合里才随上级跳过，否则按自身目标独立评估）；不可移动项进 skipped 不中断其余
+        var jobs = [], skipped = [], taken = Object.create(null);
+        var pendingNested = [];
+        function _planFolderMove(src) {
+            var dst = tf ? (tf + '/' + _folderBaseName(src)) : _folderBaseName(src);
+            if (!folderSet[src]) return { skip: '文件夹不存在' };
+            if (src === dst) return { skip: '已在目标位置' };
+            if (dst.indexOf(src + '/') === 0) return { skip: '目标在自身或其子层内' };
+            if (taken[dst]) return { skip: '目标与同批另一源同名: ' + dst };
+            if (folderSet[dst]) return { skip: '目标位置已有同名文件夹: ' + dst };
+            return { dst: dst };
+        }
+        for (var k = 0; k < srcs.length; k++) {
+            var src = srcs[k];
+            var nestedIn = '';
+            for (var n2 = 0; n2 < srcs.length; n2++) {
+                if (srcs[n2] !== src && src.indexOf(srcs[n2] + '/') === 0) { nestedIn = srcs[n2]; break; }
+            }
+            if (nestedIn) { pendingNested.push({ src: src, ancestor: nestedIn }); continue; }
+            var plan = _planFolderMove(src);
+            if (plan.skip) { skipped.push({ src: src, reason: plan.skip }); continue; }
+            taken[plan.dst] = true;
+            jobs.push({ src: src, dst: plan.dst });
+        }
+        for (var pn = 0; pn < pendingNested.length; pn++) {
+            var pSrc = pendingNested[pn].src, pAnc = pendingNested[pn].ancestor;
+            var ancMoved = false;
+            for (var jm = 0; jm < jobs.length; jm++) { if (jobs[jm].src === pAnc) { ancMoved = true; break; } }
+            if (ancMoved) { skipped.push({ src: pSrc, reason: '已随上级文件夹 ' + pAnc + ' 一起移动' }); continue; }
+            var pPlan = _planFolderMove(pSrc);
+            if (pPlan.skip) { skipped.push({ src: pSrc, reason: pPlan.skip }); continue; }
+            taken[pPlan.dst] = true;
+            jobs.push({ src: pSrc, dst: pPlan.dst });
+        }
+        if (!jobs.length) {
+            var head0 = '没有可移动的文件夹（目标: ' + (tf ? tf : '根目录') + '）：';
+            return Promise.resolve(_ok(head0 + '\n' + _fmtMoveSkipped(skipped)));
+        }
+        if (typeof store.renameFoldersBatch !== 'function') {
+            return Promise.resolve(_err('该素材库未实现 renameFoldersBatch，无法批量移动文件夹'));
+        }
+        var failures = [];
+        for (var m = 0; m < jobs.length; m++) {
+            jobs[m].onError = (function (j) {
+                return function (err) {
+                    failures.push({ src: j.src, error: (err && err.message) ? err.message : String(err) });
+                };
+            })(jobs[m]);
+        }
+        return Promise.resolve(store.renameFoldersBatch(jobs)).then(function (r) {
+            var done = (r && typeof r.done === 'number') ? r.done : (jobs.length - failures.length);
+            var list = store.list();
+            var lines = ['已移动 ' + done + ' 个文件夹 → ' + (tf ? tf : '根目录'),
+                '父链: ' + _chain(tf)];
+            for (var x = 0; x < jobs.length; x++) {
+                var jb = jobs[x];
+                var failed = false;
+                for (var f = 0; f < failures.length; f++) { if (failures[f].src === jb.src) { failed = true; break; } }
+                if (failed) continue;
+                lines.push('- ' + jb.src + ' → ' + jb.dst + ' · 含子层 ' + _folderCount(list, jb.dst) + ' 条');
+            }
+            if (skipped.length) lines.push('跳过 ' + skipped.length + ' 个：');
+            var skipText = _fmtMoveSkipped(skipped);
+            if (skipText) lines.push(skipText);
+            if (failures.length) {
+                lines.push('失败 ' + failures.length + ' 个：');
+                for (var q = 0; q < failures.length; q++) {
+                    lines.push('- ' + failures[q].src + '：' + failures[q].error);
+                }
+            }
+            return _ok(lines.join('\n'));
+        }).catch(function (e) {
+            return _err('批量移动文件夹未完成: ' + ((e && e.message) ? e.message : String(e))
+                + '\n部分文件夹可能已移动，请 mode=listFolders 复核后再重试未移动项');
+        });
+    }
+
+    // moveFolder 跳过清单（三项都为空时返回空串）
+    function _fmtMoveSkipped(skipped) {
+        if (!skipped || !skipped.length) return '';
+        var out = [];
+        for (var i = 0; i < skipped.length; i++) out.push('- ' + skipped[i].src + '：' + skipped[i].reason);
+        return out.join('\n');
     }
 
     function _assetUpdateMeta(lib, store, args) {
@@ -797,6 +1227,7 @@
     function _removeFolderSafe(store, folder) {
         if (!folder) return Promise.resolve(_err('removeFolder 必填 folder'));
         var normFolder = _normF(folder);
+        if (!normFolder) return Promise.resolve(_err('removeFolder 不能为根路径（根目录不可删除）'));
         return Promise.resolve(store.listEmptyFolders()).then(function (empty) {
             var found = false;
             if (Array.isArray(empty)) {
@@ -804,7 +1235,16 @@
                     if (empty[i] === normFolder) { found = true; break; }
                 }
             }
-            if (!found) return _err('文件夹非空或不存在，仅允许删除空文件夹: ' + folder);
+            if (!found) {
+                // 区分「非空」与「不存在/已无引用」：虚拟库的文件夹只由条目 folder 前缀
+                // 体现，最后一条内容移出后它从树中消失，此时没有可删对象。
+                var cnt = _folderCount(store.list(), normFolder);
+                if (cnt > 0) {
+                    return _err('文件夹非空（含子层 ' + cnt + ' 条条目），不能删除；请先移动或归档其下条目: ' + folder);
+                }
+                return _err('文件夹不存在或已无条目引用（无需删除）: ' + folder
+                    + '；虚拟库中文件夹随最后一条内容移出即从树中消失，实体库请核对磁盘目录');
+            }
             if (typeof store.deleteEmptyFolder !== 'function') {
                 return _err('store 未实现 deleteEmptyFolder，无法删除: ' + folder);
             }

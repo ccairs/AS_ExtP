@@ -4,7 +4,7 @@
 
 > Eine modulare Erweiterungsplattform (CEP), die KI in After Effects integriert.
 >
-> Version: v1.0.0
+> Version: v1.0.1
 
 AS_ExtP ist eine KI-Erweiterungsplattform für After Effects — ein CEP-Panel plus zwei native AE-Plug-ins (der GLSL-Effekt-Host und die AE-Hotbox). Das Panel besteht aus mehreren Modulen: **Agent** (dialogbasierte Bedienung über große Sprachmodelle), **ComfyUI** (KI-Bild- und -Videogenerierung), **Asset-Bibliothek** (Verwaltung von Projekt-Assets und Vorgaben) sowie **MCP / Skill / Gedächtnis / Modellverwaltung** (Erweiterung und Konfiguration der Fähigkeiten).
 

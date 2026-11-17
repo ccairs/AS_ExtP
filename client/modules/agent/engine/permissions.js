@@ -55,7 +55,7 @@
     // 素材库工具（asset_library，单工具按 library+mode 区分）：
     //   读 mode（list/get/search/listFolders/listEmptyFolders/listMissing/scanMissing/listArchive）→ 不弹
     //   导入 AE mode（importToAE/applyToAE）→ 不弹（导入 AE 不设防）
-    //   写 mode（add/rename/move/createFolder/renameFolder/removeFolder/updateMeta）→ 弹
+    //   写 mode（add/rename/move/createFolder/renameFolder/moveFolder/removeFolder/updateMeta）→ 弹
     //   归档 mode（archive/restore）= 删除语义但可恢复（7 天内 restore）→ 按写 mode 弹，不设 FORCE
     var ASSETS_READ_MODES = {
         list: true, get: true, search: true,

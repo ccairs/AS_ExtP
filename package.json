@@ -1,6 +1,6 @@
 {
   "name": "as-extp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AS_ExtP — After Effects AI 扩展平台：LLM Agent · MCP 工具集（内接与外供）· ComfyUI 生成 · 素材库 · GLSL 效果宿主与 Hotbox 插件",
   "scripts": {
     "lint": "eslint .",
