@@ -36,8 +36,8 @@
     }
     // 注：本模块曾导出 isShader()（= getRuntimeMode() === 'shader'），已删除——
     // 它的窄语义正是「外接模式被挡在实时编译链外」那个缺陷的判据本体，删除时已无调用方。
-    // 凡需判断「GLSL 编辑面是否活动」，一律用宿主注入的 deps.isGlslEditing()（含 external）；
-    // 下方 schedulePreviewInit 的迟到守卫在未注入时按 shader/外接两模式自判（同口径回落）。
+    // 凡需判断「GLSL 编辑面是否活动」，一律用宿主注入的 deps.isGlslEditing()（含 external/team）；
+    // 下方 schedulePreviewInit 的迟到守卫在未注入时按 shader/外接/团队三档自判（同口径回落）。
 
     // 列表空态/加载态/错误态占位（统一样式，取代内联 style）
     function emptyState(msg) {
@@ -468,6 +468,9 @@
             _activeName = name;
             // 在 Agent 专属信息栏弹出读取提示（双击或点「读取」按钮均会触发）
             if (typeof deps.showStatus === 'function') deps.showStatus(AEI18n.t('已读取 ') + name, 'success');
+            // 团队档：读取后亮出代码页——效果库页在前台时代码栏被 CSS 隐藏，
+            // 不切页则读到的代码与 uniform 滑块都看不见（与保存时亮出效果库页对称）。
+            if (_libInTeamPane()) showTeamTab('code');
           }
         });
       }
@@ -912,14 +915,15 @@
       var r = ensureRenderer();
       var run = function () {
         _previewInitScheduled = false;
-        // 迟到守卫：实例已销毁（模块卸载）或已切出 shader/外接模式时不做任何 GL
+        // 迟到守卫：实例已销毁（模块卸载）或已切出 shader/外接/团队档时不做任何 GL
         // 工作（防销毁后经 refreshPreviewFromCode→ensureRenderer 重建渲染器泄漏，
         // 对齐迟到回调守卫手法）
         if (_uiDestroyed) return;
         // 活动模式判据优先取宿主注入的 isGlslEditing()（单一真源）；未注入（单测直接
-        // 构造 shaderUI）时按 shader/外接两模式自判，与宿主同口径。
+        // 构造 shaderUI）时按 shader/外接/团队三档自判，与宿主同口径。
         var m = deps.getRuntimeMode ? deps.getRuntimeMode() : '';
-        var editing = typeof deps.isGlslEditing === 'function' ? !!deps.isGlslEditing() : (m === 'shader' || m === 'external');
+        var fallbackGlsl = (m === 'shader' || m === 'external' || m === 'team');
+        var editing = typeof deps.isGlslEditing === 'function' ? !!deps.isGlslEditing() : fallbackGlsl;
         if (!editing) return;
         var draft = deps.getPreviewCode ? deps.getPreviewCode() : '';
         // 预览渲染器预热（幂等）：无条件执行——除上下文/编译器/占位纹理外，warmup 的
@@ -1265,16 +1269,6 @@
     // 应用由 AE ECW 自绘选择器直接选 glsl 文件完成，面板不再提供 applyShader。
 
     function saveToLibrary() {
-      // 保存时自动展开**效果库所在的抽屉**并亮出列表，便于用户看到刚保存的条目：团队模式
-      // 效果库在右抽屉的「效果库」页 ⇒ 切到该页 + 展开右抽屉；其余模式效果库在左列下半
-      // ⇒ 展开左抽屉（既有口径逐字不动）。判据用「效果库的实际位置」而不是模式。
-      if (_libInTeamPane()) {
-        showTeamTab('library');
-        if (typeof deps.openRightDrawer === 'function') deps.openRightDrawer();
-      } else {
-        showLeft();
-        if (typeof deps.openLibraryDrawer === 'function') deps.openLibraryDrawer();
-      }
       // 防抖窗口内保存须先同步 flush pending——滑块调整后 250ms 内点保存，
       // getPreviewCode 读到的是未 flush 的旧代码，落盘 .glsl 与预览画面不一致（从库
       // 重新加载时 uniform 默认值回退旧值，用户无感知）。
@@ -1287,10 +1281,22 @@
         }
         if (deps.setPreviewCode) deps.setPreviewCode(pending);
       }
+      // 取码与空码判定先于切页/开抽屉：编辑面为空时只报失败，不把界面切到效果库
+      //（否则用户看到的是页签跳走 + 「写入失败」，代码面反而不见了）。
       var code = deps.getPreviewCode ? deps.getPreviewCode() : '';
       if (!code || !code.trim()) {
         if (typeof deps.onApplyResult === 'function') deps.onApplyResult(false);
         return;
+      }
+      // 保存时自动展开**效果库所在的抽屉**并亮出列表，便于用户看到刚保存的条目。
+      // 效果库在右抽屉的「效果库」页 ⇒ 切到该页 + 展开右抽屉；其余模式效果库在左列下半
+      // ⇒ 展开左抽屉（既有口径逐字不动）。判据用「效果库的实际位置」而不是模式。
+      if (_libInTeamPane()) {
+        showTeamTab('library');
+        if (typeof deps.openRightDrawer === 'function') deps.openRightDrawer();
+      } else {
+        showLeft();
+        if (typeof deps.openLibraryDrawer === 'function') deps.openLibraryDrawer();
       }
       var list = el('shaderLibraryList');
       if (!list) return;

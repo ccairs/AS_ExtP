@@ -36,8 +36,12 @@
     //     走整份提交或多处 edits，比一个开关静默改一片安全。
     //   - oldText 缺失/纯空白/与 newText 相同 → 拒绝：无意义（无改动）或明显误用
     //     （纯空白锚点会命中任意空行）。
+    //   - 行结构保持：oldText 以换行结尾时，非空 newText 一律以换行结尾（缺则补）——否则
+    //     被替换段的下一行会并入本行末尾（末段是 // 注释时下一行被整行注释吞掉，编译仍通过）。
     // 返回：
-    //   { ok: true, content, results: [{ line, oldLines, newLines }] }
+    //   { ok: true, content, results: [{ anchorLine, oldLines, newLines, anchorHadNewline,
+    //     anchorStartsWithNewline, lineBreaks, startsAtLineStart, endsAtLineEnd,
+    //     wholeLineNoNewline, emptied }] }
     //   { ok: false, index, code, message, count?, lines?, nearLines?, wsLine? }
     var MAX_EDITS = 20;   // 单次编辑处数上限（防一次调用改一片——批量改写请走整份提交）
     var WS_DIAG_MAX = 512 * 1024;   // 去空白诊断的内容上限：超过则跳过（诊断只是提示，不值得拖 UI）
@@ -51,13 +55,16 @@
         return s ? s.split('\n').length : 0;
     }
 
-    // 片段占用的行数（与 countLines 的区别：尾随换行不再多算一行）。回执里的
-    // oldLines/newLines 与删除措辞都用它——'var b = 2;\n' 是"替换 1 行"而不是 2 行
-    // （按 countLines 报会把删除整行说成"删除 2 行"）。
+    // 片段占用的内容行数：排除首尾仅由换行产生的空段（'a;\n' → 1、'\na;' → 1、'\n' → 0）。
+    // 回执里的 oldLines/newLines 与删除措辞都用它——'var b = 2;\n' 是"1 行"而不是 2 行。
+    // countLines 本身不排除首尾空段（空串 0 行、尾随换行计入），两者口径不同，勿互相替代。
     function lineSpan(text) {
         var s = String(text == null ? '' : text);
         if (!s) return 0;
-        return countLines(s) - (/\n$/.test(s) ? 1 : 0);
+        var n = countLines(s);
+        if (/\n$/.test(s)) n -= 1;
+        if (n > 0 && s.charAt(0) === '\n') n -= 1;
+        return n > 0 ? n : 0;
     }
 
     // 围栏状态：'none' 无围栏行 / 'wrapped' 整串被围栏包住（首非空行与末非空行都是围栏行）/
@@ -194,7 +201,17 @@
         var newText = normalize(edit.newText == null ? '' : edit.newText);
         if (!oldText) return fail('EMPTY_OLD', '第 ' + (index + 1) + ' 处编辑缺少 oldText（或为空）：局部编辑必须给出要替换的原文。', { index: index });
         if (!oldText.trim()) return fail('BLANK_OLD', '第 ' + (index + 1) + ' 处编辑的 oldText 是纯空白——无法定位（会命中任意空行），请给出完整的一段代码原文。', { index: index });
-        if (oldText === newText) return fail('NO_CHANGE', '第 ' + (index + 1) + ' 处编辑的 oldText 与 newText 完全相同——没有要改的内容。', { index: index });
+        // 行结构保持（见文件头契约）：补齐结尾换行后才判 no-op，回执据此说明差异。
+        var addedTrailingNewline = false;
+        if (/\n$/.test(oldText) && newText && !/\n$/.test(newText)) {
+            newText += '\n';
+            addedTrailingNewline = true;
+        }
+        if (oldText === newText) {
+            return addedTrailingNewline
+                ? fail('NO_CHANGE', '第 ' + (index + 1) + ' 处编辑在补齐结尾换行后与原文完全相同——没有要改的内容。', { index: index })
+                : fail('NO_CHANGE', '第 ' + (index + 1) + ' 处编辑的 oldText 与 newText 完全相同——没有要改的内容。', { index: index });
+        }
         var hits = countMatches(content, oldText);
         if (hits === 0) {
             return fail('NOT_FOUND', '', {
@@ -218,14 +235,15 @@
         var line = lineOfIndex(content, idx);
         var oldLines = lineSpan(oldText);
         var newLines = lineSpan(newText);
-        // 删除语义的精确描述（回执文案用）：锚点自带尾换行 → 整行（或整段）消失；
-        // 锚点不含尾换行且**占满整行**（行首起、行尾止）→ 留下一个空行；否则只是行内片段，
-        // 该行其余内容保留（行内锚点说"留下空行"即假陈述）。
+        // 删除语义的描述字段（describeEdit 用）：锚点是否起于行首 / 止于行尾 / 自带首尾换行，
+        // 以及替换后整篇是否为空。删同样的内容，锚点带不带尾换行会让"留下空行"与"整行消失"
+        // 成为两种结果，回执必须说准（行内锚点声称留下空行是假陈述）。
         var startsAtLineStart = (idx === 0 || content.charAt(idx - 1) === '\n');
         var endsAtLineEnd = (idx + oldText.length === content.length) || (content.charAt(idx + oldText.length) === '\n');
+        var merged = content.slice(0, idx) + newText + content.slice(idx + oldText.length);
         return {
             ok: true,
-            content: content.slice(0, idx) + newText + content.slice(idx + oldText.length),
+            content: merged,
             result: {
                 // 锚点命中行号（坐标系=应用该处时的内容；多段编辑时是中间坐标，不是最终坐标
                 // ——要最终坐标用读取工具重读。字段名带 anchor 前缀以免被当成"改动后位置"）
@@ -233,7 +251,12 @@
                 oldLines: oldLines,
                 newLines: newLines,
                 anchorHadNewline: /\n$/.test(oldText),
-                wholeLineNoNewline: startsAtLineStart && endsAtLineEnd && !/\n$/.test(oldText)
+                anchorStartsWithNewline: oldText.charAt(0) === '\n',
+                lineBreaks: oldText.split('\n').length - 1,
+                startsAtLineStart: startsAtLineStart,
+                endsAtLineEnd: endsAtLineEnd,
+                wholeLineNoNewline: startsAtLineStart && endsAtLineEnd && !/\n$/.test(oldText),
+                emptied: merged === ''
             }
         };
     }
@@ -258,8 +281,9 @@
     // 双阶段匹配：先按模型给的原文匹配；**未命中**时把 oldText 过一遍提交流水线（refine）
     // 再匹配一次。必要性：预览区内容是流水线产物（script 侧已 ES3 化 + 剥围栏 + 重排；
     // shader 侧剥围栏 + trim），模型凭记忆写出的 oldText 可能是"改写前"的形态
-    // （const/箭头/带围栏）——直接判未命中会让它白跑一轮；对齐落库形态后再判，命中率
-    // 显著提高。两次都失败时回第一次的失败（原文口径的诊断更贴近模型输入）。
+    // （const/箭头/带围栏）——直接判未命中会让它白跑一轮；对齐落库形态后再判，命中率随之提高。
+    // 两次都未命中时返回 refined 那次尝试的诊断（诊断指向规整后的锚点形态）；
+    // refine 未改变原文、或剥壳后为空时直接返回原文未命中的诊断。
     //
     // **只 refine 失败的那一处**：批内任一处未命中时，若把
     // 所有 oldText 一起 refine 后整批重跑——pass1 已唯一命中、位置已定的那些处，其锚点被
@@ -281,7 +305,9 @@
             var k = res.index;
             if (k == null || refinedAt[k]) return res;
             var alt = String(refine(batch[k].oldText));
-            if (alt === batch[k].oldText) return res;
+            // refine 不改变原文或剥壳后为空（如 oldText 只有一对围栏）：没有可匹配的锚点，
+            // 直接返回原文未命中的诊断——把空串喂回去只会得到「缺少 oldText」的误导读回执。
+            if (alt === batch[k].oldText || !alt.trim()) return res;
             refinedAt[k] = true;
             batch[k] = { oldText: alt, newText: batch[k].newText };
         }
@@ -323,7 +349,17 @@
         }
         if (hasTop) {
             if (args.oldText == null || String(args.oldText) === '') {
-                return { error: { code: 'EMPTY_OLD', message: '传了 newText 但没有 oldText：局部编辑必须给出要替换的原文（oldText）。' } };
+                // 只传 newText 与显式传空串 oldText 是两种调用形态，回执分开说明——后者要让
+                // 模型知道空串本身不能充当锚点。
+                var onlyNewText = args.oldText == null && args.newText != null;
+                return {
+                    error: {
+                        code: 'EMPTY_OLD',
+                        message: onlyNewText
+                            ? '传了 newText 但没有 oldText：局部编辑必须给出要替换的原文（oldText）。'
+                            : 'oldText 为空：局部编辑必须给出要替换的原文（oldText）。'
+                    }
+                };
             }
             var badTop = badFieldTypes(args, '');
             if (badTop) return { error: badTop };
@@ -356,7 +392,15 @@
             // 同时给能让模型一轮对齐（wsLine 非零不压掉 nearLines）
             var diags = [];
             if (failObj.wsLine) diags.push('去空白后可在第 ' + failObj.wsLine + ' 行起匹配——多半是缩进或换行与原文不一致');
-            if (failObj.nearLines && failObj.nearLines.length) diags.push('第 ' + failObj.nearLines.join('/') + ' 行内容相同但缩进或空行不同');
+            if (failObj.nearLines && failObj.nearLines.length) {
+                var nearText = '第 ' + failObj.nearLines.join('/') + ' 行内容相同但缩进或空行不同';
+                // 多行锚点的近似诊断只比对首行：后续行可能整段不同，不能把"首行相同"当成
+                // 只差缩进（否则模型只调缩进，永远命中不了）。
+                if (failObj.needle && failObj.needle.indexOf('\n') !== -1) {
+                    nearText += '（多行锚点仅比对首行，后续行也需逐字符核对）';
+                }
+                diags.push(nearText);
+            }
             return 'oldText 未在预览区找到（逐字符匹配，含缩进与空行）。' + (diags.length ? diags.join('；') + '；' : '')
                 + '请先调用 ' + tool + ' 读回当前内容，原样复制要改的整段作为 oldText 后重试'
                 + '（读回内容每行开头的 "N: " 是行号标注、不属于代码，不要带进 oldText）。';
@@ -373,21 +417,37 @@
         return m || ('编辑未应用（' + failObj.code + '）。');
     }
 
-    // 操作目的描述（回执文案用）：替换 / 删除（newText 为空）。删除时按锚点与行的关系给准话
-    // 锚点自带尾换行 = 整行/整段消失；锚点占满整行但没带换行 =
-    // 该行留一个空行（总行数不减）；否则只是行内片段，该行其余内容保留。
+    // 操作目的描述（回执文案用）：替换（行数变化）/ 删除（newText 为空）。删除按锚点与行结构
+    // 的关系分档，每档都说准结果：整篇清空 → 内容已清空；锚点以换行开头（范围含前一行行尾）
+    // → 带尾换行时前一行行尾与下一行接在一起、不带尾换行且止于行尾时整行消失（首换行一并
+    // 移除）、其余情况本行剩余内容并到上一行行尾；起于行首且带尾换行 → 直接报实际删除行数；
+    // 起于行首不带尾换行 → 原位置留下一个空行或末行其余内容保留；行中起且带尾换行 → 本行
+    // 剩余前文与下一行接在一起；其余 → 行内片段。
     function describeEdit(results) {
         var parts = [];
         for (var i = 0; i < results.length; i++) {
             var r = results[i];
-            if (r.newLines) {
-                parts.push(r.oldLines + ' 行 → ' + r.newLines + ' 行');
-            } else if (r.wholeLineNoNewline) {
-                parts.push('删除 ' + r.oldLines + ' 行（该行留下一个空行）');
-            } else if (!r.anchorHadNewline) {
-                parts.push('删除 ' + r.oldLines + ' 行（行内片段，该行其余内容保留）');
+            var n = r.oldLines;
+            if (r.newLines > 0) {
+                parts.push(n + ' 行 → ' + r.newLines + ' 行');
+            } else if (r.emptied) {
+                parts.push('删除 ' + n + ' 行（内容已清空）');
+            } else if (r.anchorStartsWithNewline && r.anchorHadNewline) {
+                parts.push('删除 ' + n + ' 行（前一行行尾与下一行接在一起）');
+            } else if (r.anchorStartsWithNewline && !r.anchorHadNewline && r.endsAtLineEnd) {
+                parts.push('删除 ' + n + ' 行（整行消失，首换行一并移除）');
+            } else if (r.anchorStartsWithNewline && !r.anchorHadNewline && !r.endsAtLineEnd) {
+                parts.push('删除 ' + n + ' 行（本行剩余内容并到上一行行尾）');
+            } else if (r.anchorHadNewline && (r.startsAtLineStart || r.anchorStartsWithNewline)) {
+                parts.push('删除 ' + n + ' 行');
+            } else if ((r.startsAtLineStart || r.anchorStartsWithNewline) && !r.anchorHadNewline) {
+                parts.push(r.endsAtLineEnd
+                    ? '删除 ' + n + ' 行（原位置留下一个空行）'
+                    : '删除 ' + n + ' 行（末行其余内容保留）');
+            } else if (r.anchorHadNewline) {
+                parts.push('删除 ' + n + ' 行（锚点起于行中，本行剩余前文与下一行接在一起）');
             } else {
-                parts.push('删除 ' + r.oldLines + ' 行');
+                parts.push('删除 ' + n + ' 行（行内片段，该行其余内容保留）');
             }
         }
         return parts.join('，');

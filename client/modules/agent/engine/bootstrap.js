@@ -3286,7 +3286,8 @@
                     // 子 Agent 的进度」这类张冠李戴。
                     showStatus: function () {},
                     onStateChange: function () {},
-                    onScriptReady: function () {},
+                    // 子 Agent 没有预览区写入通道：返回 false 让提交类工具如实报写入失败。
+                    onScriptReady: function () { return false; },
                     getGlobalSettings: getGlobalSettings,
                     getModel: function () { return _resolveLaneSelection(parentLane).modelId; },
                     getPlatform: function () { return _resolveLaneSelection(parentLane).providerId; },

@@ -411,7 +411,7 @@
       return onShaderReady(code) === false ? false : true;
     }
     function writeFailedResult() {
-      return { success: false, result: JSON.stringify({ status: 'error', message: '写入预览区失败：GLSL 编辑区不可用（元素缺失，或写入入口未收到目标区声明——面板文件未完整更新时会如此）。本次未交付——请告知用户重开扩展面板后重试。' }) };
+      return { success: false, result: JSON.stringify({ status: 'error', message: '写入预览区失败：写入入口未接受本次写入（GLSL 编辑区缺失、装配未接线，或当前运行身份没有预览区写入通道——如团队子 Agent）。本次未交付——请先重开扩展面板后重试；若当前是团队子 Agent，请把产出交回上级 Agent 再提交。' }) };
     }
 
     // ── 写前快照守卫（陈旧读→写拦截）──
@@ -713,7 +713,7 @@
             properties: {
               code: { type: 'string', description: 'GLSL 源码。整份提交时须完整实现 vec4 mainImage(vec2 fragCoord, float time)，uniform 仅 float/vec2/vec3/vec4，≤32 个；用 oldText/edits 局部编辑时不需要传' },
               message: { type: 'string', description: '给用户的说明（可选）' },
-              oldText: { type: 'string', description: '局部编辑：要替换的原文，须与预览区当前内容逐字符一致（含缩进与空行）且在其中唯一；先用 get_current_shader 读回原文再原样复制。不传则整份提交' },
+              oldText: { type: 'string', description: '局部编辑：要替换的原文，须与预览区当前内容逐字符一致（含缩进与空行）且在其中唯一；先用 get_current_shader 读回原文再原样复制。不传则整份提交；读回内容每行开头的 "N: " 是行号标注、不属于代码，复制时去掉' },
               newText: { type: 'string', description: '局部编辑：替换文本；空串表示删除 oldText 命中的整段' },
               edits: { type: 'array', items: { type: 'object', properties: { oldText: { type: 'string' }, newText: { type: 'string' } } }, description: '局部编辑（1-20 处，按序应用）：与顶层 oldText/newText 互斥' }
             },
@@ -785,12 +785,11 @@
             var editList2 = [];
             for (var ej = 0; ej < req2.edits.length; ej++) {
               var _rawNew2 = req2.edits[ej].newText == null ? '' : String(req2.edits[ej].newText);
-              // 纯空白 newText = 删除（与 script 侧 cleanEditFragment 的空判据、以及旧
-              // 「code.trim() 为空即删除」口径一致；否则同一形态在两侧一个删行、一个写空白行，
-              // 已实测确认）
+              // newText 剥围栏后为纯空白 = 删除，判据取剥壳后的文本（与 script 侧删除口径一致）
+              var _refinedNew2 = refineEditText(_rawNew2);
               editList2.push({
                 oldText: req2.edits[ej].oldText,
-                newText: _rawNew2.trim() ? refineEditText(_rawNew2) : ''
+                newText: _refinedNew2.trim() ? _refinedNew2 : ''
               });
             }
             var applied2 = te2.applyEditsWithRefine(current, editList2, refineEditText);
@@ -833,7 +832,7 @@
 
         registry.register({
           name: 'get_current_shader',
-          description: '读取预览区当前的 GLSL 代码。提交前必调（含首次，空预览区也要读一次——写前必读，未读提交会被拒绝）；修改已有 shader 或用户提到"当前代码/第 N 行"时也用它定位。不传参数返回完整代码（每行带行号，超过 500 行时截断为前 500 行）。',
+          description: '读取预览区当前的 GLSL 代码。提交前必调（含首次，空预览区也要读一次——写前必读，未读提交会被拒绝）；修改已有 shader 或用户提到"当前代码/第 N 行"时也用它定位。不传参数返回完整代码（每行带行号，超过 500 行时截断为前 500 行）；search 的 context 与 segments 的 snippet 含行号或截断，不能直接当 oldText 锚点——锚点用整篇读回并剥掉行号前缀后的原文',
           input_schema: {
             type: 'object',
             properties: {
@@ -849,21 +848,27 @@
             args = args || {};
             var writer = previewWriter(execCtx);
             var current = typeof getCurrentShader === 'function' ? (getCurrentShader() || '') : '';
-            // 参数校验必须在记账之前（被拒的读不算"读过"）：先校验，再记账，最后执行查询。
+            // 参数校验必须早于记账（被拒的读不算"读过"）。
             var _cq = resolveCodeQuery();
             if (!_cq) return codeQueryUnavailable();
             var _qErr = _cq.validateCodeQueryArgs(args);
             if (_qErr) return _qErr;
-            // 读到才留快照（含空内容：空快照语义＝「LLM 已知当前为空」），供 submit_shader /
-            // submit_js_effect 写前比对（按调用方分账）。**记账必须晚于参数校验**
-            // （与 script 侧同款）：一次参数错误的调用就会留下
-            // 记满的账，把「从未读过 + 预览区非空 → 拒绝写入」那道防线永久解除。
-            recordPreviewRead(writer);
+            // 空读也留账：回执 status='empty' 交付了"当前内容为空"这一事实，读一次即解写前必读。
             if (!current.trim()) {
+              recordPreviewRead(writer);
               return { success: true, result: JSON.stringify({ status: 'empty', message: '预览区当前为空。' }) };
             }
-            // 四种查询（search / segments / startLine-endLine / 整篇）与效果库读取共用同一实现
-            return _cq.runCodeQuery(current, args, { hash: _hashShaderText(current), buildSegments: buildSegments });
+            // 只有确实交付了内容的读才留快照（回执 status='ok'）；search 未命中、offset 越界这类
+            // 没有返回任何内容的调用不记账——否则一次无效读就解除「从未读过 + 预览区非空 →
+            // 拒绝写入」那道防线。快照供 submit_shader / submit_js_effect 写前比对（按调用方分账）。
+            var res = _cq.runCodeQuery(current, args, { hash: _hashShaderText(current), buildSegments: buildSegments });
+            var delivered = false;
+            try {
+              var _p = JSON.parse(res && res.result);
+              delivered = !!res && res.success !== false && _p && _p.status === 'ok';
+            } catch (_) {}
+            if (delivered) recordPreviewRead(writer);
+            return res;
           },
           scope: { type: 'module', moduleIds: ['shader', 'external-mcp'] },
           stub: false,
@@ -989,10 +994,17 @@
                 // 仅补一道 500 行上限（超限截断并指路分段读），与查询式/读着色器同一保护口径。
                 var _fullLines = String(content).split(/\r?\n/);
                 var _fullTotal = _fullLines.length;
-                if (_fullTotal > 500) {
-                  return { success: true, result: JSON.stringify({ status: 'ok', name: name, code: _fullLines.slice(0, 500).join('\n'), totalLines: _fullTotal, maxLines: 500, truncated: true, hash: _hashShaderText(content), message: '代码超过 500 行，已仅返回前 500 行，请用 startLine/endLine 分段读取。' }) };
+                var _fullTruncated = _fullTotal > 500;
+                var _fullPayload = _fullTruncated
+                  ? { status: 'ok', name: name, code: _fullLines.slice(0, 500).join('\n'), totalLines: _fullTotal, maxLines: 500, truncated: true, hash: _hashShaderText(content), message: '代码超过 500 行，已仅返回前 500 行，请用 startLine/endLine 分段读取。' }
+                  : { status: 'ok', name: name, code: content, totalLines: _fullTotal, hash: _hashShaderText(content) };
+                // 整篇返回前按序列化长度自守（预算取 codeQuery 的 PAYLOAD_BUDGET，取不到按 24K）：
+                // 超过管线 32K 兜底就会把结果截成非法 JSON。
+                var _fullBudget = (_cqGet && _cqGet.PAYLOAD_BUDGET) || (24 * 1024);
+                if (JSON.stringify(_fullPayload).length > _fullBudget) {
+                  return { success: false, result: JSON.stringify({ status: 'error', code: 'PAYLOAD_TOO_LARGE', message: '代码内容超出单次读取体积上限（约 ' + Math.round(_fullBudget / 1024) + ' KB）：本工具无法整篇返回。请用 startLine/endLine 分段读取；若单行本身超限则无法读取。' }) };
                 }
-                return { success: true, result: JSON.stringify({ status: 'ok', name: name, code: content, totalLines: _fullTotal, hash: _hashShaderText(content) }) };
+                return { success: true, result: JSON.stringify(_fullPayload) };
               });
             }
             if (mode === 'save') {

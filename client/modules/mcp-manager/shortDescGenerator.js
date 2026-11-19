@@ -59,9 +59,13 @@
                 toolListText += (i + 1) + '. ' + t.name + ': ' + desc + '\n';
             }
 
-            var systemPrompt = '你是 MCP 工具描述生成助手。根据工具名称和完整描述，为每个工具生成简短的中文描述（不超过30字），说明工具的核心功能。只返回 JSON 数组，不要输出其他内容。';
+            // jsonMode 且模型声明支持 JSON 模式时，llmChannel 会带 response_format:
+            // {type:'json_object'}，要求响应根节点是单个 JSON 对象——数组会被平台拒绝
+            // 或被模型改写成对象。提示词与解析统一按 {"tools":[...]} 对象契约；
+            // 未强制 JSON 模式的平台返回顶层数组时同样接受。
+            var systemPrompt = '你是 MCP 工具描述生成助手。根据工具名称和完整描述，为每个工具生成简短的中文描述（不超过30字），说明工具的核心功能。只返回一个 JSON 对象，不要输出其他内容。';
 
-            var userPrompt = '请为以下 MCP 工具生成简短描述：\n\n' + toolListText + '\n返回格式（JSON 数组）：\n[{"name":"工具名","short":"简短描述"},...]';
+            var userPrompt = '请为以下 MCP 工具生成简短描述：\n\n' + toolListText + '\n返回格式（JSON 对象，tools 为数组）：\n{"tools":[{"name":"工具名","short":"简短描述"},...]}';
 
             var context = {
                 messages: [
@@ -95,7 +99,7 @@
                 throw new Error('LLM 返回为空');
             }
 
-            // 解析 JSON 数组
+            // 解析 JSON 文本（json_object 契约对象或兼容的顶层数组）
             var parsed;
             try {
                 // 兼容模型可能返回的 ```json 包裹
@@ -108,8 +112,19 @@
                 throw new Error('LLM 返回的 JSON 解析失败: ' + e.message);
             }
 
-            if (!Array.isArray(parsed)) {
-                throw new Error('LLM 返回的不是 JSON 数组');
+            // 工具描述列表三种形态：json_object 契约 {"tools":[...]}、模型只回一条时的
+            // 单个 {name,short}、未强制 JSON 模式平台的顶层数组。
+            var items = null;
+            if (Array.isArray(parsed)) items = parsed;
+            else if (parsed && Array.isArray(parsed.tools)) items = parsed.tools;
+            else if (parsed && parsed.name && typeof parsed.short === 'string' && parsed.short) items = [parsed];
+            if (!items) {
+                throw new Error('LLM 返回的 JSON 不含工具描述列表');
+            }
+            // 空列表按失败交回调用方：needGen 非空时没有任何条目可落缓存，
+            // 按成功返回会让上层记「已生成」但工具描述仍缺
+            if (items.length === 0) {
+                throw new Error('LLM 返回的工具描述列表为空');
             }
 
             // 转换为 { toolName: shortDesc } 映射。
@@ -125,12 +140,18 @@
                 if (reqToolName.indexOf('mcp_') !== 0) nameLookup['mcp_' + reqToolName] = reqToolName;
             }
             var mapping = {};
-            for (var j = 0; j < parsed.length; j++) {
-                var item = parsed[j];
-                if (item && item.name && item.short) {
+            for (var j = 0; j < items.length; j++) {
+                var item = items[j];
+                // short 只收字符串：字符串化对象会写出 "[object Object]" 并被当成工具描述
+                if (item && item.name && typeof item.short === 'string' && item.short) {
                     var origName = nameLookup[String(item.name)];
-                    if (origName) mapping[origName] = String(item.short).substring(0, 60);
+                    if (origName) mapping[origName] = item.short.substring(0, 60);
                 }
+            }
+            // 一条都对不上（条目形态不合法 / 名称全是幻觉）时按失败交回：
+            // 空映射按成功返回会让上层记「已生成」但没有任何描述落缓存
+            if (Object.keys(mapping).length === 0) {
+                throw new Error('LLM 返回的工具描述无有效条目');
             }
 
             return mapping;

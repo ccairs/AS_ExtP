@@ -334,13 +334,27 @@
         // ── 分隔条拖拽：调整「有定宽的那一栏」──
         // 树模式定宽的是左栏，网格模式定宽的是右栏（左栏铺满）——故起始宽度与写入目标
         // 都按当前模式选，两个模式的宽度各自记录在 _savedW 里。
+        // 树模式左栏写 '0 1'（拖出的宽度是首选宽，面板拖窄时仍可压缩，不把详情栏挤出卡片）；
+        // 网格模式右栏保持 '0 0' 定宽（详情栏宽度不随网格内容变化）。
+        // 树模式左栏在窄面板下按比例压缩：渲染宽小于首选宽，拖拽起点取首选宽
+        // （_savedW 或 CSS 的 flex-basis）。
+        function _preferredLeftWidth() {
+            if (_savedW.tree) return _savedW.tree;
+            var basis = '';
+            try {
+                basis = (global.getComputedStyle ? global.getComputedStyle(left).flexBasis : '') || '';
+            } catch (_) {}
+            var n = parseFloat(basis);
+            // 230 与 CSS 的 .assets-tree-left 默认 basis 一致（无计算样式环境下的回落）
+            return (isFinite(n) && n > 0) ? n : (left.offsetWidth || 230);
+        }
         var _splitDragMove = null, _splitDragUp = null;
         splitter.addEventListener('mousedown', function (e) {
             e.preventDefault();
             e.stopPropagation();
             var startX = e.clientX;
             var dragGrid = (_viewMode === 'grid');
-            var startWidth = dragGrid ? right.offsetWidth : left.offsetWidth;
+            var startWidth = dragGrid ? right.offsetWidth : _preferredLeftWidth();
             document.body.style.cursor = 'col-resize';
             document.body.style.userSelect = 'none';
             _splitDragMove = function (ev) {
@@ -348,11 +362,13 @@
                 // 网格模式拖的是右栏，方向相反（向右拖 = 右栏变窄）
                 var newW = dragGrid ? (startWidth - dx) : (startWidth + dx);
                 var minW = 150;
-                var maxW = Math.max(minW, wrap.offsetWidth - 200);
+                // 上限 = 为另一栏保留 200px 后的可用宽，且不小于当前首选宽
+                // （窄面板下首选宽可超过可用宽）。
+                var maxW = Math.max(minW, wrap.offsetWidth - 200, startWidth);
                 if (newW < minW) newW = minW;
                 if (newW > maxW) newW = maxW;
                 if (dragGrid) { right.style.flex = '0 0 ' + newW + 'px'; _savedW.grid = newW; }
-                else { left.style.flex = '0 0 ' + newW + 'px'; _savedW.tree = newW; }
+                else { left.style.flex = '0 1 ' + newW + 'px'; _savedW.tree = newW; }
             };
             _splitDragUp = function () {
                 document.removeEventListener('mousemove', _splitDragMove);
@@ -365,11 +381,11 @@
             document.addEventListener('mouseup', _splitDragUp);
         });
 
-        // 按当前模式套布局：树模式左栏定宽（默认 230px）+ 右栏自适应；
-        // 网格模式左栏铺满 + 右栏定宽（默认 260px，与树模式左栏对称）。
-        // 两种模式的**默认**布局由 CSS 的 .assets-mode-grid 提供（见 assets.css）——这里只
-        // 叠加"用户拖过的宽度"（动态值只能走行内；未拖过则清空行内让 CSS 默认值生效），
-        // 并切换模式标记类。两个模式拖过的宽度各自保留（_savedW），切回时恢复。
+        // 按当前模式套布局：树模式左栏默认 230px + 右栏占剩余宽度；网格模式左栏铺满 +
+        // 右栏按 clamp(180px, 30%, 260px) 定宽。两种模式的**默认**布局由 CSS 提供
+        // （见 assets.css）——这里只叠加分隔条拖出的宽度（动态值只能走行内；未拖过则清空
+        // 行内让 CSS 默认值生效），并切换模式标记类。两个模式拖出的宽度各自保留（_savedW），
+        // 切回时恢复。树模式左栏行内宽度保留收缩能力（'0 1'），窄面板下不撑破容器。
         function _applyMode() {
             var isGrid = (_viewMode === 'grid');
             if (wrap.classList) {
@@ -380,15 +396,14 @@
             if (wrap.style && typeof wrap.style.setProperty === 'function') {
                 wrap.style.setProperty('--assets-grid-cell', _gridCellSize + 'px');
             }
+            // flex 简写会同时写 grow/shrink/basis 三个长属性；行内宽度只经它写入，
+            // 不能再单独清 flexBasis（清掉后首选宽回落到 CSS 默认值）。
             if (isGrid) {
                 left.style.flex = '';
-                left.style.flexBasis = '';
                 right.style.flex = _savedW.grid ? ('0 0 ' + _savedW.grid + 'px') : '';
             } else {
-                left.style.flex = _savedW.tree ? ('0 0 ' + _savedW.tree + 'px') : '';
-                left.style.flexBasis = '';
+                left.style.flex = _savedW.tree ? ('0 1 ' + _savedW.tree + 'px') : '';
                 right.style.flex = '';
-                right.style.flexBasis = '';
             }
         }
 

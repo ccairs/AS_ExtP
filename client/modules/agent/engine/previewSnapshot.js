@@ -53,9 +53,10 @@
     // 读一次即解（接入前的旧行为是"无快照＝放行"）。
     // store 缺席（旧装配 / 测试沙箱未载本文件）时守卫缺席，行为与接入前一致。
     //
-    // hash 为 FNV-1a 32 位（8 位十六进制），与 shaderTools.js 的 hashText 同一算法
-    // ——两处必须保持一致，否则 get_current_shader 返回的 hash 与拒绝结果里的
-    // readHash/currentHash 无法对照。
+    // hash 为 FNV-1a 32 位（8 位十六进制），先归一再计算（去 BOM、CRLF→LF、去尾部空白），
+    // 与 shaderTools.js 的 _hashShaderText 同一口径——两处必须保持一致，否则
+    // get_current_shader 返回的 hash 与拒绝结果里的 readHash/currentHash 无法对照；
+    // 归一后同一内容经不同读取通道（预览区 / 读盘 / Bridge 往返）得到同一指纹。
     // 调用方缺省 id：面板内 Agent（含 handler 直调路径——测试/未显式传 callerId 的调用）。
     // 外接 dispatch 经 toolExecutor 透传 'ext:<clientId>'，与面板内互不顶替对方的快照。
     var DEFAULT_WRITER = 'panel';
@@ -68,8 +69,9 @@
     // 外接调用方身份 = toolExecutor 透传的 callerId（'ext:<clientId>'），与面板内分账同源
     function isExternalWriter(writer) { return /^ext:/.test(String(writer || '')); }
 
+    // check 的内容等价判定不走 hash（仍逐字节比较）：哈希相同不代表文本相同，写前守卫按字节判。
     function hashText(s) {
-        var str = String(s == null ? '' : s);
+        var str = String(s == null ? '' : s).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
         var h = 0x811c9dc5;
         for (var i = 0; i < str.length; i++) {
             h = (h ^ str.charCodeAt(i)) >>> 0;

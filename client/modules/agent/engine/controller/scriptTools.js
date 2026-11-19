@@ -324,13 +324,13 @@
                     var staleLate = stalePreviewRejection(writer);
                     if (staleLate) return staleLate;
                     // 校验通过后再写入预览区（用户可查看/编辑）。
-                    // 写入目标按**工具族**显式声明（{ area: 'script' }
-                    //）：外接可在任意面板模式下调本工具，只按面板模式选目标会把脚本
-                    // 写进 GLSL 区。返回 false = 目标编辑区缺失（写入没落到该区）→ 报错，
-                    // 绝不回"已写入"（回执描述的内容不在预览区属静默失败）。
+                    // 写入目标按**工具族**显式声明（{ area: 'script' }）：外接可在任意面板模式
+                    // 下调本工具，只按面板模式选目标会把脚本写进 GLSL 区。返回 false = 写入
+                    // 入口未接受本次写入（目标编辑区缺失、装配未接线，或当前身份没有预览区
+                    // 写入通道）→ 报错，绝不回"已写入"（回执描述的内容不在预览区属静默失败）。
                     var wrote = opts.onScriptReady(finalScript, { area: 'script' });
                     if (wrote === false) {
-                        return { success: false, result: JSON.stringify({ status: 'error', message: '写入预览区失败：脚本编辑区不可用（元素缺失，或写入入口未收到目标区声明——面板文件未完整更新时会如此）。本次未交付——请告知用户重开扩展面板后重试。' }) };
+                        return { success: false, result: JSON.stringify({ status: 'error', message: '写入预览区失败：写入入口未接受本次写入（脚本编辑区缺失、装配未接线，或当前运行身份没有预览区写入通道——如团队子 Agent）。本次未交付——请先重开扩展面板后重试；若当前是团队子 Agent，请把产出交回上级 Agent 再提交。' }) };
                     }
                     recordPreviewWrite(writer);
                     var warningText = (Array.isArray(validateResult.warnings) && validateResult.warnings.length > 0)
@@ -375,35 +375,40 @@
                 args = args || {};
                 var writer = previewWriter(execCtx);
                 var current = opts.getCurrentScript();
-                // 参数校验必须在记账之前（被拒的读不算"读过"，见下方 recordPreviewRead 说明）。
-                // 判据与 shader 侧同一份实现（engine/codeQuery.js）——
-                // 两侧各一份平行拷贝时，同一族判据容易不同步。
+                // 参数校验必须在记账之前：被拒的读不算"读过"——一次参数错误的调用若留下读账，
+                // 会把「从未读过 + 预览区非空 → 拒绝写入」那道防线永久解除。
+                // 判据与 shader 侧同一份实现（engine/codeQuery.js，两侧必须同源）。
                 var cq = codeQueryLib();
                 if (!cq) return codeQueryUnavailable();
                 var _qErr = cq.validateCodeQueryArgs(args);
                 if (_qErr) return _qErr;
-                // 读到才留快照（含空内容：空快照语义＝「LLM 已知当前为空」），供 submit_script
-                // 写前比对（按调用方分账）。**记账必须晚于参数校验**：
-                // 先记账再校验时，一次参数错误的调用（如 search 与 startLine 同传）就留下一条
-                // 记满的账，把「从未读过 + 预览区非空 → 拒绝写入」那道防线永久解除，用户手改
-                // 可被随后的整份提交静默覆盖。
-                recordPreviewRead(writer);
+                // 空预览区：读回的就是"当前为空"这一事实，空读同样留账（供 submit_script 的
+                // 写前比对，也解「写前必读」——空与否以读取结果为准）。
                 if (!current || !current.trim()) {
+                    recordPreviewRead(writer);
                     return { success: true, result: JSON.stringify({ status: 'empty', message: '预览区当前为空。' }) };
                 }
+                // 只有真正交付了内容的读才留账：search 未命中、offset 越界这类没有返回任何
+                // 内容的读不算"读过"——否则一次无效读就解除了「从未读过 → 拒绝写入」的防线。
+                var _su = (global.AEAgentApp && global.AEAgentApp.scriptUtils) || null;
+                var _st = opts.scriptTranscode || null;
                 // 四种查询（search / segments / startLine-endLine / 整篇）与 shader 侧共用同一实现。
                 // segments 分段器是语言特定的：ES3 走 scriptTranscode（engine 侧实现），GLSL 侧走
                 // shaderTools 的分段器；截断提示的主语按语言取「脚本」。
-                // 取值顺序：**谁真有 buildSegments 就用谁**——`AEAgentApp.scriptUtils`
-                // 只导出 restoreNewlines/transpileEs6ToEs3/cleanScriptContent（实测），按"scriptUtils 优先"
-                // 取会把 undefined 传进 codeQuery，segments 全链报「内部装配缺失」（真机 100% 失败，而
-                // 测试沙箱不装 utils.js 时恰好走不到，是个只有真装配才暴露的坑）。
-                var _su = (global.AEAgentApp && global.AEAgentApp.scriptUtils) || null;
-                var _st = opts.scriptTranscode || null;
-                return cq.runCodeQuery(current, args, {
+                // 取值顺序：**谁真有 buildSegments 就用谁**——`AEAgentApp.scriptUtils` 只导出
+                // restoreNewlines/transpileEs6ToEs3/cleanScriptContent，按"scriptUtils 优先"
+                // 取会把 undefined 传进 codeQuery，segments 全链报「内部装配缺失」。
+                var res = cq.runCodeQuery(current, args, {
                     buildSegments: (_su && _su.buildSegments) || (_st && _st.buildSegments),
                     subject: '脚本'
                 });
+                var delivered = false;
+                try {
+                    var p = JSON.parse(res && res.result);
+                    delivered = !!res && res.success !== false && p && p.status === 'ok';
+                } catch (_) {}
+                if (delivered) recordPreviewRead(writer);
+                return res;
             };
         }
 

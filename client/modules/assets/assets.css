@@ -226,7 +226,13 @@
 @keyframes assets-loading-rotate { to { transform: rotate(360deg); } }
 
 /* ── 树形区 ── */
-.assets-treeview { background: transparent; }
+/* 左右栏容器是 .assets-dropzone 的 flex 子项：默认 min-width: auto 会按内容最小宽撑开，
+   窄面板下把右栏（详情）顶出卡片边界（.assets-card overflow: hidden 将其裁掉），
+   故显式允许它窄于内容。 */
+.assets-treeview {
+    background: transparent;
+    min-width: 0;
+}
 .assets-tree-left {
     position: relative;
     display: flex;
@@ -235,7 +241,10 @@
     background: var(--surface-2);
     padding: 4px;
     min-height: 0;
-    flex: 0 0 230px;
+    /* 树模式左栏默认 230px，可收缩：窄面板下与右栏分摊压缩量；行内宽度（分隔条拖出的
+       首选宽）同样写成可收缩，面板拖窄时不会把右栏挤出卡片。溢出内容由 overflow: hidden 裁切。 */
+    flex: 0 1 230px;
+    min-width: 0;
     overflow: hidden;
 }
 .assets-tree-content {
@@ -248,7 +257,10 @@
 .assets-tree-right {
     background: transparent;
     padding: 10px;
-    flex: 1 1 auto;
+    /* 详情栏占剩余宽度。basis 240px 决定窄面板下的压缩分摊：左右栏按 basis 比例压缩，
+       与左栏 230px 接近均分，两栏都保留可读宽度。 */
+    flex: 1 1 240px;
+    min-width: 0;
     overflow-y: auto;
     min-height: 0;
 }
@@ -1442,11 +1454,12 @@
     color: var(--accent);
 }
 
-/* 模式布局：两种模式的**默认**布局放这里，行内样式只叠加"用户拖过的宽度"
+/* 模式布局：两种模式的**默认**布局放这里，行内样式只叠加分隔条拖出的宽度
    （见 treeView._applyMode）。选择器权重 (0,2,0) 高于 .assets-tree-left 的 (0,1,0)，
-   故能覆盖其 flex: 0 0 230px；.assets-tree-right 的 flex: 1 1 auto 同理被覆盖。
+   故能覆盖其 flex: 0 1 230px；.assets-tree-right 的 flex: 1 1 240px 同理被覆盖。
    右栏宽度用 clamp 而非定值 260px：面板默认 800px 宽（CSXS/manifest.xml），此时 30% 落在
-   区间内；面板被拖窄时定值 260px 会把左栏网格挤到只剩一列，故设下限 180px、上限 260px。 */
+   区间内；面板被拖窄时定值 260px 会把左栏网格挤到只剩一列，故设下限 180px、上限 260px。
+   树模式的左右栏都由基础规则压缩（窄面板下两栏分摊），网格模式右栏定宽以保住网格列数。 */
 .assets-mode-grid .assets-tree-left {
     flex: 1 1 auto;
     min-width: 0;

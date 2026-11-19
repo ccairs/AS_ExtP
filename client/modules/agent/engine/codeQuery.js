@@ -27,21 +27,48 @@
   // GLSL 已经到 34486（转义密集内容到 20 万+，segments 模式更无行数约束，3000 行源到 34.7 万）。
   // 超了就会被管线再截一次：正文中段丢失 + 结果切成非法 JSON（startLine/endLine/totalLines 等
   // 定位字段全没）。故这里按**序列化后长度**自守一道（24K，给兜底留 8K），超了就缩减本条
-  // 实际返回的内容量（行数/命中数/段数），并在回执里如实标注缩减量与续读位置。
+  // 实际返回的内容量（行数/命中数/段数），并在回执里如实标注缩减量与续读位置；一条都放不进
+  // 预算时以 PAYLOAD_TOO_LARGE 显式失败，不返回空内容。
   var PAYLOAD_BUDGET = 24 * 1024;
 
-  // 把"内容条数"逐步缩到序列化后落进预算内（每轮按观察到的膨胀比缩，转义比 ≥1 故几轮内收敛）；
-  // build(n) 接受条数、返回该条数下的 payload 字符串。n=0 时仍超（源本身过大）就原样交出去，
-  // 由管线兜底处理——不在这里死循环。
-  function fitBudget(build, n) {
-    var payload = build(n);
-    for (var pass = 0; pass < 4 && payload.length > PAYLOAD_BUDGET && n > 0; pass++) {
-      var excess = payload.length - PAYLOAD_BUDGET;
-      var drop = Math.max(1, Math.ceil(n * excess / payload.length));
-      n = Math.max(0, n - drop);
-      payload = build(n);
+  // 「缩到 0 条」的显式失败：源有内容却一条都放不进预算，本页读不到任何内容。按 ok 交出去会是
+  // 空 code / 空 matches，模型会当成"读到了空内容"；局部编辑据此构不出 oldText，且区间回执会
+  // 出现 endLine < startLine。三条查询的替代路径不同，文案各自给出。
+  function payloadTooLarge(message) {
+    return { success: false, result: JSON.stringify({ status: 'error', code: 'PAYLOAD_TOO_LARGE', message: message }) };
+  }
+  // 区间/整篇一条都放不进 = 起始行本身单行占满预算。起始行不是末行时其余行（start+1 起）仍可读；
+  // 已是末行（含唯一行）时没有后续行可读，改指 segments 摘要与「先读前面再整份提交」。
+  function payloadTooLargeLines(start, totalLines) {
+    var budgetKb = '（约 ' + (PAYLOAD_BUDGET / 1024) + ' KB）';
+    if (start >= totalLines) {
+      return '读取体积超出上限：第 ' + start + ' 行（末行/唯一行）单行即超出读取预算' + budgetKb + '，无后续行可读。可用 segments=true 读取分段摘要（读到内容即解除写前必读），或先读该行之前的区间再整份提交/局部编辑其余行。';
     }
-    return payload;
+    return '读取体积超出上限：第 ' + start + ' 行单行即占满读取预算' + budgetKb + '，本页无法返回任何行。可用 startLine=' + (start + 1) + ' 继续读取其余行（读到内容即解除写前必读），局部编辑可锚定其余行；若必须整篇写入，先读到任意一页再整份提交。';
+  }
+  var TOO_LARGE_SEARCH = '命中内容的上下文超出读取体积上限（约 ' + (PAYLOAD_BUDGET / 1024) + ' KB），本页无法返回命中内容。请改用不命中该超长行的 search 关键词，或改用 startLine/endLine 读取不含该行的区间；若单行本身超限则该行无法读取。';
+  var TOO_LARGE_SEGMENTS = '段落列表序列化后超出读取体积上限（约 ' + (PAYLOAD_BUDGET / 1024) + ' KB），本页无法返回任何段落。请改用 startLine/endLine 分段读取。';
+
+  // 把"内容条数"缩到序列化后落进预算内的**最大**条数；build(n) 接受条数、返回该条数下的
+  // payload 字符串。返回 { payload, count }：count>0 时 payload 恒 ≤ PAYLOAD_BUDGET；count=0
+  // 且源有内容 = 一条都放不进（调用分支报 PAYLOAD_TOO_LARGE）。
+  // 满额那一格（count=n）的 builder 不带 truncated/message 字段，可能比 n-1 还短，故长度只在
+  // [0, n-1] 内随条数单调：先单独探测 build(n)，不可行时二分区间取 [0, n-1]（n 作已知不可行
+  // 上界，不重测），约 log2(n)+2 次 build。count=0 时 payload 是 build(0) 的空壳，由调用分支报
+  // PAYLOAD_TOO_LARGE；函数不返回仍超预算的 payload——管线再截一次会切成非法 JSON。
+  function fitBudget(build, n) {
+    var full = build(n);
+    if (full.length <= PAYLOAD_BUDGET) return { payload: full, count: n };
+    var empty = build(0);
+    if (empty.length > PAYLOAD_BUDGET) return { payload: empty, count: 0 };
+    var lo = 0, hi = n;          // lo：已知可放；hi：已知放不进
+    var best = empty;
+    while (hi - lo > 1) {
+      var mid = Math.floor((lo + hi) / 2);
+      var probe = build(mid);
+      if (probe.length <= PAYLOAD_BUDGET) { lo = mid; best = probe; } else { hi = mid; }
+    }
+    return { payload: best, count: lo };
   }
 
   // 参数值的短展示（进错误消息；对象/数组截断，循环引用不抛）
@@ -146,7 +173,9 @@
         }
         return JSON.stringify(o);
       };
-      return { success: true, result: fitBudget(buildSearchPayload, matches.length) };
+      var fittedSearch = fitBudget(buildSearchPayload, matches.length);
+      if (!fittedSearch.count) return payloadTooLarge(TOO_LARGE_SEARCH);
+      return { success: true, result: fittedSearch.payload };
     }
     if (hasSegments) {
       if (typeof buildSegments !== 'function') {
@@ -164,7 +193,9 @@
         }
         return JSON.stringify(o);
       };
-      return { success: true, result: fitBudget(buildSegPayload, allSegs.length) };
+      var fittedSegs = fitBudget(buildSegPayload, allSegs.length);
+      if (!fittedSegs.count && allSegs.length) return payloadTooLarge(TOO_LARGE_SEGMENTS);
+      return { success: true, result: fittedSegs.payload };
     }
     var start = (typeof args.startLine === 'number' && args.startLine > 0) ? Math.floor(args.startLine) : 1;
     var end = (typeof args.endLine === 'number' && args.endLine > 0) ? Math.floor(args.endLine) : totalLines;
@@ -180,22 +211,33 @@
       var cut = overLineCap || toLine < capEnd;
       var sliceLines = lines.slice(start - 1, toLine);
       var numbered = sliceLines.map(function (line, i) { return (start + i) + ': ' + line; }).join('\n');
+      // 缩了就必须能续读：末行之后的行号写进消息，模型可原样当 startLine 传回
+      var nextLine = toLine + 1;
       if (!hasRange) {
         // 整篇：未截断时保持旧契约（无 maxLines/truncated/message 字段），逐字节不变
         return cut
           ? JSON.stringify({
               status: 'ok', name: name, code: numbered, totalLines: totalLines, maxLines: MAX_LINES, truncated: true, hash: hash,
               message: overLineCap
-                ? (subject + '超过 ' + MAX_LINES + ' 行，已仅返回前 ' + MAX_LINES + ' 行，请用 startLine/endLine 分段读取。')
-                : (subject + '本页按结果体积缩到前 ' + toLine + ' 行（未超出 ' + MAX_LINES + ' 行上限），请用 startLine/endLine 继续读取。')
+                ? (subject + '超过 ' + MAX_LINES + ' 行，已仅返回前 ' + toLine + ' 行，请用 startLine=' + nextLine + ' 继续读取。')
+                : (subject + '本页按结果体积缩到前 ' + toLine + ' 行（未超出 ' + MAX_LINES + ' 行上限），请用 startLine=' + nextLine + ' 继续读取。')
             })
           : JSON.stringify({ status: 'ok', name: name, code: numbered, totalLines: totalLines, hash: hash });
       }
-      return JSON.stringify({ status: 'ok', name: name, startLine: start, endLine: toLine, totalLines: totalLines, maxLines: MAX_LINES, truncated: cut, hash: hash, code: numbered });
+      var rangePayload = { status: 'ok', name: name, startLine: start, endLine: toLine, totalLines: totalLines, maxLines: MAX_LINES, truncated: cut, hash: hash, code: numbered };
+      if (cut) {
+        rangePayload.message = (overLineCap
+          ? (subject + '单次最多返回 ' + MAX_LINES + ' 行，本页返回第 ' + start + '–' + toLine + ' 行，')
+          : (subject + '本页按结果体积缩到第 ' + start + '–' + toLine + ' 行，'))
+          + '请用 startLine=' + nextLine + ' 继续读取。';
+      }
+      return JSON.stringify(rangePayload);
     };
-    return { success: true, result: fitBudget(buildRangePayload, capEnd - start + 1) };
+    var fittedRange = fitBudget(buildRangePayload, capEnd - start + 1);
+    if (!fittedRange.count) return payloadTooLarge(payloadTooLargeLines(start, totalLines));
+    return { success: true, result: fittedRange.payload };
   }
 
   global.AEEngine = global.AEEngine || {};
-  global.AEEngine.codeQuery = { validateCodeQueryArgs: validateCodeQueryArgs, runCodeQuery: runCodeQuery, MAX_LINES: MAX_LINES, MATCH_PAGE: MATCH_PAGE };
+  global.AEEngine.codeQuery = { validateCodeQueryArgs: validateCodeQueryArgs, runCodeQuery: runCodeQuery, MAX_LINES: MAX_LINES, MATCH_PAGE: MATCH_PAGE, PAYLOAD_BUDGET: PAYLOAD_BUDGET };
 })(typeof global !== 'undefined' ? global : window);

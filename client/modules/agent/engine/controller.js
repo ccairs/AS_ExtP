@@ -1797,7 +1797,7 @@
             // 不传 oldText/edits 则整份提交。
             toolRegistry.register({
                 name: 'submit_script',
-                description: '提交 ExtendScript 脚本到预览区。脚本会经过校验：通过则写入预览区供用户手动运行（回执给写入后的总行数），失败则返回错误信息供你修正后重新提交。这是 Script 模式下输出脚本的唯一方式。改已有脚本用内容锚定局部编辑：oldText（要替换的原文，须与预览区当前内容逐字符一致、且在其中唯一——行号会漂移故不作定位依据，请先 get_current_script 读回原文再原样复制）+ newText（替换文本，空串=删除）；多段一次改完用 edits:[{oldText,newText}, ...]（1-20 处，按序应用）。局部编辑会先合并成完整脚本再整体校验后写回；不传 oldText/edits 则整份提交。代码契约：仅 ES3 语法（禁 let/const/箭头函数/模板字符串/解构/class/for...of/Promise/Map/Set/Symbol）；完整可执行、try/catch 包裹主逻辑、catch 中用 alert 报告错误；保持正常换行不要输出单行代码；属性名和效果名必须用 matchName（中英文版通用），不确定时用 queryAeApi 查询不要编造；撤销组可自行写 beginUndoGroup/endUndoGroup 精确控制撤销粒度；不写则框架自动兜底包裹。安全边界：以下 API 无能力域开关，任何情况下拦截——BridgeTalk、$.global/$.evalFile、eval/new Function/String.fromCharCode 动态构造、__ael*/__aeS*/_cs/_OF/_OD 沙箱引用；能力域类 API（File/Folder/system.callSystem/Socket/executeCommand）默认关闭，被拦截时拒绝信息会附开启指引与参数式工具替代方案，按指引处理。',
+                description: '提交 ExtendScript 脚本到预览区。脚本会经过校验：通过则写入预览区供用户手动运行（回执给写入后的总行数），失败则返回错误信息供你修正后重新提交。这是 Script 模式下输出脚本的唯一方式。改已有脚本用内容锚定局部编辑：oldText（要替换的原文，须与预览区当前内容逐字符一致、且在其中唯一——行号会漂移故不作定位依据，请先 get_current_script 读回原文、剥掉每行行号前缀后再复制）+ newText（替换文本，空串=删除）；多段一次改完用 edits:[{oldText,newText}, ...]（1-20 处，按序应用）。局部编辑会先合并成完整脚本再整体校验后写回；不传 oldText/edits 则整份提交。代码契约：仅 ES3 语法（禁 let/const/箭头函数/模板字符串/解构/class/for...of/Promise/Map/Set/Symbol）；完整可执行、try/catch 包裹主逻辑、catch 中用 alert 报告错误；保持正常换行不要输出单行代码；属性名和效果名必须用 matchName（中英文版通用），不确定时用 queryAeApi 查询不要编造；撤销组可自行写 beginUndoGroup/endUndoGroup 精确控制撤销粒度；不写则框架自动兜底包裹。安全边界：以下 API 无能力域开关，任何情况下拦截——BridgeTalk、$.global/$.evalFile、eval/new Function/String.fromCharCode 动态构造、__ael*/__aeS*/_cs/_OF/_OD 沙箱引用；能力域类 API（File/Folder/system.callSystem/Socket/executeCommand）默认关闭，被拦截时拒绝信息会附开启指引与参数式工具替代方案，按指引处理。',
                 input_schema: {
                     type: 'object',
                     properties: {
@@ -1808,7 +1808,7 @@
                             items: { type: 'string' },
                             description: '生成时所做的假设（可选，展示给用户）'
                         },
-                        oldText: { type: 'string', description: '局部编辑：要替换的原文，须与预览区当前内容逐字符一致（含缩进与空行）且在其中唯一；先用 get_current_script 读回原文再原样复制。不传则整份提交' },
+                        oldText: { type: 'string', description: '局部编辑：要替换的原文，须与预览区当前内容逐字符一致（含缩进与空行）且在其中唯一；先用 get_current_script 读回原文再原样复制。不传则整份提交；读回内容每行开头的 "N: " 是行号标注、不属于代码，复制时去掉' },
                         newText: { type: 'string', description: '局部编辑：替换文本；空串表示删除 oldText 命中的整段' },
                         edits: { type: 'array', items: { type: 'object', properties: { oldText: { type: 'string' }, newText: { type: 'string' } } }, description: '局部编辑（1-20 处，按序应用）：与顶层 oldText/newText 互斥' }
                     },
@@ -1868,7 +1868,7 @@
             // 便于 LLM 只读取相关片段定位要修改的位置（避免大脚本全量返回浪费 token）。
             toolRegistry.register({
                 name: 'get_current_script',
-                description: '读取预览区当前的 ExtendScript 脚本代码。提交脚本前必调（含首次，空预览区也要读一次——写前必读，未读提交会被拒绝）；修改已有脚本或用户提到"当前脚本/第 N 行"时也用它定位。不传参数返回完整脚本（每行带行号，超过 500 行时截断为前 500 行）。',
+                description: '读取预览区当前的 ExtendScript 脚本代码。提交脚本前必调（含首次，空预览区也要读一次——写前必读，未读提交会被拒绝）；修改已有脚本或用户提到"当前脚本/第 N 行"时也用它定位。不传参数返回完整脚本（每行带行号，超过 500 行时截断为前 500 行）；search 的 context 与 segments 的 snippet 含行号或截断，不能直接当 oldText 锚点——锚点用整篇读回并剥掉行号前缀后的原文',
                 input_schema: {
                     type: 'object',
                     properties: {

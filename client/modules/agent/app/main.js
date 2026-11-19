@@ -2678,7 +2678,7 @@ function bindEvents() {
         }
         scriptPreviewEl.addEventListener('input', onScriptPreviewEdited);
 
-        // shader/外接模式：GLSL 编辑区跟随代码编辑（高亮立即跟随输入，编译/滑块 250ms 防抖）
+        // shader/外接/团队档：GLSL 编辑区跟随代码编辑（高亮立即跟随输入，编译/滑块 250ms 防抖）
         var shaderPreviewDebounce = null;
         function onShaderPreviewEdited(e) {
             // 只认 GLSL 编辑区来源：外接模式下 script 预览区与 GLSL 编辑区同显（六功能
@@ -2696,10 +2696,9 @@ function bindEvents() {
                 // previewRendererFactory 重编译 WebGL），泄漏渲染器与静态 DOM 监听
                 if (!llmModuleMounted) return;
                 var su = getShaderUI();
-                // 外接模式与 shader 模式共用 #shaderCodePreview 及同一条预览/编译/
-                // uniform/草稿链，判据统一走 isGlslEditingMode；写死 su.isShader()
-                // （仅 runtimeMode==='shader'）：外接模式被整条链挡在门外——改代码不编译、
-                // 滑块不跟随、shaderDraft 不落盘（切模块回来被旧草稿覆盖）。
+                // 外接/团队档与 shader 档共用 #shaderCodePreview 及同一条预览/编译/
+                // uniform/草稿链，判据统一走 isGlslEditingMode（按单一模式写死会让外接/团队档
+                // 改代码不编译、滑块不跟随、shaderDraft 不落盘）。
                 if (su && isGlslEditingMode()) {
                     var code = getShaderPreviewCode();
                     su.refreshPreviewFromCode(code);
@@ -3755,7 +3754,8 @@ async function init(context) {
                     },
                     // opts 透传（含 { area: 'shader' | 'script' }）：写入目标由提交工具族显式给出，
                     // 返回是否真的落进目标区（false = 目标元素缺失，工具据此报错而非回 passed）
-                    updatePreviewScript: function(script, opts) { var s = window.AEAgentApp && window.AEAgentApp.llmService; if (s && typeof s.updatePreviewScriptFromAgent === 'function') return s.updatePreviewScriptFromAgent(script, opts); },
+                    // 服务未加载时返回 false：提交类工具据此报写入失败，不把未写入当成功。
+                    updatePreviewScript: function(script, opts) { var s = window.AEAgentApp && window.AEAgentApp.llmService; if (s && typeof s.updatePreviewScriptFromAgent === 'function') return s.updatePreviewScriptFromAgent(script, opts); return false; },
                     showConfirm: showConfirm,
                     showStatus: showStatus
                 });
@@ -3855,7 +3855,7 @@ function getShaderUI() {
             // 若落在动画帧间隙的空闲回调里会把入场动画整个冻住（启动直接进 shader/外接
             // 模式时的启动卡顿来源）
             isIntroAnimating: function () { return !!_enterAnimating; },
-            // GLSL 编辑区活动判据（shader/外接两模式）——与宿主同一函数（单一真源），
+            // GLSL 编辑区活动判据（shader/外接/团队三档）——与宿主同一函数（单一真源），
             // 避免 shaderUI 内再写一份「模式 === 'shader'」硬编码
             isGlslEditing: function () { return isGlslEditingMode(); },
             // shader 模式读写独立的 GLSL 代码编辑区（#shaderCodePreview），与 script 代码预览区（#scriptPreview）分离
@@ -3953,14 +3953,15 @@ function getShaderUI() {
     return shaderUIInstance;
 }
 
-// 「当前运行模式的编辑面是 GLSL 编辑区」——shader 与外接模式共用 #shaderCodePreview
-// 及同一条预览/编译/uniform/草稿链（外接模式的进入路径见 refreshList 外接分支：同样
-// showLeft/showRight + startPreview）。凡以 GLSL 编辑区为准的判定一律走此处，不再散落
-// 「模式 === 'shader'」硬编码——该硬编码曾把外接模式整条链挡在门外（改了代码不实时
-// 编译、shaderDraft 不落盘）。mode 省略时取当前持久化设置（cachedSettings）。
+// 「当前运行模式的编辑面是 GLSL 编辑区」——shader / 外接 / 团队三档共用 #shaderCodePreview
+// 及同一条预览/编译/uniform/草稿链（外接档的进入路径见 refreshList 外接分支、团队档见团队
+// 分支，两者都 showLeft/showRight + startPreview；团队档的 GLSL 代码页在右抽屉）。
+// 凡以 GLSL 编辑区为准的判定一律走此处，不得在别处另写「模式 === 'shader'」式字符串副本——
+// 漏一档的后果是读写预览区落到 #scriptPreview（保存报「写入失败」、读取不显示、滑块写回不落码）。
+// mode 省略时取当前持久化设置（cachedSettings）。
 function isGlslEditingMode(mode) {
     var m = mode || (cachedSettings && cachedSettings.runtimeMode) || '';
-    return m === 'shader' || m === 'external';
+    return m === 'shader' || m === 'external' || m === 'team';
 }
 
 function getShaderPreviewCode() {
@@ -3991,13 +3992,11 @@ function _isTeamModeForUi() {
     try { return !!ui.isTeamModeOn(); } catch (_) { return false; }
 }
 
-// 团队模式：摘掉外接布局。
-// 从外接档切进团队时 `settings.runtimeMode` 仍是 'external'（第 5 档是派生档，不写 'team'，
-// 见上文注释），外接视图还停在 enter 态——`.ext-mode-active` 会用 display:none!important
-// 压住聊天区/输入区，中列也还挂着管理台与 GLSL 预览图。真机现象：「从外接切到团队，
-// 聊天历史框和输入框都没出来」。exit() 本身幂等；万一视图实例与 DOM 脱节（类还在但
-// isEntered 已是 false），这里再兜底摘一次类与面板显隐——那条 !important 压回去的代价
-// 是整块聊天面消失，宁可多写一次。
+// 团队模式：摘掉外接布局（外接视图可能仍停在 enter 态）。
+// 外接视图停在 enter 态时 `.ext-mode-active` 会用 display:none!important 压住聊天区/输入区，
+// 中列也还挂着管理台与 GLSL 预览图。exit() 本身幂等；万一视图实例与 DOM 脱节（类还在但
+// isEntered 已是 false），这里再兜底摘一次类与面板显隐——漏摘的代价是整块聊天面不可见，
+// 宁可多写一次。
 function _healExternalLayoutForTeam() {
     var view = window.AEExternal && window.AEExternal.view;
     if (view && typeof view.exit === 'function') {
@@ -4144,11 +4143,11 @@ function refreshList(opts) {
     try {
         var settings = cachedSettings;
         var mode = settings && settings.runtimeMode;
-        // 团队模式：团队开着时**整块模式 chrome 一律按团队走**。
-        // `settings.runtimeMode` 保持原值（第 5 档是派生档，不写 'team'），但界面不能
-        // 沿用底层档位——底层是 external 时 `.ext-mode-active` 会把聊天区/输入区按
-        // display:none!important 压住，中列还挂着管理台与 GLSL 预览图。团队优先（设计 B-4）
-        // 覆盖范围是整块模式 chrome（外接分支 / shader 分支 / 工具栏 / 抽屉），不止左抽屉路由。
+        // 团队模式：团队开着时**整块模式 chrome 一律按团队走**。分支判据取
+        // `_isTeamModeForUi()`（引擎当前 lane 现算），不顺着 `settings.runtimeMode` 的来处分叉：
+        // 来处是 external 时 `.ext-mode-active` 会把聊天区/输入区按 display:none!important
+        // 压住，中列还挂着管理台与 GLSL 预览图。团队优先须覆盖整块模式 chrome
+        //（外接分支 / shader 分支 / 工具栏 / 抽屉），不只左抽屉路由。
         var teamOnUi = _isTeamModeForUi();
         var isAgent = mode === 'agent';
         // `isShader` 必须**同时**排掉团队模式——只把 `!teamOnUi` 加在
@@ -4156,7 +4155,8 @@ function refreshList(opts) {
         // （main.js 的 `if (isShader && su) { … return; }`）⇒ 团队分支整段被跳过：舞台被
         // `hideTeamLayout` 搬回左列，而 `.team-mode-active .shader-team-stage{display:flex}` 仍在
         // ⇒ 右抽屉上半是一块**空的带边框面板**（「上半实时预览」落空），重载恢复同样坏。
-        // 团队档是派生档 ⇒ 界面档一律按团队走：团队开着时 isShader/isExternal 都恒为 false。
+        // 团队档是模式旋钮的第五档（runtimeMode='team'）⇒ 界面档一律按团队走：团队开着时
+        // isShader/isExternal 都恒为 false。
         var isShader = (mode === 'shader') && !teamOnUi;
         var isExternal = (mode === 'external') && !teamOnUi;
         // 左抽屉的显隐路由：modeHidesShell 只认 **shader**。
@@ -4183,7 +4183,7 @@ function refreshList(opts) {
         // 都是**脚本模式**的顶栏入口（保存/运行的是脚本模式的预览区，刷新的是脚本列表），团队档
         // 下左列是团队面板、右抽屉是 GLSL 预览/代码，三者都没有落点；留着一个「上一个模式的
         // 按钮」正是「很多东西还是切之前的那个模式」。清空对话不在其列（团队档仍要清当前
-        // lane 的会话）。判据用 `teamOnUi`：团队档是派生档，界面档一律按团队走（同 isShader）。
+        // lane 的会话）。判据用 `teamOnUi`：团队档的界面档一律按团队走（同 isShader）。
         var hideTopScriptBtns = isShader || teamOnUi;
         var topSaveBtn = document.getElementById('saveBtn');
         if (topSaveBtn) topSaveBtn.style.display = hideTopScriptBtns ? 'none' : '';
@@ -4300,8 +4300,8 @@ function refreshList(opts) {
             su.showRight();
             su.refreshLibrary();
             // 重活延后到空闲窗口（同 shader 分支：WebGL 上下文创建 / GLSL 编译是同步重活，
-            // 落在切换动画帧里会把动画冻住）。迟到守卫按**团队仍在**判——团队档是派生档，
-            // 底层 runtimeMode 可能是 script/external，不能用它判「还在不在团队」。
+            // 落在切换动画帧里会把动画冻住）。迟到守卫按**团队仍在**判（`teamOnUi` 由引擎
+            // 当前 lane 现算，比 runtimeMode 更直接反映团队 chrome 是否还在）。
             deferIdle(function () {
                 if (!llmModuleMounted) return;
                 if (!_isTeamModeForUi()) return;
