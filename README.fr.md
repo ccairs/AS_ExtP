@@ -4,7 +4,7 @@
 
 > Une plateforme d’extension multi-modules (CEP) qui intègre l’IA à After Effects.
 >
-> Version : v1.0.3
+> Version : v1.0.4
 
 AS_ExtP est une plateforme d’extension IA pour After Effects — un panneau CEP et deux greffons natifs AE (l’hôte d’effets GLSL et le Hotbox AE). Le panneau se compose de plusieurs modules : **Agent** (pilotage conversationnel par grand modèle de langage), **ComfyUI** (génération d’images / de vidéos par IA), **Bibliothèque d’actifs** (gestion des actifs de projet et des préréglages), ainsi que **MCP / Skill / Mémoire / Gestion des modèles** (extension et configuration des capacités).
 
@@ -220,7 +220,7 @@ Capacités d’entrée 3D et image :
 - **Couplage de la caméra 3D** : lit la caméra de la composition et injecte sa matrice, sa position et son champ de vision (`uCamFov`) dans les uniforms intégrés ; la perspective du GLSL correspond ainsi à celle de la caméra AE, ce qui autorise un alignement spatial réel
 - **Couplage des lumières AE** : énumère les lumières de la composition (type / position / orientation / couleur × intensité / atténuation du cône, 8 au maximum) et les injecte dans la série d’uniforms `uLight*`, pour que l’effet réagisse en temps réel aux lumières AE
 - **Entrées de calques mappés** : déclarer `iChannel1/2/3` active la ligne de calque correspondante (non déclarées, ces trois lignes restent visibles mais grisées — la ligne LAYER de l’hôte ne peut pas être masquée) ; d’autres calques peuvent alors servir d’entrée de texture (`iChannel0` correspond au calque courant, intégré)
-- **Emplacements de paramètres** : un curseur par scalaire, chaque composante d’un vec2 / vec3 sur sa propre ligne, les vec4 et les vecteurs à sémantique de couleur rendus en sélecteur de couleur ; pour l’adressage des composantes, la composante 0 utilise le nom de l’uniform et les suivantes `.y/.z/.w` (sémantique de couleur : `.g/.b/.a`, sans `.r`) ; plage d’affichage et plage d’entrée valide se règlent séparément
+- **Emplacements de paramètres** : dans les contrôles d’effet, il n’y a plus qu’une seule toile dessinée par le plug-in ; le groupe « Paramètres » trace une ligne par uniform du shader sélectionné — un curseur pour les scalaires, un contrôle ponctuel avec une ligne par composante pour vec2 / vec3, des pastilles de couleur pour vec4 et les vecteurs à sémantique de couleur ; les noms de ligne et les valeurs sont relus à chaque image depuis le fichier courant, donc les copies de calques, les changements de shader et la restauration de projet sont corrects dès le premier affichage. Les scripts et l’IA adressent les emplacements via la table de paramètres enregistrée par l’hôte (`propertyIndex`) ou le matchName du paramètre ; l’index du fichier sélectionné est le paramètre masqué 141 (auparavant 140). Plage d’affichage et plage d’entrée valide se règlent séparément
 - **Index de la bibliothèque d’effets** : l’hôte exporte l’index de référence, si bien que la vue de la bibliothèque du panneau et celle de l’hôte restent synchronisées ; si le fichier sélectionné disparaît, l’information est transmise telle quelle au lieu de basculer silencieusement sur un autre shader
 
 ![Hôte d’effets GLSL avec un shader d’océan : modifier le fichier .glsl recharge l’image à chaud](assets/readme/glsl-host-in-ae-ocean.png)

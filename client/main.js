@@ -1134,7 +1134,7 @@
         const bodyEl = document.getElementById('aboutBody');
         if (!mask || !titleEl || !bodyEl) return;
 
-        var extVersion = '1.0.3';
+        var extVersion = '1.0.4';
         var moduleVersion = '1.0';
 
         if (type === 'extension') {

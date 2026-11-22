@@ -6,18 +6,17 @@
 // 打通「LLM 脚本下发运行期参数」：
 //   - 每槽 4 分量，各为 1 个 PF_Param_FLOAT_SLIDER（PF_FloatSliderDef.value =
 //     PF_FpLong = double，脚本 property(k).value 可读写）。
-//   分量0 带 PF_PUI_CONTROL（自绘整行，外观与既有样式一致）；分量1..3 带
-//   PF_PUI_NO_ECW_UI 完全不出现在 ECW（仅作数值容器）。
+//   4 个分量全部挂 PF_PUI_NO_ECW_UI：不出现在 ECW，仅作数值容器；
+//   控件由「参数」组内的自绘画布逐行绘制（见下方 kIdxCanvas）。
 //   注意：不用 PF_Param_POINT_3D 承载前 3 分量——POINT_3D 带「图层原点百分比」
 //   语义，AE 脚本读 property(k).value 会抛「数字结果无效」，故整体改为 4 个
 //   FLOAT_SLIDER（同为原生可脚本类型，无原点偏移副作用）。
 //
 // 索引与 disk ID 约定（disk ID 是 AE 跨版本的稳定键）：
-//   分量 c 的索引 = 5 + 4*i + c（i = 0..31，c = 0..3）→ 5..132
-//           分量0 = 该槽位可见行（自绘）；分量1/2/3 隐藏
+//   分量 c 的索引 = 5 + 4*i + c（i = 0..31，c = 0..3）→ 5..132，全部隐藏数值容器
 //   disk ID = 500 + 4*i + c（全新区段，避免与旧 300/400 区段撞键误恢复）
-//   其后区段整体后移：group end 133、映射图层 134..138、相机 139、
-//   GLSL 索引 140、总数 141。
+//   其后：画布 133、group end 134、映射图层 135..139、相机 140、
+//   GLSL 索引 141、灯光 142、重算代数 143、重算按钮 144、总数 145。
 #include "uniformParser.h"
 namespace host {
 constexpr int kMaxParams = 32;
@@ -44,23 +43,43 @@ constexpr int kFileSelDiskId      = 210;                     // 隐藏索引参�
 constexpr double kFileSelValidMin = 0.0;
 constexpr double kFileSelValidMax = 9999.0;
 
-// 「参数」分组（单分组布局）：
-// 32 个槽位（每槽 4 个 FLOAT_SLIDER = 128 个参数）全部注册进「参数」组（默认折叠），
-// 不再拆「未激活参数」组——AE 的 PF_UpdateParamUI 无法运行时把参数移动到另一个
-// 分组，拆两组会导致切换 glsl 文件后新增的激活 uniform 永远留在「未激活参数」组、
-// 回不到「参数」列表。改为单组后：未激活槽位的分量0 通过 ui_height=0（隐藏）+
-// DISABLED（置灰兜底）不占位，激活时恢复 kSlotUiHeight，切换文件即时归位
-// （分量1..3 恒 PF_PUI_NO_ECW_UI，不参与布局）。
-constexpr int kIdxGroupStart      = 4;                                     // PF_Param_GROUP_START（「参数」组，折叠）
+// 「参数」分组（单分组布局 + 单画布承载）：
+// 32 个槽位（每槽 4 个 FLOAT_SLIDER = 128 个参数）全部注册进「参数」组，
+// **全部**挂 PF_PUI_NO_ECW_UI：不出现在 ECW，但时间线关键帧轨、脚本
+// property(k).value 读写与渲染路径照旧（AE_Effect.h:2188-2196）。
+// 组内只剩一个自绘 ARBITRARY 画布（kIdxCanvas），按当前文件的 uniform 列表逐行
+// 绘制名字与控件——「显示正确性」因此不依赖 AE 何时回调、也不依赖任何一行的
+// 可见性/布局：ECW 里没有可被 reveal 的槽位行，运行时零可见行更新。
+// 曾把这些分量拆成两个可见分组：AE 的 PF_UpdateParamUI 无法运行时把参数移动到
+// 另一个分组，拆两组会让切换 glsl 文件后新增的激活 uniform 永远留在「未激活
+// 参数」组、回不到「参数」列表。
+constexpr int kIdxGroupStart      = 4;                                     // PF_Param_GROUP_START（「参数」组，展开）
 constexpr int kIdxSlots           = 5;                                     // 槽位分量0起始索引（分量 c → 5+4i+c）
 constexpr int kSlotsSpan          = kMaxParams * kFloatsPerSlot;           // 128（32 槽 × 4 分量）
-constexpr int kIdxGroupEnd        = kIdxSlots + kSlotsSpan;                // 133（「参数」组 END）
+constexpr int kIdxCanvas          = kIdxSlots + kSlotsSpan;                // 133（自绘画布，组内最后一行）
+constexpr int kIdxGroupEnd        = kIdxCanvas + 1;                        // 134（「参数」组 END）
+
+// —— 自绘画布（「参数」组内唯一的可见行）——
+// ARBITRARY_DATA + PF_PUI_CONTROL：AE 只对 ARBITRARY+CONTROL 采纳 ui_height
+// （AE_Effect.h:2290-2291「ignored if !PF_PUI_CONTROL」）。
+// 高度：注册值 = kCanvasViewH（15 行视口上限）；短内容时运行期收缩到内容高度
+//（SyncCanvasUI 在 UPDATE_PARAMS_UI 下发，见 customUI.cpp canvasDesiredHeight），
+// 复制/切图层后 AE 按注册高度重建 ECW 的情况由 DRAW 入口自修补发
+//（repairCanvasHeightIfNeeded）。视口行数按**实得高度**反算，补发被丢弃时仍按
+// 实得高度滚动，内容不裁切。
+// 行高复用 kSlotUiHeight（每个 uniform 的视觉行数见 slotUiRows），上下各留 kCanvasPadY。
+// 参数名为空串：AE 仍画一行空标题 + twirly，视觉上就是「参数」组里的容器行。
+// 画布 data 只承载 AE 要求的 ARBITRARY handle（4×float），真值全在 128 个隐藏滑条里。
+constexpr int kCanvasUiId         = 214;     // ARBITRARY 的 uu.id（同时是 uiID 与盘 ID）
+constexpr int kCanvasWidth        = 400;     // 控件请求宽（AE 按面板实际宽度布局）
+constexpr int kCanvasPadY         = 4;       // 画布上下留白（视口高度 = 行数 × kSlotUiHeight + 2×本值）
+constexpr int kCanvasViewRows     = 15;      // 视口行数上限（注册高度按它算）
 
 // —— 「映射图层」分组：iChannel1/2/3 原生图层下拉 ——
 // shader 声明 iChannel1/2/3 时可各选一个合成图层作纹理输入（PF_Param_LAYER，
 // AE 自动生成图层下拉，随工程持久化）。上限固定 3 个：PF_Param_LAYER 必须在
 // PARAMS_SETUP 注册，无法运行时增删；启用态由 SyncParamUI 按当前文件声明同步
-// （槽位同款：名称/启用比对，变化才 PF_UpdateParamUI，**不改写 ui_height**）。
+// （名称/启用比对，变化才 PF_UpdateParamUI；LAYER 行不改写 ui_height）。
 // 判定（依据：SDK 注 AE_Effect.h:2290「ui_width/ui_height
 // 仅在 PF_PUI_CONTROL 下被采用」+ 代码复核；本仓库无真机日志）：LAYER 未挂 PF_PUI_CONTROL →
 // 行无法隐藏，未声明的行只加 DISABLED 置灰；行名注册期恒为「映射图层 N」，改名「—」只在
@@ -68,10 +87,10 @@ constexpr int kIdxGroupEnd        = kIdxSlots + kSlotsSpan;                // 13
 //
 // 【兼容性约束】参数只能在尾部追加，绝不能在中间插入：AE 按 disk ID 恢复旧工程
 // 参数值，盘 ID 是跨版本稳定键；如确需改索引务必同步维护 disk ID。
-constexpr int kIdxLayerGroupStart = kIdxGroupEnd + 1;        // 134（PF_Param_GROUP_START，「映射图层」组，折叠）
-constexpr int kIdxLayerBase       = kIdxLayerGroupStart + 1; // 135（iChannel1 → 135+i）
+constexpr int kIdxLayerGroupStart = kIdxGroupEnd + 1;        // 135（PF_Param_GROUP_START，「映射图层」组，折叠）
+constexpr int kIdxLayerBase       = kIdxLayerGroupStart + 1; // 136（iChannel1 → 136+i）
 constexpr int kIdxMapChannels     = 3;                       // 映射图层上限（iChannel1/2/3）
-constexpr int kIdxLayerGroupEnd   = kIdxLayerBase + kIdxMapChannels;  // 138（PF_Param_GROUP_END）
+constexpr int kIdxLayerGroupEnd   = kIdxLayerBase + kIdxMapChannels;  // 139（PF_Param_GROUP_END）
 
 // —— 「启用三维摄像机」复选框（L2 相机联动总开关）——
 // 勾选：渲染回调内 AEGP 查询相机/世界矩阵并注入 uHasCam/uCamFov/uCamPos/
@@ -79,7 +98,7 @@ constexpr int kIdxLayerGroupEnd   = kIdxLayerBase + kIdxMapChannels;  // 138（P
 // 「无相机合成」同语义——面板预览另走自己的可操控虚拟相机 uHasCam=1，不在此兜底内）。
 // 默认勾选（功能开箱即用；AEGP 失败静默降级，
 // 关闭仅省每帧 4 次套件调用的开销）。
-constexpr int kIdxCamEnable       = kIdxLayerGroupEnd + 1;    // 139（PF_Param_CHECKBOX）
+constexpr int kIdxCamEnable       = kIdxLayerGroupEnd + 1;    // 140（PF_Param_CHECKBOX）
 
 // 槽位分量的 disk ID 基址（分量 c → 500 + 4i + c）。全新区段：旧工程存的
 // 300/400 区段（ARBITRARY 句柄 / 旧滑条）不匹配 → 回落默认值，而非被误读。
@@ -100,7 +119,7 @@ constexpr double kSlotSliderValidMax =  1.0e9;
 //      且 PF_FpShort（32 位 float）在 1e9 量级的分辨率仅约 64，微调无从谈起。
 // 现分工：valid 保持宽（不钳制脚本写入），slider 收成**按类型/命名的有用量程**：
 //   · uniform 声明了 `// @range min max`（LLM 可写）→ 用声明值（与自绘滑条同源）；
-//   · 颜色语义（Vec4 / 名字含 color）→ 0..1；
+//   · 颜色语义（Vec4，或名字命中 glsl::isColorNamed）→ 0..1；
 //   · 角度语义（名字含 angle/deg/rot，见 glsl::isAngleNamed）→ -360..360；
 //   · 其余标量/向量 → -10..10。
 // precision（显示小数位，A_short）由量程跨度导出：≤2 → 3 位；≤100 → 2 位；否则 1 位
@@ -141,7 +160,7 @@ inline void slotSliderRange(const glsl::Param& p, double* lo, double* hi, int* p
 // UI 点选/脚本写入都落在这里（带 CHANGED_VALUE 持久化）；渲染/SmartRender/
 // SyncParamUI/选择器显示统一读它。选择器 ARBITRARY handle f[0] 为只写不读的
 // 遗留载体（仅作 instanceFileIndex 参数缺失时的兜底回退）。
-constexpr int kIdxFileIndexParam  = kIdxCamEnable + 1;                 // 140
+constexpr int kIdxFileIndexParam  = kIdxCamEnable + 1;                 // 141
 
 // —— 「启用三维灯光」复选框（L3 灯光联动总开关）——
 // 勾选：渲染回调内 AEGP 枚举合成灯光（灯型/位置/朝向/颜色×强度/锥角/衰减）并注入
@@ -151,11 +170,11 @@ constexpr int kIdxFileIndexParam  = kIdxCamEnable + 1;                 // 140
 // 每帧一次合成枚举的开销）。
 //
 // 【落位理由】追加在 kIdxFileIndexParam **之后**而非紧跟摄像机开关：AE 按 disk ID
-// 恢复旧工程参数值，把新参数插在 140 位会把隐藏的文件索引参数挤到 141，
-// 旧工程存下的 140（文件索引）将被新复选框误读。故严格遵守「只能在尾部追加」。
+// 恢复旧工程参数值，把新参数插在文件索引之前会让旧工程存下的那份索引被本复选框
+// 误读。故严格遵守「只能在尾部追加」。
 // 视觉顺序不受影响：文件索引参数挂 PF_PUI_NO_ECW_UI 不显示，ECW 中本复选框
 // 紧跟摄像机开关之后。
-constexpr int kIdxLightEnable     = kIdxFileIndexParam + 1;            // 141
+constexpr int kIdxLightEnable     = kIdxFileIndexParam + 1;            // 142
 
 // —— 「重算代数」（隐藏）——
 // 手动「重算结算器」按钮的**缓存失效载体**。AE 的帧缓存键只看参数值，而重算不改
@@ -166,7 +185,7 @@ constexpr int kIdxLightEnable     = kIdxFileIndexParam + 1;            // 141
 // 切文件却会重渲，差别只在切文件顺带改了**槽位滑条的值**。故改为本参数：每点一次
 // 「重算」+1（值真变，与用户拖滑条同款机制），AE 必然失效该帧缓存并重渲。
 // 【落位】严格遵守「只能在尾部追加」（disk ID 是跨版本恢复键）：追加在灯光开关之后。
-constexpr int kIdxSolveGen        = kIdxLightEnable + 1;               // 142
+constexpr int kIdxSolveGen        = kIdxLightEnable + 1;               // 143
 constexpr int kSolveGenDiskId     = 211;                               // 重算代数 disk ID
 constexpr double kSolveGenValidMax = 9999.0;                           // 计数器回绕上限
 
@@ -177,14 +196,14 @@ constexpr double kSolveGenValidMax = 9999.0;                           // 计数
 // FORCE_RERENDER；结算状态复位由渲染路径据指纹变化完成（机制与理由见上方注释）。
 // 【落位】尾部追加（disk ID 是跨版本恢复键），排在隐藏的 kIdxSolveGen 之后——
 // 隐藏参数不占视觉行，故它显示为「启用三维灯光」下面紧接的一行。
-constexpr int kIdxSolveBtn        = kIdxSolveGen + 1;                  // 143
+constexpr int kIdxSolveBtn        = kIdxSolveGen + 1;                  // 144
 constexpr int kSolveBtnUiId       = 1001;
 constexpr int kSolveBtnDiskId     = 212;
 constexpr int kSolveBtnH          = 26;                                // 按钮行高（含上下留白）
 void* const    kSolveBtnRefcon    = (void*)0x534F4C5642544E31LL;       // 'SOLVBTN1'
 
 // —— 「实例身份」不在参数表里 ——
-// 曾有过一个隐藏 FLOAT_SLIDER 身份参数（索引 144 / disk 213）——
+
 // 证伪了它的前提「PARAMS_SETUP 每实例执行一次」：**PARAMS_SETUP 每 AE 会话只发
 // 一次**（两次 addProperty 只有一行 params-setup-done），新实例初值一律取注册期
 // dephault（AE_Effect.h:416-423 明文），故参数路给不出「每实例不同」的初值
@@ -192,13 +211,28 @@ void* const    kSolveBtnRefcon    = (void*)0x534F4C5642544E31LL;       // 'SOLVB
 // SEQUENCE_SETUP 每次「应用到图层」都发（每实例铸号），FLATTEN/RESETUP 随渲染
 // 工程拷贝把数据带给渲染克隆——见 seqIdentity.h（含全部真机证据）与 plugin.cpp
 // 的 SEQUENCE_SETUP / SEQUENCE_RESETUP 分支。
-// 参数总数回到 144：输入层 + 文件组(1-3) + 参数组(4-133) + 映射图层组(134-138) +
-// 摄像机开关(139) + 隐藏文件索引(140) + 灯光开关(141) + 隐藏重算代数(142) + 重算按钮控件(143)
-constexpr int kNumParams          = kIdxSolveBtn + 1;                  // 144
+// 参数总数 145：输入层 + 文件组(1-3) + 参数组(4=START, 5-132=128 槽位分量,
+// 133=画布, 134=END) + 映射图层组(135-139) + 摄像机开关(140) + 隐藏文件索引(141) +
+// 灯光开关(142) + 隐藏重算代数(143) + 重算按钮控件(144)
+constexpr int kNumParams          = kIdxSolveBtn + 1;                  // 145
 
-// ARBITRARY 回调的 refconPV（选择器用；与 ColorGrid 的 ARB_REFCON 同用途；
+// —— 盘 ID：注册期使用的固定值 ——
+// 盘 ID 是 AE 跨版本的稳定恢复键。注册期**不得**用上面的数组索引当盘 ID：索引随
+// 布局调整而位移（画布即让映射图层/相机/灯光整体后移一位），用索引会让旧工程的
+// iChannel 图层选择与相机/灯光勾选错位到别的参数上，脚本侧按 matchName
+//（AS_Effect_Host-0135 …）寻址的既有工程也会失效。
+constexpr int kGroupStartDiskId      = 4;      // 「参数」组 START（组无数据，仍须固定）
+constexpr int kGroupEndDiskId        = 133;    // 「参数」组 END
+constexpr int kLayerGroupStartDiskId = 134;    // 「映射图层」组 START
+constexpr int kLayerBaseDiskId       = 135;    // iChannel1 → 135 + i
+constexpr int kLayerGroupEndDiskId   = 138;    // 「映射图层」组 END
+constexpr int kCamEnableDiskId       = 139;    // 「启用三维摄像机」
+constexpr int kLightEnableDiskId     = 141;    // 「启用三维灯光」
+
+// ARBITRARY 参数（文件选择器与参数画布）共用的 refconPV（与 ColorGrid 的 ARB_REFCON
+// 同用途）；两个 ARBITRARY 回调都不读它——分发只看 which_function。
 // 非 constexpr：指针常量表达式在 MSVC 下不可作为常量折叠；非 const 限定：
-// PF_ADD_ARBITRARY2 的 REFCON 参数类型为 void*）
+// PF_ADD_ARBITRARY2 的 REFCON 参数类型为 void*
 void* const    kSlotRefcon      = (void*)0x474C534C474C534CLL; // 'GLSLGLSL'
 
 // 映射图层行高（声明时恢复的显示高度；槽位同款语义）
@@ -225,22 +259,32 @@ constexpr int  kSelScrollArrowH   = 12;     // 上下箭头按钮高
 constexpr int  kSelScrollThumbMin = 14;     // 滑块最小高（可点击性下限）
 constexpr int  kSelDragScrollbar  = -2;     // DragState.slot 哨兵：滚动条拖拽（槽位为 0..31，负值不冲突）
 
-// —— CUSTOM UI 槽位 ——
-// 32 槽位 × 4 分量全部注册为 PF_Param_FLOAT_SLIDER：分量0 挂 PF_PUI_CONTROL
-// （自绘整行），分量1..3 挂 PF_PUI_NO_ECW_UI（纯数值容器，不出现在 ECW）：
+// —— CUSTOM UI 槽位分量（纯数值容器）——
+// 32 槽位 × 4 分量全部注册为 PF_Param_FLOAT_SLIDER，**全部**挂
+// PF_PUI_NO_ECW_UI（不出现在 ECW，仅作数值容器）：
 //   - 值类型固定（不随 uniform 类型变化）→ AE 缓存/重加不重跑 PARAMS_SETUP 均不影响；
-//     控件形态由绘制时按当前 uniform 类型决定（见 customUI.cpp）
-//   - 关键帧：分量1..3 是 PF_PUI_NO_ECW_UI（不出现在 ECW），UI 上仅分量0 可打关键帧
-// ui_width/ui_height 仅在设置 PF_PUI_CONTROL 时被 AE 采用（AE_Effect.h:2290-2291）。
+//     控件形态由画布绘制时按当前 uniform 类型决定（见 customUI.cpp）
+//   - 关键帧：NO_ECW_UI 不影响时间线（AE_Effect.h:2194「In AE, this doesn't affect
+//     keyframe visibility in the timeline」）→ 脚本 property(k).value / setValueAtTime
+//     与时间线关键帧轨照旧
+//   - 分量0 的 name 恒为空；分量1..3 = 名 + 语义后缀。脚本/AI 寻址用索引或
+//     matchName 槽位（`AS_Effect_Host-0(500+4i+c)`）——AE 不把运行期改名反映到
+//     脚本属性模型，按分量名寻址不可依赖。
+// ui_width/ui_height 仅在设置 PF_PUI_CONTROL 时被 AE 采用（AE_Effect.h:2290-2291），
+// 隐藏分量给 0 即不占行。
 constexpr int  kSlotUiWidth     = 200;                     // 控件请求宽（AE 按面板实际宽度布局）
-constexpr int  kSlotUiHeight    = 22;                      // 控件高（**单行**；多分量控件 = 本值 × 行数）
+constexpr int  kSlotUiHeight    = 22;                      // 控件高（**单行**；画布 band = 本值 × 行数）
+
+// 画布固定视口高度 = 可见行数 × 单行高 + 上下留白（注册期写入，运行期不再改）。
+constexpr int  kCanvasViewH     = kCanvasViewRows * kSlotUiHeight + 2 * kCanvasPadY;
 
 // 槽位自绘控件的**行数**：点控件每个分量独占一行（Vec2=2 / Vec3=3），单行控件
 // （Float 滑条、色块、色块+alpha）为 1。与 customUI.cpp kindFor 的控件选型同口径——
-// 颜色命名的 vec2/vec3 走 Swatch 单行，故这里也要排除，否则会注册出两三行高、
+// 颜色命名的 vec2/vec3 走 Swatch 单行，故这里也要排除，否则会算出一两行高、
 // 却只画一行的"空行"。
-// **注册行高（plugin.cpp：本值 × 本函数）与绘制分行（customUI.cpp drawPoint）必须
-// 共用本函数**：各算一份时，行高与行数不匹配就表现为"行被裁掉"或"行内大片留白"。
+// **画布内容分行（customUI.cpp drawCanvas/drawPoint）与滚动行程计算
+// （canvasTotalRows / canvasMaxScroll）必须共用本函数**：各算一份时，band 高与
+// 内容行数不匹配就表现为"行被裁掉"或"滚到底仍有留白"。
 inline int slotUiRows(const glsl::Param& p) {
     switch (p.type) {
     case glsl::ParamType::Vec2: return glsl::isColorNamed(p.name) ? 1 : 2;

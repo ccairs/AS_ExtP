@@ -4,7 +4,7 @@
 
 > Eine modulare Erweiterungsplattform (CEP), die KI in After Effects integriert.
 >
-> Version: v1.0.3
+> Version: v1.0.4
 
 AS_ExtP ist eine KI-Erweiterungsplattform für After Effects — ein CEP-Panel plus zwei native AE-Plug-ins (der GLSL-Effekt-Host und die AE-Hotbox). Das Panel besteht aus mehreren Modulen: **Agent** (dialogbasierte Bedienung über große Sprachmodelle), **ComfyUI** (KI-Bild- und -Videogenerierung), **Asset-Bibliothek** (Verwaltung von Projekt-Assets und Vorgaben) sowie **MCP / Skill / Gedächtnis / Modellverwaltung** (Erweiterung und Konfiguration der Fähigkeiten).
 
@@ -220,7 +220,7 @@ Fähigkeiten für 3D- und Bildeingänge:
 - **3D-Kamera-Kopplung**: Liest die Kompositionskamera und injiziert Kameramatrix, Position und Bildfeld (`uCamFov`) in eingebaute Uniforms; die Perspektive in GLSL stimmt dann mit der AE-Kamera überein, echte räumliche Ausrichtung ist möglich
 - **AE-Licht-Kopplung**: Zählt die Lichter der Komposition auf (Typ / Position / Ausrichtung / Farbe × Intensität / Kegelabfall, höchstens 8) und injiziert sie in die Uniform-Reihe `uLight*`, sodass Effekte live auf AE-Lichter reagieren
 - **Eingänge für Mapping-Ebenen**: Werden `iChannel1/2/3` deklariert, wird die zugehörige Ebenenzeile aktiviert (ohne Deklaration bleiben diese drei Zeilen sichtbar, sind aber ausgegraut – die LAYER-Zeile des Hosts lässt sich nicht ausblenden); andere Ebenen dienen dann als Textureingang (`iChannel0` ist die eingebaute „diese Ebene“)
-- **Parameterplätze**: ein Schieberegler pro Skalar, jede Komponente von vec2 / vec3 auf einer eigenen Zeile, vec4 und farbsemantische Vektoren als Farbwähler gerendert; bei der Komponentenadressierung nutzt Komponente 0 den Uniform-Namen selbst, die übrigen `.y/.z/.w` (bei Farbsemantik `.g/.b/.a`; ein `.r` gibt es nicht); Anzeigebereich und gültiger Eingabebereich werden getrennt eingestellt
+- **Parameterplätze**: In den Effektsteuerungen gibt es nur eine selbst gezeichnete Canvas; die Gruppe „Parameter“ zeichnet im aktuellen Shader pro Uniform eine Zeile — ein Schieberegler für Skalare, ein Punkt-Steuerelement mit einer Zeile je Komponente für vec2 / vec3, Farbwähler für vec4 und farbsemantische Vektoren. Zeilennamen und Werte werden in jedem Frame aus der aktuellen Datei gelesen, daher stimmen Kopien, Shader-Wechsel und das Wiederherstellen von Projekten schon beim ersten Aufbau. Skripte und die KI adressieren Slots über die vom Host gespeicherte Parameterzuordnung (`propertyIndex`) oder den Parameter-matchName; der Index der gewählten Datei ist der versteckte Parameter 141 (früher 140). Anzeigebereich und gültiger Eingabebereich werden getrennt eingestellt
 - **Index der Effektbibliothek**: Der Host exportiert die maßgebliche Reihenfolge, Bedienfeld und Host bleiben automatisch gleichauf; verschwindet die gewählte Datei, wird das durchgereicht, statt stillschweigend einen anderen Shader zu verwenden
 
 ![GLSL-Effekt-Host mit Ozean-Shader: Bearbeiten der .glsl-Datei lädt das Bild live neu](assets/readme/glsl-host-in-ae-ocean.png)

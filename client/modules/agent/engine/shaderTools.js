@@ -82,9 +82,10 @@
     return { success: false, result: JSON.stringify({ status: 'infra_error', message: '内部装配缺失（codeQuery 未加载）：代码读取查询不可用，请在 AE 中重新打开扩展面板后重试。' }) };
   }
 
-  // 按参数名设置槽位值：槽位分量0（可见行）的参数名 = uniform 名（宿主 SyncParamUI 同步）。
-  // 单分组布局（32 槽 × 4 分量，分量0 索引恒为 5+4i，见 native effectState.h
-  // slotParamIndex/slotCompIndex），按名称访问不受索引影响。
+  // 生成"按参数写入"的 ExtendScript。槽位可见行（分量0）的 .name 恒为空（行名由
+  // 插件自绘），故 param-map 命中时用 propertyIndex；映射缺失时的按名兜底对槽位参数
+  // 会得到 NO_PARAM——本函数当前无生产调用方（shader_params 内建工具按 propertyIndex
+  // 读写），保留仅为兼容旧调用方。
   //
   // 优先用宿主 param-map 的 propertyIndex 寻址——
   // AE 的参数名是 cosmetic，可能停留在注册态旧名（脚本按名读到旧名、值是选中文件的）。
@@ -106,9 +107,9 @@
     if (target) {
       var propIdx = Math.round(Number(target.propertyIndex));
       if (target.libraryIndex != null && target.libraryIndex >= 0) {
-        // 140 = kIdxFileIndexParam（宿主 params.h：GLSL 索引）。先核对实例当前
+        // 141 = kIdxFileIndexParam（宿主 params.h：GLSL 索引）。先核对实例当前
         // 文件索引：不一致说明映射属于另一个 shader（多实例/库位移）→ 按名兜底。
-        findParam = 'var fi=p.property(140);' +
+        findParam = 'var fi=p.property(141);' +
           'var sp=(fi&&Math.round(Number(fi.value))===' + Math.round(target.libraryIndex) + ')' +
           '?p.property(' + propIdx + '):p.property(' + propName + ');';
       } else {

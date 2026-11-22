@@ -25,12 +25,9 @@ struct ShaderFileEntry {
     uint8_t channelsUsed = 0;              // 映射图层声明 bitmask（bit0=iChannel1 … bit2=iChannel3）
     glsl::IterConfig iterCfg;              // 迭代/结算配置（@iterations/@solve/@history/@solveRes）
     std::string parseWarning;              // 解析告警（uniform 数组不支持、未绑定的采样器等）
-    // 结构签名（"type|name;..." 串）：SyncParamUI 用它检测 uniform 结构（类型/顺序/
-    // 数量）变化，强制 PF_UpdateParamUI 重建槽位行。仅两处写入：
-    //   ① loadEffectFile（PARAMS_SETUP 预置，让首次 UPDATE_PARAMS_UI 为 no-op，
-    //      「参数」分组保持 START_COLLAPSED 折叠）；
-    //   ② SyncParamUI 检测到签名变化时回写。文件热重载不触碰 → 变化可被下一次
-    //      SyncParamUI 检出。多实例同文件时首个同步的实例消费该变化（可接受）。
+    // 结构签名（"type|name;..." 串）：条目（重）加载时由 loadEffectFile 写入，记录本次
+    // 解析出的 uniform 类型/顺序/数量。可见行由画布按当前 uniform 逐行自绘，不按签名
+    // 重建任何参数行；param-map 的比对键直接取 uniformSignature(snap.uniforms)。
     std::string uiSignature;
     bool loaded = false;                   // 是否已成功加载（source 非空）
     // 重载消费权交还——UI 线程（SyncParamUI，ECW 打开时 UPDATE_PARAMS_UI）
@@ -99,7 +96,7 @@ bool shaderUniformAt(const std::string& path, int slot, glsl::Param* out);
 // 与 shaderUniformAt 同款：锁内查缓存条目，条目不存在时惰性加载一次文件。
 glsl::IterMode shaderIterMode(const std::string& path);
 
-// 写条目结构签名（loadEffectFile 预置 / SyncParamUI 变化回写）
+// 写条目结构签名（loadEffectFile 在 PARAMS_SETUP 预载时写入）
 void setEntrySignature(const std::string& path, const std::string& sig);
 
 // effects/ 目录扫描：返回 .glsl 文件名（不含扩展名）按字母序
@@ -191,16 +188,15 @@ std::string resolveDataRoot(const std::string& defRoot);
 // —— 槽位参数索引（单分组布局 + 每槽 4 分量）——
 // 每个槽位由 4 个原生参数承载（均为 PF_Param_FLOAT_SLIDER）——
 //   分量 c 的索引 = 5 + 4*i + c（kIdxSlots + i*kFloatsPerSlot + c，i = 0..31，c = 0..3）
-//   分量0 = 该槽位可见行（自绘整行）；分量1..3 = 隐藏数值容器（PF_PUI_NO_ECW_UI）。
-// 未激活槽位的分量0 靠 PF_PUI_DISABLED（置灰兜底）+ 名称"—" 表达；**ui_height 不参与
-// 隐藏**（0 会被 AE 当成"未指定"，行照占位）。注册行高 = kSlotUiHeight
-// × 视觉行数（见 params.h slotUiRows），未激活槽位没有 uniform 可依据、按 1 行注册。
+// 4 个分量全部 PF_PUI_NO_ECW_UI：纯数值容器，不出现在 ECW；控件由「参数」组内的
+// 自绘画布逐行绘制（见 params.h kIdxCanvas）。脚本按索引或 matchName（disk ID
+// 500+4i+c）寻址；分量0 的 .name 恒为空串。
 // 槽位序号（0..31）→ 该槽位分量0 的 AE 参数索引（恒为 5+4i）；非法槽位返回 -1
 int slotParamIndex(int slot);
 // 槽位序号（0..31）+ 分量号（0..3）→ 该分量的 AE 参数索引（恒为 5+4i+c）；
 // 非法入参返回 -1
 int slotCompIndex(int slot, int comp);
-// AE 参数索引 → 槽位序号；仅分量0（可见行）映射为槽位，其余（含非槽位参数）返回 -1
+// AE 参数索引 → 槽位序号；只有分量0 的索引（5, 9, 13, …）映射为槽位，其余返回 -1
 int slotFromIndex(int idx);
 
 } // namespace host

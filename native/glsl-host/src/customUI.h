@@ -3,15 +3,15 @@
 // 参考 SDK 示例 Examples/UI/Custom_ECW_UI（标准参数类型 + PF_PUI_CONTROL）
 // 与 ColorGrid（自绘 + 关键帧）。
 //
-// 槽位底层由 ARBITRARY_DATA 换为原生可脚本类型——
-//   每槽 4 分量各为 PF_Param_FLOAT_SLIDER（分量0 挂 PF_PUI_CONTROL 绘制仍由本文件
-//   自绘，外观不变；分量1..3 挂 PF_PUI_NO_ECW_UI 仅作数值容器）。
+// 槽位底层是原生可脚本类型——每槽 4 分量各为 PF_Param_FLOAT_SLIDER，全部
+// PF_PUI_NO_ECW_UI（不出现在 ECW，仅作数值容器）。可见 UI 只有「参数」组内的
+// 一个自绘 ARBITRARY 画布（params.h kIdxCanvas）：画布逐行绘制当前文件的 uniform，
 // 控件形态由 uniform 类型 + 命名语义决定（绘制时按本实例选中文件取 per-file
 // 缓存条目的 uniforms，见 customUI.cpp uniformAt / effectState.h fileCache）：
 //   Float                     → 单分量滑条 + 数值
-//   Vec2/Vec3                 → 点控件（**每个分量独占一行**：行首 x/y/z 标签 + 滑条 + 数值框）
-//   Vec3 且名字含 color/colour → 色块 + 点击弹 AE 原生取色器
+//   Vec2/Vec3                 → 点控件（**每个分量独占一行**）；名字命中颜色语义时改为色块（单行）
 //   Vec4                      → 色块 + 点击弹取色器 + alpha 滑条
+// 颜色语义判定见 glsl::isColorNamed（整词 color/colour，或短词 col/tint/rgb/bg）。
 #include "AEConfig.h"
 #ifdef AE_OS_WIN
 #include <windows.h>
@@ -60,9 +60,10 @@ uint64_t InstanceInstanceId(PF_InData* in_data);
 // 本实例记住的身份名。空串 = 无身份（v1 旧工程 / 从未捕获）→ 调用方按位置回退。
 std::string InstanceShaderName(PF_InData* in_data, PF_ParamDef* params[]);
 
-// PF_Cmd_EVENT 处理：处理文件选择器（kIdxFileSelector）与 32 个槽位分量0
-// （effect_win.index ∈ [kIdxSlots, kIdxSlots + kMaxParams*kFloatsPerSlot)，步长 4）的
-// DRAW / DO_CLICK / DRAG / ADJUST_CURSOR；其余参数返回 PF_Err_NONE 由 AE 默认处理。
+// PF_Cmd_EVENT 处理：文件选择器（kIdxFileSelector）、自绘画布（kIdxCanvas，
+// 组内唯一的可见行）与「重算结算器」按钮的 DRAW / DO_CLICK / DRAG / ADJUST_CURSOR；
+// 画布内的 uniform 行由本文件按当前快照布局并路由到槽位交互实现。
+// 其余参数返回 PF_Err_NONE 由 AE 默认处理。
 PF_Err HandleUIEvent(PF_InData* in_data, PF_OutData* out_data,
                      PF_ParamDef* params[], void* extra);
 
@@ -70,6 +71,10 @@ PF_Err HandleUIEvent(PF_InData* in_data, PF_OutData* out_data,
 // PF_UpdateParamUI(ui_height) 让 AE 重新布局 ECW。
 // 由 PF_Cmd_UPDATE_PARAMS_UI 调用（PF_UpdateParamUI 的官方许可上下文）。
 PF_Err SyncFileSelectorUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]);
+
+// 应用画布高度变更（短内容收缩到内容高度，见 customUI.cpp canvasDesiredHeight）：
+// 注册高度是 15 行上限，运行期只收缩；同一上下文（PF_Cmd_UPDATE_PARAMS_UI）调用。
+PF_Err SyncCanvasUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]);
 
 // （PF_Cmd_UPDATE_PARAMS_UI 调用，见 plugin.cpp reconcileFileIndexChange）
 // 脚本改索引（fx.property(kIdxFileIndexParam).setValue(N)）后登记 per-instance

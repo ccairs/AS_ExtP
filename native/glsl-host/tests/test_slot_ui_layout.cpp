@@ -33,13 +33,19 @@ void test_slot_ui_rows() {
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec4, "uTint4")) == 1);
     // 点控件：每个分量一行
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec2, "uOffset")) == 2);
-    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uTint")) == 3);
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uVelocity")) == 3);
     // 颜色命名 → 走色块（单行），不能按分量给 2/3 行，否则注册出"空行"
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uColor")) == 1);
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "backgroundColor")) == 1);
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec2, "uColour")) == 1);
+    // 短颜色词（uColA / uBg / uTint）同样单行
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uColA")) == 1);
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uBg")) == 1);
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uTint")) == 1);
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec2, "uCol")) == 1);
     // 反例词汇（isColorNamed 的词法边界）：不是颜色语义 → 仍按分量分行
     assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uCoulomb")) == 3);
+    assert(host::slotUiRows(mkParam(glsl::ParamType::Vec3, "uColOffset")) == 3);
     std::cout << "PASS test_slot_ui_rows\n";
 }
 

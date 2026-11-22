@@ -348,27 +348,57 @@ const DRAWBOT_ColorRGBA WarnBg  = rgba(0.32f, 0.21f, 0.10f);
 // s_selHoverRow 仍为进程级：瞬态/单鼠标，同一时刻只有一处悬停高亮，无串扰。
 static int  s_selHoverRow = -1;   // 展开时鼠标悬停的文件行（-1 = 无）
 
+// 展开态的**跨上下文唯一真相源**（键 = 序列数据实例身份 id）。同一实例在 DRAW 与
+// UPDATE_PARAMS_UI 里拿到的 ARBITRARY 句柄不是同一份拷贝，DRAW 可能读到旧值：
+// 高度按「展开」下发、绘制却按「折叠」画，参数面板上就留一块空白。handle f[1] 仍写
+//（随工程持久化、供旧工程恢复），但本会话内的读改写一律走这里。
+static std::map<uint64_t, bool> s_selExpanded;
+
+// 绘制实况高度（键 = 实例身份 id，与展开态同键）：选择器最近一次 DRAW 的控件矩形
+// 高度。切图层/切选择后 AE 会按注册高度重建 ECW（展开态只剩表头行），而
+// SyncFileSelectorUI 若只比「上次下发值」就会把已失效的高度当成已应用、不再下发
+// → 展开箭头还在、文件列表消失。用它判定「实况 ≠ 期望」并重发。
+// 进程级文件列表行数（与 fileSelHeight 绘制口径一致）。
+// 为什么不能比对 params[].ui_height：实测 AE 对 PUI_CONTROL 的 ui_height **不回写**
+// 到 UPDATE_PARAMS_UI 的 params[]（恒为 PARAMS_SETUP 注册的 24）——展开（24≠177）
+// 总能长高，收起（24==24）恒 no-op → 收起后控件停留展开高度、下方一片空白。
+// 改为追踪本实例上次经 PF_UpdateParamUI 应用的高度（初始 = 注册值
+// kFileSelCollapsedH），与期望值比对——不依赖 AE 是否回写。播放期逐帧
+// UPDATE_PARAMS_UI 下 applied==want 即 no-op；重复同值更新 AE 端本就无变化不重建。
+// 条目随 ShutdownInstanceUI（SEQUENCE_SETDOWN）清理，防 effect_ref 地址复用误判。
+static std::map<void*, A_short> s_selAppliedH;
+
+// 选择器高度自修的计数（键 = 实例身份 id，与展开态同键）：切图层/切选择后 AE 按
+// 注册高度重建 ECW，DRAW 里发现「实得高度 ≠ 期望高度」时补发 ui_height；带次数
+// 上限，实况恢复后清零（见 drawFileSelector）。
+static std::map<uint64_t, int> s_selHeightRepair;
+static constexpr int kSelHeightRepairMax = 4;
+
 // 读取本实例选择器状态：选中索引取尾部隐藏原生参数 kIdxFileIndexParam（真相源），
-// 展开状态仍取选择器 ARBITRARY handle f[1]（纯 UI 会话态，per-instance 且随工程
-// 持久化，跨事件上下文可靠——不用内存 map，实测 EVENT 写 / UPDATE_PARAMS_UI 读
-// 会取不到同一份）。缺省折叠。
+// 展开状态优先取本会话内存（s_selExpanded），没有记录时回退到 handle f[1]。
 bool fileSelState(PF_InData* in_data, PF_ParamDef* params[], int* idx, bool* expanded) {
-    (void)in_data;   // PF_LOCK_HANDLE 宏需要 in_data 在作用域内
     if (idx) *idx = fileSelIndex(in_data, params);
-    if (expanded) *expanded = false;
-    if (!params || !params[kIdxFileSelector] || !params[kIdxFileSelector]->u.arb_d.value) return false;
-    PF_ParamDef* sel = params[kIdxFileSelector];
-    const float* v = reinterpret_cast<const float*>(PF_LOCK_HANDLE(sel->u.arb_d.value));
-    if (!v) return false;
-    if (expanded) *expanded = (v[1] != 0.0f);
-    PF_UNLOCK_HANDLE(sel->u.arb_d.value);
-    return true;
+    bool exp = false;
+    if (params && params[kIdxFileSelector] && params[kIdxFileSelector]->u.arb_d.value) {
+        PF_ParamDef* sel = params[kIdxFileSelector];
+        const float* v = reinterpret_cast<const float*>(PF_LOCK_HANDLE(sel->u.arb_d.value));
+        if (v) {
+            exp = (v[1] != 0.0f);
+            PF_UNLOCK_HANDLE(sel->u.arb_d.value);
+        }
+    }
+    const uint64_t instKey = InstanceInstanceId(in_data);
+    const auto it = s_selExpanded.find(instKey);
+    if (it != s_selExpanded.end()) exp = it->second;
+    if (expanded) *expanded = exp;
+    return params && params[kIdxFileSelector] && params[kIdxFileSelector]->u.arb_d.value;
 }
 
-// 写本实例选择器展开状态（handle f[1]）。仅在 DO_CLICK 等有效事件上下文调用
-//（实测 DRAW/ADJUST_CURSOR 上下文写该句柄不生效）。
+// 写本实例选择器展开状态：先更新跨上下文内存真相源，再写 handle f[1]（持久化/
+// 兼容旧工程）。仅在 DO_CLICK 等有效事件上下文调用。
 void setFileSelExpanded(PF_InData* in_data, PF_ParamDef* params[], bool expanded) {
     host::rawTrace("fsel-setexp", expanded ? 1 : 0);   // 诊断
+    s_selExpanded[InstanceInstanceId(in_data)] = expanded;
     if (!params || !params[kIdxFileSelector] || !params[kIdxFileSelector]->u.arb_d.value) return;
     PF_ParamDef* sel = params[kIdxFileSelector];
     float* v = reinterpret_cast<float*>(PF_LOCK_HANDLE(sel->u.arb_d.value));
@@ -544,8 +574,10 @@ void uiDebug(const char* fmt, ...) {
 }
 
 // 编辑态重绘：仅在 DO_CLICK / DRAG / IDLE 等合法上下文调用（KEYDOWN 中
-// 调用 PF_InvalidateRect 会让 AE 弹 "内部验证故障"，见上）。配合
-// PF_EO_UPDATE_NOW 事件返回后立即重绘，消除等 IDLE 的输入延迟。
+// 调用 PF_InvalidateRect 会让 AE 弹 "内部验证故障"，见上）。
+// **不设 PF_EO_UPDATE_NOW**：提交数值时它会让 AE 在事件返回前同步重渲染整个合成，
+// 重 shader（数十 uniform 的 raymarch）一次 2~3 秒，用户表现为"输入数字后卡几秒"；
+// 改为只请求重绘 + 由 flushPendingCommit 的 PF_OutFlag_FORCE_RERENDER 异步触发重渲染。
 // 重绘矩形取**本实例**编辑会话的 rect（IDLE 是全局事件，会派发给
 // 所有实例，须各自用各自的条目定位）。
 void invalidateEditNow(PF_InData* in_data, PF_OutData* out_data, PF_EventExtra* extra) {
@@ -554,7 +586,7 @@ void invalidateEditNow(PF_InData* in_data, PF_OutData* out_data, PF_EventExtra* 
     if (uiSuites().app && st) {
         uiSuites().app->PF_InvalidateRect(extra->contextH, &st->edit.rect);
     }
-    extra->evt_out_flags |= PF_EO_HANDLED_EVENT | PF_EO_UPDATE_NOW;
+    extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
 }
 
 // 编辑态是否对应指定槽位/分量（绘制时判断是否画编辑缓冲）
@@ -798,14 +830,24 @@ static float dpiScale() {
 // 屏幕矩形映射：ADJUST_CURSOR 的 screen_point（ECW 客户区逻辑坐标）与同刻
 // GetCursorPos（物理像素）给出仿射基准 screen = base + client×scale；悬停期间
 // 每次移动刷新（面板滚动导致控件位移后映射仍准确）。
+// 滚轮目标分两类：文件选择器列表与画布。两者都靠 WH_MOUSE_LL 拦截，但一档的
+// 行数不同（列表 3 行、画布 1 行），消费入口也不同（列表叠加到 handle 偏移，
+// 画布直接改 internal 滚动行数）——pending 必须带类别，否则一条队列会被两个
+// 消费点按各自的语义各吞一段。
+enum class SelWheelKind { FileSel, Canvas };
+
 struct SelWheelTarget {
     void*    effectRef;   // 归属实例（in_data->effect_ref；不稳定，仅日志/兜底用）
     host::SelWheelRect clientRect;  // 控件矩形（ECW 客户区逻辑坐标）——稳定身份
+    SelWheelKind kind = SelWheelKind::FileSel;
     RECT     screen;      // 控件屏幕矩形（物理像素，钩子命中判定用）
     bool     screenValid; // 展开点击校准前忽略滚轮（无矩形可比）
     HWND     calibRoot = nullptr;   // 校准时刻 WindowFromPoint 命中的根窗口
     DWORD    lastSeen = 0;          // 最近一次绘制/悬停/命中刷新时刻（超时修剪依据）
     int      wheelDelta = 0;        // 滚轮累计偏移（插件侧保存——DRAW 内写 handle 不生效）
+    int      wheelRaw = 0;          // 画布滚轮档位余量（按 WHEEL_DELTA 归一，钩子线程在锁内改）
+    bool     atTop = false;         // 画布滚动位置在顶部（钩子据此把上滚透传给面板）
+    bool     atBottom = false;      // 画布滚动位置在底部（钩子据此把下滚透传给面板）
 };
 static std::vector<SelWheelTarget> s_selWheelTargets;
 // 待滚条目。effect_ref 实测不稳定（同一控件在不同 DRAW 间给不同 ref），故同时记下
@@ -817,10 +859,21 @@ static std::vector<SelWheelTarget> s_selWheelTargets;
 struct SelWheelPending {
     void*   effectRef;
     host::SelWheelRect clientRect;   // 命中时控件矩形（与目标同口径，可跨 ref 变化匹配）
+    SelWheelKind kind = SelWheelKind::FileSel;   // 命中目标类别（决定消费入口）
     int     delta;   // 有符号行数累计
     DWORD   lastSeen = 0;   // 入队时刻（超时修剪依据，GetTickCount 口径）
 };
 static std::vector<SelWheelPending> s_selWheelPending;
+// 最近一次画布 DRAW 登记/使用的控件矩形。UPDATE_PARAMS_UI（selWheelConsumeImpl）
+// 没有事件矩形，认领画布 pending 时用它比对归属（矩形是稳定身份，ref 跨上下文会变）。
+static bool s_canvasRectValid = false;
+static host::SelWheelRect s_canvasRect;
+// 最近一次合成点击注入时刻：注入期间光标被临时移开，此时到达的 ADJUST_CURSOR
+// 其「事件点 ↔ 当前光标」不再对应同一位置，滚轮目标校准要跳过这一趟。
+static DWORD s_lastSyntheticClickTick = 0;
+// 画布滚轮应用入口（定义在画布区，s_canvasScrollRow/canvasMaxScroll 所在处）：
+// UPDATE_PARAMS_UI 消费路径要跨到画布区改内部滚动行数，故在此前置声明。
+static bool canvasScrollByRows(int delta, PF_InData* in_data, PF_ParamDef* params[]);
 // 目标表/待滚队列被两个线程访问：AE 主线程（绘制/悬停/消费）与钩子线程（回调）。
 // 统一用 s_selWheelMutex 保护；钩子线程一律 try_lock（拿不到就放行事件，绝不
 // 阻塞输入路径），主线程侧只在**叶子作用域**短暂持有（不得跨越会再取本锁的调用）。
@@ -985,15 +1038,34 @@ static LRESULT CALLBACK selWheelMouseProc(int nCode, WPARAM wp, LPARAM lp) {
             pruneStaleMiss(GetTickCount());
             return CallNextHookEx(s_selWheelHook, nCode, wp, lp);
         }
-        if (calibRoot && hitRoot != calibRoot) {   // 其他应用/其他面板：透传（未命中 → 修剪）
+        // 只认本进程（AE）窗口：钩子是全系统的，光标落在别的应用窗口上时
+        // WindowFromPoint 给的是那个应用的根窗口。若拿它当自校准基准，整张目标表
+        // 会被锚到别的应用/别的宿主窗口，随后在 AE 内怎么滚都判 miss（实测锚到
+        // CEP 面板宿主后，画布与列表的滚轮一同失效到目标被修掉）。
+        // GetWindowThreadProcessId 是纯查询，LL 钩子回调内可安全调用。
+        DWORD hitPid = 0;
+        GetWindowThreadProcessId(hitRoot, &hitPid);
+        if (hitPid != GetCurrentProcessId()) {
             wheelLog("miss-root", m->pt.x, m->pt.y);
             pruneStaleMiss(GetTickCount());
             return CallNextHookEx(s_selWheelHook, nCode, wp, lp);
         }
-        // 首见根窗口（工程恢复路径，calibRoot 为 null）：登记为基准
-        if (!calibRoot) {
+        if (calibRoot && hitRoot != calibRoot) {   // 其他面板/其他 AE 窗口：透传（未命中 → 修剪）
+            wheelLog("miss-root", m->pt.x, m->pt.y);
+            pruneStaleMiss(GetTickCount());
+            return CallNextHookEx(s_selWheelHook, nCode, wp, lp);
+        }
+        // 首见根窗口（工程恢复路径，calibRoot 为 null）：登记为基准。
+        // 只给列表目标兜底锚定（画布目标的屏幕矩形以事件校准为准，钩子里的
+        // 惰性校准仅作首用兜底，见下）。条件按「存在未锚定的列表目标」判，
+        // 避免画布目标没有 calibRoot 时每次滚轮都写一行日志（钩子线程直写文件）。
+        bool needAnchor = false;
+        for (const auto& t : s_selWheelTargets) {
+            if (t.kind == SelWheelKind::FileSel && !t.calibRoot) { needAnchor = true; break; }
+        }
+        if (needAnchor) {
             for (auto& t : s_selWheelTargets) {
-                if (!t.calibRoot) t.calibRoot = hitRoot;
+                if (!t.calibRoot && t.kind == SelWheelKind::FileSel) t.calibRoot = hitRoot;
             }
             wheelLog("selfcal", (long)(intptr_t)hitRoot, 0);
         }
@@ -1001,7 +1073,13 @@ static LRESULT CALLBACK selWheelMouseProc(int nCode, WPARAM wp, LPARAM lp) {
         // 子窗口的客户原点与 AE 绘制坐标系可能差子窗口边框，但选择器
         // 命中区域大（整列表 8 行 × 行高），边缘 1-2px 偏差不影响判定）
         for (auto& t : s_selWheelTargets) {
-            if (!t.screenValid && t.calibRoot == hitRoot) {
+            if (t.screenValid) continue;
+            // 画布目标：没有事件校准过时才惰性兜底，且必须过「光标落在算出的
+            // 矩形内」这一关——惰性校准拿光标当锚点，光标不在该控件上时算出的
+            // 矩形不可信（面板宿主窗口重叠时会把矩形算到别处，滚轮被误判）。
+            if (t.kind == SelWheelKind::Canvas && !t.calibRoot) t.calibRoot = hitRoot;
+            if (t.calibRoot != hitRoot) continue;
+            {
                 // 惰性校准：用光标点近似事件锚点（滚轮时光标就在控件上方，
                 // 误差 = 光标与校准参考点差 → 以光标为基准重算矩形）。
                 // DPI 用主线程缓存（钩子线程 GetActiveWindow 为 null）
@@ -1010,10 +1088,20 @@ static LRESULT CALLBACK selWheelMouseProc(int nCode, WPARAM wp, LPARAM lp) {
                     const float scale = s_selWheelDpiScale.load(std::memory_order_relaxed);
                     const float lx = static_cast<float>(cp.x) / scale;
                     const float ly = static_cast<float>(cp.y) / scale;
-                    t.screen.left   = static_cast<LONG>(m->pt.x - lx + static_cast<float>(t.clientRect.left));
-                    t.screen.top    = static_cast<LONG>(m->pt.y - ly + static_cast<float>(t.clientRect.top));
-                    t.screen.right  = static_cast<LONG>(m->pt.x - lx + static_cast<float>(t.clientRect.right));
-                    t.screen.bottom = static_cast<LONG>(m->pt.y - ly + static_cast<float>(t.clientRect.bottom));
+                    const LONG l = static_cast<LONG>(m->pt.x - lx + static_cast<float>(t.clientRect.left));
+                    const LONG tt = static_cast<LONG>(m->pt.y - ly + static_cast<float>(t.clientRect.top));
+                    const LONG rr = static_cast<LONG>(m->pt.x - lx + static_cast<float>(t.clientRect.right));
+                    const LONG bb = static_cast<LONG>(m->pt.y - ly + static_cast<float>(t.clientRect.bottom));
+                    // 光标必须真落在算出的控件矩形内（画布目标额外要求）：
+                    // 否则这次惰性校准不可信，留给事件校准。
+                    if (t.kind == SelWheelKind::Canvas &&
+                        (m->pt.x < l || m->pt.x >= rr || m->pt.y < tt || m->pt.y >= bb)) {
+                        continue;
+                    }
+                    t.screen.left = l;
+                    t.screen.top = tt;
+                    t.screen.right = rr;
+                    t.screen.bottom = bb;
                     t.screenValid = true;
                     wheelLog("calib2", t.screen.left, t.screen.top);
                 }
@@ -1050,8 +1138,33 @@ static LRESULT CALLBACK selWheelMouseProc(int nCode, WPARAM wp, LPARAM lp) {
             return CallNextHookEx(s_selWheelHook, nCode, wp, lp);
         }
         t.lastSeen = now;   // 命中即刷新：连续滚轮优先复用同一目标
-        // 向前滚（+）= 内容上移 = 滚动偏移减；每档 3 行（Windows 默认）
-        s_selWheelPending.push_back({t.effectRef, t.clientRect, wdelta > 0 ? -3 : 3, now});
+        // 画布已到边界：同方向滚轮透传给参数面板（内嵌滚动区的常见行为，避免
+        // 画布滚到头后滚轮被无声吞掉）。边界由主线程在画布 DRAW 后发布
+        //（publishCanvasWheelLimits），钩子只读，不做任何 AE 调用。
+        if (t.kind == SelWheelKind::Canvas) {
+            const bool scrollingUp = (wdelta > 0);
+            if ((scrollingUp && t.atTop) || (!scrollingUp && t.atBottom)) {
+                wheelLog("hit-limit", wdelta, 0);
+                return CallNextHookEx(s_selWheelHook, nCode, wp, lp);
+            }
+        }
+        // 向前滚（+）= 内容上移 = 滚动偏移减。列表每档 3 行（Windows 默认），
+        // 画布每档 1 行（行高 kSlotUiHeight，一档一格更可控）。画布按 WHEEL_DELTA
+        // 归一档数：一次事件可能携带多档（高分辨率滚轮/触控板），不足一档的余量
+        // 留在目标上累计。列表保持既有口径（每事件 3 行）。
+        int rows = 0;
+        if (t.kind == SelWheelKind::Canvas) {
+            rows = -host::selWheelTakeNotches(t.wheelRaw, wdelta);
+        } else {
+            rows = (wdelta > 0) ? -3 : 3;
+        }
+        if (rows == 0) {
+            // 不足一档：吃掉本次输入（别让面板跟着滚半档），不合成位移——余量
+            // 留到下一次凑满一档再动。
+            wheelLog("hit", wdelta, (long)s_selWheelPending.size());
+            return 1;
+        }
+        s_selWheelPending.push_back({t.effectRef, t.clientRect, t.kind, rows, now});
         // 吃掉输入后面板不动 → AE 不会因输入重绘 ECW → 事件不派发 →
         // pending 无人消费（IDLE 实测几乎不派发，见 handleIdle 注释）。
         // 向命中窗口合成一次鼠标微移动 → AE 派发 ADJUST_CURSOR → handleCursor
@@ -1147,9 +1260,11 @@ static void selWheelReapStoppedHookThread() {
     selWheelStopHookThread();
 }
 
-// 列表有滚动条时登记/刷新本实例目标（drawFileSelector 调用）；无滚动条/折叠时
-// 调 selWheelRemoveTarget（滚轮透传给面板，无滚动条时这是预期行为）。
-static void selWheelUpsertTarget(void* effectRef, const PF_Rect& f) {
+// 登记/刷新本实例目标（列表有滚动条时由 drawFileSelector 调用；画布内容超出
+// 视口时由 drawCanvas 调用）。无滚动条/折叠时调 selWheelRemoveTarget（滚轮
+// 透传给面板，无滚动条时这是预期行为）。
+static void selWheelUpsertTarget(void* effectRef, const PF_Rect& f,
+                                 SelWheelKind kind = SelWheelKind::FileSel) {
     selWheelReapStoppedHookThread();   // 钩子曾自停（陈旧修剪清空）→ 先回收线程句柄
     const DWORD now = GetTickCount();
     const host::SelWheelRect r = host::selWheelRectOf(f.left, f.top, f.right, f.bottom);
@@ -1163,11 +1278,13 @@ static void selWheelUpsertTarget(void* effectRef, const PF_Rect& f) {
         if (it != s_selWheelTargets.end()) {
             it->effectRef = effectRef;
             it->clientRect = r;
+            it->kind = kind;
             it->lastSeen = now;
         } else {
             SelWheelTarget t{};
             t.effectRef = effectRef;
             t.clientRect = r;
+            t.kind = kind;
             t.screenValid = false;
             t.lastSeen = now;
             s_selWheelTargets.push_back(t);
@@ -1222,6 +1339,10 @@ static void selWheelRemoveTarget(void* effectRef, const PF_Rect* rect = nullptr)
 // （事件锚点版：DO_CLICK/ADJUST_CURSOR 携带事件点时用；钩子自校准见
 // selWheelHitTest——工程恢复的展开态没有点击事件，校准不能只靠事件锚点）
 static void selWheelUpdateScreen(void* effectRef, const PF_Point& clientPt, const PF_Rect& f) {
+    // 合成点击注入刚发生：这一趟悬停/移动事件点与当前光标不在同一位置（注入期间
+    // 光标被临时移到数值框），按现有假设算出的屏幕矩形会错位。跳过本次校准，
+    // 下一次真实悬停会重算（校准是幂等的，跳过只延迟一次）。
+    if (GetTickCount() - s_lastSyntheticClickTick < 200) return;
     POINT cur;
     if (!GetCursorPos(&cur)) return;
     const float scale = dpiScale();
@@ -1268,8 +1389,11 @@ static void selWheelApplyIdle(PF_InData* in_data, PF_OutData* out_data,
                                      GetTickCount(), kSelWheelTargetStaleMs),
             s_selWheelPending.end());
         if (s_selWheelPending.empty()) return;
-        // ref 优先，ref 不稳定时按控件矩形兜底（同一选择器的 DRAW 矩形与命中时一致）
+        // ref 优先，ref 不稳定时按控件矩形兜底（同一选择器的 DRAW 矩形与命中时一致）。
+        // 只消费列表条目：画布条目由画布各自的绘制/悬停入口消费（两处语义不同，
+        // 见 SelWheelKind 注释）。
         for (auto it = s_selWheelPending.begin(); it != s_selWheelPending.end(); ) {
+            if (it->kind != SelWheelKind::FileSel) { ++it; continue; }
             const bool sameRef = (it->effectRef == in_data->effect_ref);
             const bool sameRect = host::selWheelRectEq(it->clientRect, curR);
             if (sameRef || sameRect) { delta += it->delta; it = s_selWheelPending.erase(it); }
@@ -1293,6 +1417,7 @@ static void selWheelApplyIdle(PF_InData* in_data, PF_OutData* out_data,
     // 表现为「到尽头后再滚一次，反向滚不动」。
     SelWheelLock lk(s_selWheelMutex);
     for (auto& t : s_selWheelTargets) {
+        if (t.kind != SelWheelKind::FileSel) continue;
         if (t.effectRef == in_data->effect_ref ||
             host::selWheelRectEq(t.clientRect, curR)) {
             const int handleScroll = fileSelScrollOf(in_data, params, n);
@@ -1319,6 +1444,7 @@ static void selWheelApplyIdle(PF_InData* in_data, PF_OutData* out_data,
 namespace {
 static PF_Err selWheelConsumeImpl(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) {
     int delta = 0;
+    int canvasDelta = 0;
     {
         SelWheelLock lk(s_selWheelMutex);
         if (s_selWheelPending.empty()) return PF_Err_NONE;
@@ -1332,29 +1458,63 @@ static PF_Err selWheelConsumeImpl(PF_InData* in_data, PF_OutData* out_data, PF_P
         // in_data->effect_ref 在 DRAW/EVENT 与 UPDATE_PARAMS_UI
         // 两个上下文**不保证一致**，按 effectRef 过滤会让 pending 永不被消费
         //（探针：wt-pick=0 命中入队，但 apply/apply2 恒为 0）。钩子已按屏幕矩形
-        // 解析出唯一的在屏控件，且 ECW 同一时刻只显示一个实例的控件，故直接清空整个
-        // pending 并把总量应用到当前实例。（ADJUST_CURSOR 那条路实测 AE 基本不派发。）
-        for (const auto& p : s_selWheelPending) delta += p.delta;
-        s_selWheelPending.clear();
+        // 解析出唯一的在屏控件，且 ECW 同一时刻只显示一个实例的控件，故列表条目
+        // 直接整队列消费、把总量应用到当前实例。
+        // 画布条目不同：它只有「当前这次 DRAW 的控件矩形」这一个稳定归属依据
+        //（s_canvasRect），矩形不匹配的条目留给画布自己的绘制/悬停入口消费，
+        // 陈旧者由上方修剪收敛——不能在这里盲吞（上一实例遗留的条目会把新实例
+        // 的画布莫名滚一行）。
+        for (auto it = s_selWheelPending.begin(); it != s_selWheelPending.end(); ) {
+            if (it->kind == SelWheelKind::Canvas) {
+                if (s_canvasRectValid && host::selWheelRectEq(it->clientRect, s_canvasRect)) {
+                    canvasDelta += it->delta;
+                    it = s_selWheelPending.erase(it);
+                } else {
+                    ++it;
+                }
+            } else {
+                delta += it->delta;
+                it = s_selWheelPending.erase(it);
+            }
+        }
     }
-    if (delta == 0) return PF_Err_NONE;
-    int n = 0;
-    {
-        auto& gs = globalState();
-        CSLock lk(gs.mutex);
-        n = static_cast<int>(gs.popupChoices.size());
+    bool needRepaint = false;
+    // 画布：插件侧视图状态直接推进（不写参数 handle，固定视口的绘制读同一状态），
+    // 随后任意一次画布 DRAW 即呈现；本函数同时是滚轮后唯一可靠的本实例事件上下文。
+    if (canvasDelta != 0) needRepaint = canvasScrollByRows(canvasDelta, in_data, params);
+    if (delta != 0) {
+        int n = 0;
+        {
+            auto& gs = globalState();
+            CSLock lk(gs.mutex);
+            n = static_cast<int>(gs.popupChoices.size());
+        }
+        if (n > kFileSelMaxRows) {
+            wheelLog("apply2", delta, fileSelScrollOf(in_data, params, n));
+            setFileSelScroll(in_data, params, fileSelScrollOf(in_data, params, n) + delta, n);
+            needRepaint = true;
+        }
     }
-    if (n <= kFileSelMaxRows) return PF_Err_NONE;
-    wheelLog("apply2", delta, fileSelScrollOf(in_data, params, n));
-    setFileSelScroll(in_data, params, fileSelScrollOf(in_data, params, n) + delta, n);
+    if (!needRepaint) return PF_Err_NONE;
     // 强制 ECW 重绘：invalidate 校准根窗口（ECW 所属主框架）整个客户区——
     // 控件矩形已随 handle 偏移更新，下一次 DRAW 读取 handle 即呈现滚动。
     // 锁外 InvalidateRect：setFileSelScroll→resetFileSelWheelDelta 会再取本锁。
+    // 列表按 ref 找根窗口（ref 跨上下文不稳定，找不到就不重绘，行为与之前一致）；
+    // 画布条目按刚被消费的控件矩形找，避免依赖 ref。
     HWND calibRoot = nullptr;
     {
         SelWheelLock lk(s_selWheelMutex);
         for (const auto& t : s_selWheelTargets) {
             if (t.effectRef == in_data->effect_ref) { calibRoot = t.calibRoot; break; }
+        }
+        if (!calibRoot && canvasDelta != 0 && s_canvasRectValid) {
+            for (const auto& t : s_selWheelTargets) {
+                if (t.kind == SelWheelKind::Canvas &&
+                    host::selWheelRectEq(t.clientRect, s_canvasRect)) {
+                    calibRoot = t.calibRoot;
+                    break;
+                }
+            }
         }
     }
     if (calibRoot) InvalidateRect(calibRoot, nullptr, FALSE);
@@ -1429,9 +1589,7 @@ static void commitValueEdit(bool postPersistClick = false, bool deferPersistClic
 // 而本文件 handleClick 处注释实证 WM_KILLFOCUS 先于 DO_CLICK 到达）：
 //   - 失焦因点击**本 ECW 内**控件触发（如点另一滑条）：真实 DO_CLICK 先到 →
 //     消耗抑制标记（用户的点击被当合成点击吞掉、不触发控件动作）；随后到达的
-//     合成点击反被视为真实点击 → 在数值框上**重开编辑框**；
-//   - 立即 SetCursorPos 还会把光标从用户点击处拉回数值框：打断进行中的拖拽、
-//     干扰下一个编辑框弹窗的定位（openValueEdit 按当前光标定位）。
+//     合成点击反被视为真实点击 → 在数值框上**重开编辑框**。
 // 改为延迟注入（线程定时器，回调在 AE 主线程消息循环派发——与 WndProc 同线程
 // 安全上下文）：
 //   - 期间 pendingPersist 已被真实有效事件消费（失焦点击就在本 ECW 内，其
@@ -1457,6 +1615,75 @@ static void armPersistClickTimer(void* ref) {
     s_persistClickRef = ref;
     s_persistClickArmTick = GetTickCount();
     s_persistClickTimer = SetTimer(nullptr, 0, 250, persistClickTimerProc);
+}
+
+// 生成一条「绝对定位移动」输入记录：屏幕坐标按虚拟屏归一化成 0..65535。
+// 虚拟屏原点可以是负坐标（多显示器左侧/上方的屏），先减原点再归一化；
+// 用 VIRTUALDESK 让绝对坐标覆盖整个虚拟屏而不是主屏。
+// 返回 false 表示度量值/归一化结果不可信（此时上层放弃注入，不猜坐标）。
+static bool absoluteMoveRecord(INPUT* e, int x, int y) {
+    const int vLeft = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int vTop = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const int vWide = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    const int vTall = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    if (vWide < 2 || vTall < 2) return false;
+    const long dx = std::lround(static_cast<double>(x - vLeft) * 65535.0 /
+                                static_cast<double>(vWide - 1));
+    const long dy = std::lround(static_cast<double>(y - vTop) * 65535.0 /
+                                static_cast<double>(vTall - 1));
+    if (dx < 0 || dx > 65535 || dy < 0 || dy > 65535) return false;
+    e->type = INPUT_MOUSE;
+    e->mi.dx = static_cast<LONG>(dx);
+    e->mi.dy = static_cast<LONG>(dy);
+    e->mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+    return true;
+}
+
+// 在指定屏幕坐标注入一次真实左键点击，并让用户看不见光标的往返：
+// 一次提交 4 条输入记录——移到落点、按下、抬起、移回原位。同一批记录按数组顺序
+// 处理：MOVE 记录先把光标放到落点，紧随其后的按钮记录随后解析，还原记录在最后；
+// 「点击落在落点」由批内顺序保证，不依赖线程调度，落点停留也不横跨两次系统调用。
+// 处理期间隐藏系统光标（ShowCursor 计数是桌面级），往返不呈现给用户；完成后按
+// 本次减掉的次数逐一加回，精确恢复调用前的计数（调用前已被其它组件隐藏时保持隐藏）。
+// 取不到原位置（GetCursorPos 失败）时只提交前 3 条：光标停在落点，点击照常。
+static UINT injectClickAtKeepingCursor(int x, int y) {
+    POINT prev = {};
+    const BOOL havePrev = GetCursorPos(&prev);
+    INPUT in[4] = {};
+    if (!absoluteMoveRecord(&in[0], x, y)) {
+        uiDebug("[persist] click canceled (bad virtual screen metrics) at=(%d,%d)", x, y);
+        return 0;
+    }
+    in[1].type = INPUT_MOUSE;
+    in[1].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+    in[2].type = INPUT_MOUSE;
+    in[2].mi.dwFlags = MOUSEEVENTF_LEFTUP;
+    UINT count = 3;
+    if (havePrev) {
+        if (!absoluteMoveRecord(&in[3], prev.x, prev.y)) {
+            uiDebug("[persist] click canceled (bad prev position) prev=(%d,%d)", prev.x, prev.y);
+            return 0;
+        }
+        count = 4;
+    }
+    // 隐藏到计数为负才真正不可见；按减掉的次数还原，调用前计数无论正负都精确复原。
+    int hideSteps = 0;
+    while (ShowCursor(FALSE) >= 0 && hideSteps < 16) ++hideSteps;
+    const UINT sent = SendInput(count, in, sizeof(INPUT));
+    for (int i = 0; i < hideSteps + 1; ++i) ShowCursor(TRUE);
+    // 部分提交（其中几条被系统丢弃）：按顺序前缀补齐可恢复的状态
+    if (sent == 2) {
+        // 按下已提交、抬起缺失：补一次抬起，避免逻辑左键停在按下状态
+        INPUT up = {};
+        up.type = INPUT_MOUSE;
+        up.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        SendInput(1, &up, sizeof(INPUT));
+    }
+    if (sent < count && havePrev) SetCursorPos(prev.x, prev.y);
+    s_lastSyntheticClickTick = GetTickCount();
+    uiDebug("[persist] click injected sent=%u of %u at=(%d,%d) prev=(%d,%d) hide=%d",
+            sent, count, x, y, prev.x, prev.y, hideSteps + 1);
+    return sent;
 }
 
 void CALLBACK persistClickTimerProc(HWND, UINT, UINT_PTR, DWORD) {
@@ -1503,8 +1730,8 @@ void CALLBACK persistClickTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     }
     // 命中窗口根一致性——PtInRect 只保证点在宿主矩形内，不保证
     // 点击会落到宿主窗口：挂起期间用户 alt-tab 到其他应用（其窗口恰好覆盖
-    // valueBox 坐标）或 AE 内其他面板移入该区域时，SetCursorPos+SendInput 的
-    // 点击会打到 Z 序最顶的其他窗口（跨应用误点击/误操作其他面板）。用
+    // valueBox 坐标）或 AE 内其他面板移入该区域时，注入的点击会打到 Z 序最顶的
+    // 其他窗口（跨应用误点击/误操作其他面板）。用
     // WindowFromPoint 做 Z 序命中测试：命中窗口的根窗口必须与宿主根一致
     //（停靠 ECW 根为 AE 主框架、浮动 ECW 根为浮动面板），否则顺延等用户
     // 回到宿主窗口（60s 上限兜底）。顺延分支**不得** cancel（须保留归属引用）。
@@ -1521,15 +1748,12 @@ void CALLBACK persistClickTimerProc(HWND, UINT, UINT_PTR, DWORD) {
     st->suppressClick = true;
     st->suppressClickTick = GetTickCount();
     st->lastTouch = GetTickCount();
-    SetCursorPos(st->valueBoxCX, st->valueBoxCY);
-    INPUT in[2] = {};
-    in[0].type = INPUT_MOUSE;
-    in[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-    in[1].type = INPUT_MOUSE;
-    in[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    const UINT sent = SendInput(2, in, sizeof(INPUT));
-    uiDebug("[persist] deferred SendInput click sent=%u slot=%d val=%.2f at=(%d,%d)",
-            sent, st->edit.slot, st->edit.pendingVal, st->valueBoxCX, st->valueBoxCY);
+    const UINT sent = injectClickAtKeepingCursor(st->valueBoxCX, st->valueBoxCY);
+    // 按下记录都没提交（sent < 2）：不会产生 DO_CLICK，清抑制标记，否则会吞掉
+    // 用户 200ms 内的下一次真实点击；值仍留在参数里，由后续有效事件补持久化。
+    if (sent < 2) st->suppressClick = false;
+    uiDebug("[persist] deferred injected sent=%u slot=%d val=%.2f",
+            sent, st->edit.slot, st->edit.pendingVal);
 }
 
 // 合成一次 DO_CLICK 触发 AE 的 handleClick 在有效事件里补 change_flags，从而
@@ -1538,11 +1762,12 @@ void CALLBACK persistClickTimerProc(HWND, UINT, UINT_PTR, DWORD) {
 // AE 的 ECW 窗口过程会检查输入队列/物理按键状态，PostMessage 投递的合成消息可能
 // 不被识别为真实点击 → 不生成 DO_CLICK → change_flags 永不落盘 → 值回滚。
 // 注入后置 suppressClick + 时间戳：handleClick 只抑制此 200ms 内的那次点击。
-// 注入位置不再用"当前光标"（用户按 Enter 时鼠标未必停在数值框上，点击会落到 ECW 外
+// 注入位置不用"当前光标"（用户按 Enter 时鼠标未必停在数值框上，点击会落到 ECW 外
 // → 不产生 DO_CLICK → 值不落盘回滚；且 suppressClick 残留吞掉下一次真实点击）。
-// 改为：先把光标移到数值框屏幕中心（openValueEdit 按 DPI 换算的 valueBoxCX/CY），
+// 改为：把光标移到数值框屏幕中心（openValueEdit 按 DPI 换算的 valueBoxCX/CY）
 // 再注入真实系统点击 → 点击**必然落在数值框上** → DO_CLICK 稳定触发 → handleClick
-// 在有效事件里补 CHANGED_VALUE 完成持久化。
+// 在有效事件里补 CHANGED_VALUE 完成持久化；光标往返由 injectClickAtKeepingCursor
+// 在同一次输入提交里完成并隐藏。
 static void postPersistClickSynthetic(void* ownerRef, bool defer) {
     // 合成点击的抑制标记/落点坐标写入**归属实例**条目（窗口单例，
     // 经 ownerRef 路由——commitValueEdit 在 closeValueEdit 清空全局归属
@@ -1595,19 +1820,10 @@ static void postPersistClickSynthetic(void* ownerRef, bool defer) {
     st->suppressClick = true;
     st->suppressClickTick = GetTickCount();
     st->lastTouch = GetTickCount();
-    // 光标移到（重算后的）数值框中心
-    POINT target;
-    target.x = tx;
-    target.y = ty;
-    SetCursorPos(target.x, target.y);
-    INPUT in[2] = {};
-    in[0].type = INPUT_MOUSE;
-    in[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-    in[1].type = INPUT_MOUSE;
-    in[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    const UINT sent = SendInput(2, in, sizeof(INPUT));
-    uiDebug("[persist] SendInput click sent=%u slot=%d val=%.2f at=(%d,%d)",
-            sent, st->edit.slot, st->edit.pendingVal, target.x, target.y);
+    const UINT sent = injectClickAtKeepingCursor(tx, ty);
+    // 按下记录都没提交：不会产生 DO_CLICK，清抑制标记（否则吞掉 200ms 内真实点击）
+    if (sent < 2) st->suppressClick = false;
+    uiDebug("[persist] injected sent=%u slot=%d val=%.2f", sent, st->edit.slot, st->edit.pendingVal);
 }
 
 // 取消编辑：丢弃输入，恢复显示原值
@@ -1814,7 +2030,7 @@ void drawPoint(PF_InData* in_data, DRAWBOT_Suites* dbs, DRAWBOT_SurfaceRef surfa
             s_lastH[slot] = h;
             s_lastRows[slot] = n;
             char d[96];
-            std::snprintf(d, sizeof(d), "slot-rect slot=%d h=%d rows=%d", slot, h, n);
+            std::snprintf(d, sizeof(d), "slot-rect slot=%d h=%d rows=%d l=%d r=%d", slot, h, n, f.left, f.right);
             rfDiag(d);
         }
     }
@@ -2219,6 +2435,7 @@ static void flushPendingCommit(PF_InData* in_data, PF_OutData* out_data, PF_Para
     // 事件里补 change_flags。若在 DRAW 里顺手把 pendingCommit 清零就放弃了后续
     // 持久化机会 → 值只显示不落盘，AE 重载即回滚（Enter 后闪一下变回原值）。
     if (!st->edit.pendingCommit && !st->edit.pendingPersist) return;
+    const bool hadNewValue = st->edit.pendingCommit;   // 本趟是否真的写入了新值
     if (slotParamIndex(st->edit.slot) < 0) {
         st->edit.pendingCommit = false;
         st->edit.pendingPersist = false;
@@ -2241,49 +2458,253 @@ static void flushPendingCommit(PF_InData* in_data, PF_OutData* out_data, PF_Para
         st->edit.pendingPersist = false;
         uiDebug("[flush] CHANGED_VALUE set (validEvent) slot=%d val=%.2f", st->edit.slot, val);
     }
-    // FORCE_RERENDER 任意 EVENT 有效：强制重渲染合成
-    if (out_data) out_data->out_flags |= PF_OutFlag_FORCE_RERENDER;
+    // FORCE_RERENDER 任意 EVENT 有效：强制重渲染合成。**只在真正写入新值时设一次**——
+    // 合成点击补 change_flags 的那趟（pendingCommit 已消费）再设一次会让 AE 连续
+    // 重渲染两遍（重 shader 每遍数秒），是"输入数值后卡 2~3 秒"的主要来源。
+    if (out_data && hadNewValue) out_data->out_flags |= PF_OutFlag_FORCE_RERENDER;
 }
 
-PF_Err handleDraw(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[], PF_EventExtra* extra) {
-    // 编辑框销毁后 ECW 重绘（DRAW）是最可靠的后续事件——ACTIVATE/IDLE 在
-    // 编辑框打开/销毁间隙可能不触发（WS_POPUP 持焦点时 AE 暂停 IDLE），
-    // 这里兜底 flush 编辑框提交值，保证 Enter 后立即应用。
-    flushPendingCommit(in_data, out_data, params);
-    if (extra->effect_win.area != PF_EA_CONTROL) return PF_Err_NONE;
-    const int idx = static_cast<int>(extra->effect_win.index);
-    if (idx == kIdxFileSelector) {
-        // 滚轮消费主路径：钩子吃掉滚轮后 InvalidateRect 触发本 DRAW——应用待滚
-        // 行数后绘制（IDLE 实测几乎不派发——事件计数 evt-type10 全程仅 1 次，
-        // 不能作消费路径；ADJUST_CURSOR 兜底在 handleCursor，仅覆盖伴随的鼠标移动）
-        selWheelApplyIdle(in_data, out_data, params, extra);
-        drawFileSelector(in_data, out_data, params, extra);
-        return PF_Err_NONE;
+// ═══════════════════════════════════════════════════════════════════
+// 「参数」组画布（kIdxCanvas）：组内唯一可见行，承载全部 uniform
+// ═══════════════════════════════════════════════════════════════════
+// 128 个槽位分量全部 PF_PUI_NO_ECW_UI（不出现在 ECW），可见 UI 只有本画布：逐行画
+// 当前文件的 uniform（名字 + 滑条/点控件/色块），布局与控件绘制复用既有实现
+// （kindFor / drawSlider / drawPoint / drawSwatch / valueBoxRect / pointRowGeom）。
+// 值来自隐藏滑条（readSlot4），行名来自本实例当前文件的 uniform——两者每帧现取，
+// 因此复制图层/工程恢复/切文件后的首屏即正确，不依赖任何改名回调或更新时机。
+//
+// band 高 = slotUiRows(p) × kSlotUiHeight，顶部留白 kCanvasPadY；画布高度由
+// SyncParamUI 按同一算式下发（视觉行数 × kSlotUiHeight + 上下留白），正常态恰好
+// 铺满，超出画布底部的 band 裁掉不画。
+// 名字列宽（自 f.left 起算；控件画在其右侧）。按画布宽度自适应：固定 140 会把
+// 窄面板里的滑条压得太短，故取画布宽度的 30%（下限 72、上限 140）；名字超宽按
+// EndEllipsis 截断。绘制与命中同源，避免两处宽度不一致。
+int canvasNameWidth(const PF_Rect& f) {
+    int nameW = (f.right - f.left) * 30 / 100;
+    if (nameW < 72) nameW = 72;
+    if (nameW > 140) nameW = 140;
+    return nameW;
+}
+
+// 行名配色：正文灰 164/255（与 native 参数标题同色）
+const DRAWBOT_ColorRGBA kCanvasText =
+    rgba(164.0f / 255.0f, 164.0f / 255.0f, 166.0f / 255.0f);
+
+// 内容滚动偏移（行）。视口高度：注册值是上限（kCanvasViewH = 15 行），短内容时
+// 运行期把控件高度收到内容高度（见 canvasDesiredHeight / SyncCanvasUI）；内容
+// 超出视口时靠这里记录的滚动行数平移绘制与命中。
+static int s_canvasScrollRow = 0;
+// 当前实得视口行数（由 DRAW 的控件矩形反算）：滚动钳制、翻页、滚动条滑块都按它
+// 计算——不写死 kCanvasViewRows。即使 AE 丢弃了运行期高度（复制/恢复出的实例停在
+// 注册高度），视口也按实得高度工作，内容仍可滚动到达，只是可见行数变少。
+static int s_canvasViewRows = host::kCanvasViewRows;
+
+// 画布内容顶 = 第一个 band 的屏幕 y（已应用滚动偏移）。绘制、命中、拖拽必须
+// 共用这一个算式，两处各算一份会让点击到的行与画出来的行错位。
+int canvasContentTop(const PF_Rect& f) {
+    return f.top + host::kCanvasPadY - s_canvasScrollRow * host::kSlotUiHeight;
+}
+
+// 本文件/实例的总视觉行数与最大滚动行数。
+int canvasTotalRows(PF_InData* in_data, PF_ParamDef* params[]) {
+    int rows = 0;
+    for (int i = 0; i < host::kMaxParams; ++i) {
+        glsl::Param p;
+        if (!uniformAt(in_data, params, i, &p)) break;
+        rows += slotUiRows(p);
     }
-    if (idx == host::kIdxSolveBtn) {
-        drawSolveResetBtn(in_data, out_data, params, extra);
-        return PF_Err_NONE;
+    return rows;
+}
+
+// 画布期望高度（每实例）：min(内容行数, 上限) × 行高 + 上下留白。无 uniform
+// （文件丢失/解析失败）按提醒的两行保留。注册高度恒为上限，运行期只收缩。
+int canvasDesiredHeight(PF_InData* in_data, PF_ParamDef* params[]) {
+    int rows = canvasTotalRows(in_data, params);
+    if (rows <= 0) rows = 2;   // 「已改为透传」/「文件已丢失」提醒占两行
+    if (rows > host::kCanvasViewRows) rows = host::kCanvasViewRows;
+    return rows * host::kSlotUiHeight + 2 * host::kCanvasPadY;
+}
+
+// 实得高度 → 视口行数（去掉上下留白后按行高向下取整，至少 1 行）
+int canvasViewRowsOf(const PF_Rect& f) {
+    const int avail = (f.bottom - f.top) - 2 * host::kCanvasPadY;
+    const int rows = avail / host::kSlotUiHeight;
+    return (rows < 1) ? 1 : rows;
+}
+
+// 上次经 PF_UpdateParamUI 应用的画布高度（键 = effect_ref，实例存活期稳定）：
+// AE 不回写 ui_height，只能自己记，重复同值再下发没有意义。
+static std::map<void*, A_short> s_canvasAppliedH;
+// 画布高度自修次数（键 = 实例身份 id）：DRAW 发现实得高度 ≠ 期望时补发，带上限，
+// 实得正确即清零（防 AE 忽略时反复重建 ECW）。
+static std::map<uint64_t, int> s_canvasHeightRepair;
+static constexpr int kCanvasHeightRepairMax = 4;
+
+int canvasMaxScroll(PF_InData* in_data, PF_ParamDef* params[]) {
+    return (std::max)(0, canvasTotalRows(in_data, params) - s_canvasViewRows);
+}
+
+// 画布高度自修（DRAW 开头、取绘制引用之前调用）：切文件、AE 按注册高度重建 ECW、
+// 复制/恢复出的实例都会让实得高度 ≠ 期望；UPDATE 里的下发会被紧随其后的重建
+// 覆盖（与选择器同因），DRAW 发生在重建之后，补发才能落在重建后的布局上。
+// 补发后本帧不画（PF_UpdateParamUI 会重建 ECW，之后的 surface/params 可能是陈旧
+// 引用）；实得高度正确即清零计数，超上限则接受实得高度、不再重建。
+bool repairCanvasHeightIfNeeded(PF_InData* in_data, PF_OutData* out_data,
+                                PF_ParamDef* params[], const PF_Rect& f) {
+    if (!params || !params[host::kIdxCanvas]) return false;
+    const A_short wantH = static_cast<A_short>(canvasDesiredHeight(in_data, params));
+    const uint64_t key = InstanceInstanceId(in_data);
+    if (static_cast<A_short>(f.bottom - f.top) == wantH) {
+        s_canvasHeightRepair[key] = 0;
+        return false;
     }
-    const int slot = slotFromIndex(idx);
-    if (slot < 0) return PF_Err_NONE;
+    int& tries = s_canvasHeightRepair[key];
+    if (tries >= kCanvasHeightRepairMax) return false;
+    ++tries;
+    PF_ParamUtilsSuite3* pus = nullptr;
+    PF_Err e = AEFX_AcquireSuite(in_data, out_data, kPFParamUtilsSuite,
+                                 kPFParamUtilsSuiteVersion3, nullptr,
+                                 reinterpret_cast<void**>(&pus));
+    if (e != PF_Err_NONE || !pus) return false;
+    PF_ParamDef def = *params[host::kIdxCanvas];
+    def.ui_height = wantH;
+    e = pus->PF_UpdateParamUI(in_data->effect_ref, host::kIdxCanvas, &def);
+    AEFX_ReleaseSuite(in_data, out_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, nullptr);
+    return e == PF_Err_NONE;
+}
 
-    const PF_Rect f = extra->effect_win.current_frame;
-    ensureSuites(in_data, out_data);
-    UiSuites& su = uiSuites();
-    if (!su.drawbotReady || !su.cui) return PF_Err_NONE;
-    DRAWBOT_Suites* dbs = &su.drawbot;
+// 把滚轮行数并入画布内部滚动偏移（先按内容行数钳制）。返回 true = 位置确有变化。
+// 钳制必须当场做：滚到底后继续滚不得把超出量吃进偏移（否则反向滚要先"吐"回来）。
+bool canvasScrollByRows(int delta, PF_InData* in_data, PF_ParamDef* params[]) {
+    if (delta == 0) return false;
+    const int maxScroll = canvasMaxScroll(in_data, params);
+    const int want = host::selWheelClampRow(s_canvasScrollRow, delta, maxScroll);
+    if (want == s_canvasScrollRow) return false;
+    s_canvasScrollRow = want;
+    return true;
+}
 
-    DRAWBOT_DrawRef drawRef = nullptr;
-    su.cui->PF_GetDrawingReference(extra->contextH, &drawRef);
-    if (!drawRef) return PF_Err_NONE;
+// 清掉排队中的画布滚轮（滚动条翻页等非滚轮入口接管滚动时调用，避免叠加；
+// 与列表的 resetFileSelWheelDelta 同口径）。
+void resetCanvasWheelPending() {
+    SelWheelLock lk(s_selWheelMutex);
+    for (auto it = s_selWheelPending.begin(); it != s_selWheelPending.end(); ) {
+        if (it->kind == SelWheelKind::Canvas) it = s_selWheelPending.erase(it);
+        else ++it;
+    }
+}
 
-    DRAWBOT_SurfaceRef surface = nullptr;
-    DRAWBOT_SupplierRef supplier = nullptr;
-    dbs->drawbot_suiteP->GetSurface(drawRef, &surface);
-    dbs->drawbot_suiteP->GetSupplier(drawRef, &supplier);
-    if (!surface || !supplier) return PF_Err_NONE;
+// 消费排队中的画布滚轮（pending 中 kind==Canvas 且矩形匹配本画布的条目）。
+// 返回 true = 位置有变化。钩子只排队，所有消费点都在 AE 主线程事件内。
+// 与另外两个消费点同口径：先按 kSelWheelTargetStaleMs 修剪陈旧条目（上一实例
+// ECW 已关但按 ref 剔不掉的幸存项不得应用到本实例），再按矩形认归属。
+bool consumeCanvasWheel(PF_InData* in_data, PF_ParamDef* params[], const PF_Rect& f) {
+    int delta = 0;
+    {
+        SelWheelLock lk(s_selWheelMutex);
+        s_selWheelPending.erase(
+            host::selWheelPruneStale(s_selWheelPending.begin(), s_selWheelPending.end(),
+                                     GetTickCount(), kSelWheelTargetStaleMs),
+            s_selWheelPending.end());
+        const host::SelWheelRect r = host::selWheelRectOf(f.left, f.top, f.right, f.bottom);
+        for (auto it = s_selWheelPending.begin(); it != s_selWheelPending.end(); ) {
+            if (it->kind == SelWheelKind::Canvas && host::selWheelRectEq(it->clientRect, r)) {
+                delta += it->delta;
+                it = s_selWheelPending.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    return canvasScrollByRows(delta, in_data, params);
+}
 
-    // 背景（AE 面板底色）
+// 发布画布滚动边界给钩子：到顶/到底后同方向滚轮不再被吃掉，而是透传给参数面板。
+void publishCanvasWheelLimits(const PF_Rect& f, bool atTop, bool atBottom) {
+    const host::SelWheelRect r = host::selWheelRectOf(f.left, f.top, f.right, f.bottom);
+    SelWheelLock lk(s_selWheelMutex);
+    for (auto& t : s_selWheelTargets) {
+        if (t.kind != SelWheelKind::Canvas) continue;
+        if (!host::selWheelRectEq(t.clientRect, r)) continue;
+        t.atTop = atTop;
+        t.atBottom = atBottom;
+    }
+}
+
+// 画布右侧滚动条：仅内容超出视口时出现（4px 宽），点击上/下半区翻页（见
+// handleCanvasClick）。固定视口下 AE 的 ECW 滚动只滚整块面板，画布内部内容必须
+// 自带滚动入口。
+void drawCanvasScrollbar(DRAWBOT_Suites* dbs, DRAWBOT_SurfaceRef surface,
+                         DRAWBOT_SupplierRef supplier, const PF_Rect& f, int maxScroll) {
+    if (maxScroll <= 0) return;
+    const int trackL = f.right - 5;
+    fillRectPx(dbs, surface, supplier, trackL, f.top + 2, f.right - 1, f.bottom - 3,
+               &col::Track);
+    const int trackH = (f.bottom - 3) - (f.top + 2);
+    const int fullRows = s_canvasViewRows + maxScroll;
+    int thumbH = trackH * s_canvasViewRows / (fullRows > 0 ? fullRows : 1);
+    if (thumbH < 12) thumbH = 12;
+    if (thumbH > trackH) thumbH = trackH;
+    const int span = trackH - thumbH;
+    const int y = f.top + 2 + (maxScroll > 0 ? span * s_canvasScrollRow / maxScroll : 0);
+    fillRectPx(dbs, surface, supplier, trackL, y, f.right - 1, y + thumbH, &col::Thumb);
+}
+
+// 画布内第 wantSlot 个 uniform 的 band 纵向范围。返回 false = 该槽位在当前文件里
+// 没有 uniform（或槽位越界）。
+bool canvasBandAt(PF_InData* in_data, PF_ParamDef* params[], const PF_Rect& f, int wantSlot,
+                  int* top, int* bottom) {
+    if (wantSlot < 0 || wantSlot >= host::kMaxParams) return false;
+    int y = canvasContentTop(f);
+    for (int i = 0; i <= wantSlot; ++i) {
+        glsl::Param p;
+        if (!uniformAt(in_data, params, i, &p)) return false;
+        const int bandH = host::kSlotUiHeight * slotUiRows(p);
+        if (i == wantSlot) {
+            if (top) *top = y;
+            if (bottom) *bottom = y + bandH;
+            return true;
+        }
+        y += bandH;
+    }
+    return false;
+}
+
+// 画布内命中：py 落在哪个 uniform 的 band 里（-1 = 空白处）。与 canvasBandAt 同一
+// 累加口径——两处各算一份时，点击到的行与画出来的行会错位。
+int canvasSlotAtY(PF_InData* in_data, PF_ParamDef* params[], const PF_Rect& f, int py,
+                  int* top, int* bottom) {
+    int y = canvasContentTop(f);
+    for (int i = 0; i < host::kMaxParams; ++i) {
+        glsl::Param p;
+        if (!uniformAt(in_data, params, i, &p)) return -1;
+        const int bandH = host::kSlotUiHeight * slotUiRows(p);
+        if (py >= y && py < y + bandH) {
+            if (top) *top = y;
+            if (bottom) *bottom = y + bandH;
+            return i;
+        }
+        y += bandH;
+    }
+    return -1;
+}
+
+// 单个 uniform 的控件矩形 = band 内名字列右侧的子框。绘制与命中必须用同一矩形：
+// drawPoint 按行等分、valueBoxRect 按框定位都基于它，两处不同源就会"点框不中"。
+// 面板窄到放不下名字列 + 控件时把控件区钳成 1px：不向 Drawbot 传反向矩形。
+PF_Rect canvasControlRect(const PF_Rect& f, int bandTop, int bandBottom) {
+    PF_Rect c;
+    c.left = f.left + canvasNameWidth(f);
+    c.right = f.right - kInset;
+    if (c.right <= c.left) c.right = c.left + 1;
+    c.top = bandTop;
+    c.bottom = bandBottom;
+    return c;
+}
+
+// 画布 rect 内的背景（AE 面板底色）：PF_PUI_DONT_ERASE_CONTROL 要求插件自绘每个像素。
+void fillCanvasBackground(UiSuites& su, DRAWBOT_Suites* dbs, DRAWBOT_SurfaceRef surface,
+                          DRAWBOT_SupplierRef supplier, const PF_Rect& f) {
     DRAWBOT_ColorRGBA bg = rgba(0.18f, 0.18f, 0.20f);
     if (su.app) {
         PF_App_Color c = {0, 0, 0};
@@ -2293,152 +2714,41 @@ PF_Err handleDraw(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[
         }
     }
     fillRectPx(dbs, surface, supplier, f.left, f.top, f.right, f.bottom, &bg);
-
-    glsl::Param p;
-    if (!uniformAt(in_data, params, slot, &p)) {
-        // 身份名解析不到（文件被删除/改名）：槽位栏前两行显示文字提醒
-        //（slot 0 = 文件名，slot 1 = 后果与操作指引，文案见 uiNoticePolicy.h）；
-        // 其余槽位维持灰 "-"。纯绘制：不写参数、不改行高与启用态。
-        std::string lostName;
-        std::string notice;
-        if (slot < 2 && lostShaderIdentity(in_data, params, &lostName)) {
-            notice = slotLostNotice(slot, lostName);
-        }
-        if (!notice.empty()) {
-            const int textX = f.left + kInset;
-            const int avail = (std::max)(1, f.right - textX - 2);
-            fillRectPx(dbs, surface, supplier, f.left, f.top, f.right, f.bottom, &col::WarnBg);
-            drawText(dbs, surface, supplier, textX, f.top + (f.bottom - f.top + 12) / 2 - 1,
-                     notice.c_str(), &col::Warn, kDRAWBOT_TextAlignment_Left,
-                     kDRAWBOT_TextTruncation_EndEllipsis, static_cast<float>(avail));
-        } else {
-            // 未使用槽位：置灰占位
-            drawText(dbs, surface, supplier, f.left + kInset,
-                     f.top + (f.bottom - f.top + 12) / 2 - 1, "-", &col::TextDim);
-        }
-    } else {
-        float v[kFloatsPerSlot];
-        bool haveV = false;
-        if (s_pickerOpen && s_pickerSlot == slot) {
-            v[0] = s_pickerSnapshot[0];
-            v[1] = s_pickerSnapshot[1];
-            v[2] = s_pickerSnapshot[2];
-            v[3] = s_pickerSnapshot[3];
-            haveV = true;
-        } else {
-            haveV = readSlot4(params, slot, v);
-        }
-        if (haveV) {
-            switch (kindFor(p)) {
-            case ControlKind::Slider: {
-                float lo = 0.0f, hi = 1.0f;
-                rangeFor(p, 0, &lo, &hi);
-                const bool ed = editingThis(in_data, slot, 0);
-                drawSlider(dbs, surface, supplier, f, p, v[0], lo, hi, ed);
-                break;
-            }
-            case ControlKind::Point:
-                drawPoint(in_data, dbs, surface, supplier, f, slot, p, v);
-                break;
-            case ControlKind::Swatch:
-                drawSwatch(dbs, surface, supplier, f, p, v);
-                break;
-            }
-        }
-    }
-    extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
-    return PF_Err_NONE;
 }
 
-PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[], PF_EventExtra* extra) {
-    const int idx = static_cast<int>(extra->effect_win.index);
-    // 消费合成点击抑制标记：Enter 提交后 SendInput 注入的那次 DO_CLICK 仅用于在
-    // 有效事件里补 change_flags 持久化，不应重新打开编辑框/触发控件动作。
-    // 时间戳守卫：仅抑制注入后 200ms 内的那次点击，避免用户稍后到达的真实点击
-    // 被误判为合成点击（否则"第二次点击打不开编辑框"）。
-    // 抑制标记是**归属实例**的会话状态——注入的点击物理上落在打开编辑框
-    // 实例的数值框上，B 实例的 DO_CLICK 不应误吞 A 的抑制标记（否则 A 的合成
-    // 点击到达时不再被抑制 → A 重开编辑框/误触发控件动作）
-    const DWORD now = GetTickCount();
-    EditInstanceState* st = editStateOf(in_data);
-    const bool isSynthetic = st && st->suppressClick && (now - st->suppressClickTick) < 200;
-    if (st) st->suppressClick = false;
-    // DO_CLICK 是有效事件：对编辑框提交的待写值在此补 change_flags 完成持久化
-    // （编辑框失焦/回车产生的待写值，WM_KILLFOCUS 先于 DO_CLICK 到达，先写参数）。
-    flushPendingCommit(in_data, out_data, params, /*validEvent=*/true);
-    if (isSynthetic) {
-        // 合成点击只为触发持久化，值已在 flushPendingCommit 写入，不执行控件动作。
-        // 关键：flushPendingCommit 在 PF_Cmd_EVENT 里设了 PF_ChangeFlag_CHANGED_VALUE，
-        // SDKL（AE_Effect.h:2255）要求同时设 PF_EO_HANDLED_EVENT，否则 AE 不落盘 → 回滚。
-        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
-        uiDebug("[click] synthetic consumed, handled+persisted");
-        // 刻意**不**消费脚本切文件的「待重置」：合成点击不是用户对控件的真实操作，
-        // 该标记继续留给下一次真实 DO_CLICK（保持「仅真实点击触发重置」的契约）。
-        return PF_Err_NONE;
-    }
-    // 脚本切文件：UPDATE_PARAMS_UI 阶段登记的「待重置」在此（合法写值上下文）
-    // 落盘——复用与手动点击完全相同的单点实现 resetSlotsToFileDefaults。
-    if (consumePendingSlotReset(in_data, params)) {
-        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
-        if (out_data) out_data->out_flags |= PF_OutFlag_FORCE_RERENDER;
-        uiDebug("[slotreset] file defaults applied (validEvent DO_CLICK)");
-    }
-    // —— 只处理**控件区**的事件 ——
-    // AE 对同一个参数会分别派发两种区域的 DO_CLICK：PF_EA_CONTROL（控件区，用户真正
-    // 点的是数值框/滑条）与 PF_EA_PARAM_TITLE（参数名/标题区），而 `effect_win.current_frame`
-    // 是**该区自己的矩形**（AE_EffectUI.h:479-491：PF_EA_NONE/PF_EA_PARAM_TITLE/PF_EA_CONTROL，
-    // current_frame = "full frame of the current area"，另有独立的 param_title_frame）。
-    // 标题区与控件区不是同一个矩形：窄面板下 AE 会把参数名独占一行、控件放到下一行
-    //（实测配对：控件 72,456,329,478 h=22 ↔ 标题 40,432,341,452 h=20——标题正好在控件上方
-    // 24px、横向铺满整行）。
-    // 不区分 area 时，"点参数名那一行"也被当成点控件、还用标题区的矩形去
-    // 算数值框 → 在控件框上方也能点出编辑框、在轨道上方也能拖动滑条（用户实测回执）。
-    // handleDraw 一直有同款守卫（area != PF_EA_CONTROL 直接返回），此处补齐。
-    // 注意：必须放在 flushPendingCommit / 合成点击消费 / 待重置消费**之后**——那些是
-    // 持久化与状态机的合法落点，与 area 无关；只把"控件交互"这一步限定到控件区。
-    if (extra->effect_win.area != PF_EA_CONTROL) {
-        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;   // 认领但不动作，避免 AE 默认处理
-        return PF_Err_NONE;
-    }
-    if (idx == kIdxFileSelector) {
-        handleFileSelectorClick(in_data, out_data, params, extra);
-        return PF_Err_NONE;
-    }
-    if (idx == host::kIdxSolveBtn) {
-        handleSolveResetBtnClick(in_data, out_data, params, extra);
-        return PF_Err_NONE;
-    }
-    const int slot = slotFromIndex(idx);
-    if (slot < 0) return PF_Err_NONE;
+// —— 单个 uniform 的点击 / 拖拽（画布行复用同一套槽位交互）——
+// ctrlRect = 该 uniform 控件在 ECW 里的矩形（画布内 band 的名字列右侧子框）。
+// 写值 + PF_ChangeFlag_CHANGED_VALUE 只在 DO_CLICK/DRAG 这类有效事件里做
+// （AE_Effect.h:2250-2257），完成标志由调用方置 PF_EO_HANDLED_EVENT。
+void clickSlotControl(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                      PF_EventExtra* extra, int slot, const PF_Rect& ctrlRect) {
     glsl::Param p;
-    if (!uniformAt(in_data, params, slot, &p)) return PF_Err_NONE;
+    if (!uniformAt(in_data, params, slot, &p)) return;
 
-    const PF_Rect f = extra->effect_win.current_frame;
     const int px = extra->u.do_click.screen_point.h;
     const int py = extra->u.do_click.screen_point.v;
-
     const ControlKind kind = kindFor(p);
 
-    HitResult hit = hitTest(f, p, kind, px, py);
+    HitResult hit = hitTest(ctrlRect, p, kind, px, py);
     float v[kFloatsPerSlot];
-    if (!readSlot4(params, slot, v)) return PF_Err_NONE;
+    if (!readSlot4(params, slot, v)) return;
 
     // Point 各分量数值输入框：点击打开编辑框（与 float 数值框一致，可精确输入）
-    // 命中矩形 = 绘制矩形（valueBoxRect）——纵向不再是整行，横向不再外扩。
+    // 命中矩形 = 绘制矩形（valueBoxRect）——纵向是行内带，横向不外扩。
     if (kind == ControlKind::Point) {
         const int n = drawCompCount(p);
         for (int c = 0; c < n; ++c) {
-            const BoxRect bx = valueBoxRect(f, kind, p, c);
+            const BoxRect bx = valueBoxRect(ctrlRect, kind, p, c);
             if (px >= bx.L && px <= bx.R && py >= bx.T && py <= bx.B) {
                 char tmp[64];
                 formatValueEdit(tmp, sizeof(tmp), v[c]);
                 PF_Point clickPt;
                 clickPt.h = px;
                 clickPt.v = py;
-                if (openValueEdit(in_data, f, bx, slot, c, tmp, clickPt)) {
+                if (openValueEdit(in_data, ctrlRect, bx, slot, c, tmp, clickPt)) {
                     extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
                 }
-                return PF_Err_NONE;
+                return;
             }
         }
     }
@@ -2446,7 +2756,7 @@ PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params
     if (!hit.hit) {
         // 滑条右侧数值框 → 打开非模态 Win32 编辑框
         // （KEYDOWN 在 ECW 不派发，就地输入不可行；编辑框见 openValueEdit）
-        const BoxRect bx = valueBoxRect(f, kind, p, 0);
+        const BoxRect bx = valueBoxRect(ctrlRect, kind, p, 0);
         if (kind == ControlKind::Slider && px >= bx.L && px <= bx.R &&
             py >= bx.T && py <= bx.B) {
             char tmp[64];
@@ -2454,14 +2764,14 @@ PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params
             PF_Point clickPt;
             clickPt.h = px;
             clickPt.v = py;
-            if (openValueEdit(in_data, f, bx, slot, 0, tmp, clickPt)) {
+            if (openValueEdit(in_data, ctrlRect, bx, slot, 0, tmp, clickPt)) {
                 // 编辑框已创建并聚焦，内容由 Windows 绘制，无需 AE 重绘
                 extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
             }
-            return PF_Err_NONE;
+            return;
         }
         // 点击控件空白区：编辑框若打开，失焦（WM_KILLFOCUS）已自动提交，此处无需处理
-        return PF_Err_NONE;
+        return;
     }
     // 命中控件其他区域（滑条/点/alpha/色块）：编辑框若打开，本点击会先使其失焦
     // （WM_KILLFOCUS 自动提交），再触发本事件，故此处无需额外提交逻辑。
@@ -2520,15 +2830,16 @@ PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params
         // 滑条/点/alpha：点击按位置绝对值设值 + 开始拖拽
         float lo = 0.0f, hi = 1.0f;
         rangeFor(p, hit.comp, &lo, &hi);
-        const int dw = dragWidth(f, kind, p);
+        const int dw = dragWidth(ctrlRect, kind, p);
         float t = 0.0f;
         if (kind == ControlKind::Slider) {
-            t = static_cast<float>(px - (f.left + kInset)) / static_cast<float>(dw);
+            t = static_cast<float>(px - (ctrlRect.left + kInset)) / static_cast<float>(dw);
         } else if (kind == ControlKind::Swatch) {  // alpha
-            t = static_cast<float>(px - (f.left + kInset + kSwatchWidth + 8)) / static_cast<float>(dw);
+            t = static_cast<float>(px - (ctrlRect.left + kInset + kSwatchWidth + 8)) /
+                static_cast<float>(dw);
         } else {  // Point：行内可见轨道横向映射（与 drawTrack / dragWidth 同源）
             int tL = 0;
-            pointTrackSpan(f, &tL, nullptr);
+            pointTrackSpan(ctrlRect, &tL, nullptr);
             t = static_cast<float>(px - tL) / static_cast<float>(dw);
         }
         const float nv = clampf(lo + t * (hi - lo), lo, hi);
@@ -2544,7 +2855,360 @@ PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params
         extra->u.do_click.send_drag = TRUE;
     }
 
-    if (changed) finishChange(in_data, out_data, extra, params, idx, /*throttleUpdateNow=*/false);
+    // 变更以槽位分量索引收尾（画布参数自身不是槽位索引，故显式换算到分量0）：
+    // finishChange 内部按 slotFromIndex→markSlotChanged 置 4 个分量的 CHANGED_VALUE。
+    if (changed) finishChange(in_data, out_data, extra, params, slotCompIndex(slot, 0),
+                              /*throttleUpdateNow=*/false);
+}
+
+// 单个 uniform 的拖拽：轨道宽度与值映射都按 ctrlRect 计算（画布行传该 uniform 的
+// 控件子框）。DragState 由 clickSlotControl 在 DO_CLICK 里打包。
+void dragSlotControl(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                     PF_EventExtra* extra, const DragState& ds, const PF_Rect& ctrlRect) {
+    glsl::Param p;
+    if (!uniformAt(in_data, params, ds.slot, &p)) return;
+    const ControlKind kind = kindFor(p);
+    const int px = extra->u.do_click.screen_point.h;
+
+    float v[kFloatsPerSlot];
+    if (!readSlot4(params, ds.slot, v)) return;
+
+    float lo = 0.0f, hi = 1.0f;
+    rangeFor(p, ds.comp, &lo, &hi);
+    const int dw = dragWidth(ctrlRect, kind, p);
+    const float delta = static_cast<float>(px - ds.startPx) * (hi - lo) / static_cast<float>(dw);
+    const float nv = clampf(ds.startVal + delta, lo, hi);
+    if (nv == v[ds.comp]) return;   // 值未实际变化（像素微移/精度不足）→ 跳过刷新，减少无效渲染
+    writeSlotComp(params, ds.slot, ds.comp, nv);
+    // 拖拽路径节流 UPDATE_NOW：invalidate 照旧（滑块跟手），渲染 ~30Hz（见 finishChange）
+    finishChange(in_data, out_data, extra, params, slotCompIndex(ds.slot, 0),
+                 /*throttleUpdateNow=*/true);
+}
+
+// —— 画布事件入口 ——
+
+// 点击：先把鼠标 y 映射到 uniform 行，再把该行的控件子框交给 clickSlotControl。
+// 画布空白处/名字列/无 uniform：只认领事件、不写参数、不发 PF_UpdateParamUI。
+// 认领是"点击不滚动"的关键——未认领的点击交回 AE 后可能触发它自己的重排。
+void handleCanvasClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                       PF_EventExtra* extra) {
+    extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+    const PF_Rect f = extra->effect_win.current_frame;
+    const int px = extra->u.do_click.screen_point.h;
+    const int py = extra->u.do_click.screen_point.v;
+    // 右侧滚动条：上半区向上翻页、下半区向下翻页（固定视口的画布滚动入口）
+    const int maxScroll = canvasMaxScroll(in_data, params);
+    // 点击是 DO_CLICK 有效事件：顺带用本事件点校准滚轮目标的屏幕矩形
+    //（悬停之外的第二条校准来源，见 SelWheelKind 注释）。
+    if (maxScroll > 0) {
+        selWheelUpsertTarget(in_data->effect_ref, f, SelWheelKind::Canvas);
+        selWheelUpdateScreen(in_data->effect_ref, extra->u.do_click.screen_point, f);
+    }
+    if (maxScroll > 0 && px >= f.right - 6 && px <= f.right) {
+        const bool up = (py < (f.top + f.bottom) / 2);
+        // 非滚轮入口接管滚动：清掉排队中的画布滚轮量，避免翻页后又被叠加一次
+        //（与列表 setFileSelScroll → resetFileSelWheelDelta 同口径）
+        resetCanvasWheelPending();
+        s_canvasScrollRow += up ? -s_canvasViewRows : s_canvasViewRows;
+        if (s_canvasScrollRow < 0) s_canvasScrollRow = 0;
+        if (s_canvasScrollRow > maxScroll) s_canvasScrollRow = maxScroll;
+        ensureSuites(in_data, out_data);
+        if (uiSuites().app) uiSuites().app->PF_InvalidateRect(extra->contextH, &f);
+        return;
+    }
+    int top = 0, bottom = 0;
+    const int slot = canvasSlotAtY(in_data, params, f, py, &top, &bottom);
+    if (slot < 0) return;                                  // 画布空白
+    const PF_Rect ctrl = canvasControlRect(f, top, bottom);
+    if (px < ctrl.left || px > ctrl.right) return;         // 点在名字列：不做控件动作
+    clickSlotControl(in_data, out_data, params, extra, slot, ctrl);
+}
+
+// 拖拽：按 DragState.slot 取该 uniform 的控件子框（continue_refcon 跨事件传递）。
+void handleCanvasDrag(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                      PF_EventExtra* extra) {
+    DragState ds = unpackDrag(extra->u.do_click.continue_refcon);
+    if (ds.slot < 0 || ds.slot >= kMaxParams || ds.comp < 0 || ds.comp >= kFloatsPerSlot) return;
+    const PF_Rect f = extra->effect_win.current_frame;
+    int top = 0, bottom = 0;
+    if (!canvasBandAt(in_data, params, f, ds.slot, &top, &bottom)) return;
+    dragSlotControl(in_data, out_data, params, extra, ds, canvasControlRect(f, top, bottom));
+}
+
+// 悬停：落在某个 uniform 的行内时给手形光标（画布无高亮态，光标即唯一的悬停反馈）。
+void handleCanvasCursor(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                        PF_EventExtra* extra) {
+    // 只处理控件区：标题区/组行的光标交还 AE（同 handleClick 的 area 判据）
+    if (extra->effect_win.area != PF_EA_CONTROL) return;
+    const PF_Rect f = extra->effect_win.current_frame;
+    const int px = extra->u.adjust_cursor.screen_point.h;
+    const int py = extra->u.adjust_cursor.screen_point.v;
+    const int maxScroll = canvasMaxScroll(in_data, params);
+    // 滚轮：钩子吃完滚轮后合成鼠标位移触发本事件，排队的画布行数在此并入滚动
+    // 偏移并请求重绘（ADJUST_CURSOR 是有效事件上下文，PF_InvalidateRect 合法）。
+    // 同时刷新目标屏幕矩形：钩子命中判定靠悬停持续校准（面板滚动后控件位移仍准确）。
+    if (maxScroll > 0) {
+        selWheelUpsertTarget(in_data->effect_ref, f, SelWheelKind::Canvas);
+        selWheelUpdateScreen(in_data->effect_ref, extra->u.adjust_cursor.screen_point, f);
+        if (consumeCanvasWheel(in_data, params, f)) {
+            ensureSuites(in_data, out_data);
+            if (uiSuites().app) uiSuites().app->PF_InvalidateRect(extra->contextH, &f);
+        }
+    }
+    // 右侧滚动条：手形（点击上/下半区翻页）
+    if (maxScroll > 0 && px >= f.right - 6 && px <= f.right) {
+        extra->u.adjust_cursor.set_cursor = PF_Cursor_FINGER_POINTER;
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        return;
+    }
+    const int slot = canvasSlotAtY(in_data, params, f, py, nullptr, nullptr);
+    if (slot < 0) return;
+    glsl::Param p;
+    if (!uniformAt(in_data, params, slot, &p)) return;
+    int top = 0, bottom = 0;
+    if (!canvasBandAt(in_data, params, f, slot, &top, &bottom)) return;
+    const PF_Rect ctrl = canvasControlRect(f, top, bottom);
+    const ControlKind kind = kindFor(p);
+    // 只有真正可交互的区域显示手形：轨道带 / 色块 / alpha 带（hitTest），
+    // 以及各分量的数值输入框（valueBoxRect）。其余（行名、行间空白、画布空白）
+    // 保持默认箭头——整块画布都显示手形会让"哪里能点"失去区分度。
+    bool interactive = hitTest(ctrl, p, kind, px, py).hit;
+    // 数值框只对 Slider / Point 存在：drawSwatch 不画数值框，取色器的可交互区已在
+    // hitTest 的色块/alpha 带覆盖；再按 valueBoxRect 判会造出「手形但点不动」的死区。
+    if (!interactive && kind != ControlKind::Swatch) {
+        const int n = (kind == ControlKind::Point) ? drawCompCount(p) : 1;
+        for (int c = 0; c < n; ++c) {
+            const BoxRect bx = valueBoxRect(ctrl, kind, p, c);
+            if (px >= bx.L && px <= bx.R && py >= bx.T && py <= bx.B) {
+                interactive = true;
+                break;
+            }
+        }
+    }
+    if (interactive) {
+        extra->u.adjust_cursor.set_cursor = PF_Cursor_FINGER_POINTER;
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+    }
+}
+
+// 画布整块绘制：先铺满背景（DONT_ERASE_CONTROL 的契约），再逐 uniform 画一行。
+// 只读参数值（uniformAt / readSlot4）、不改任何参数值；唯一例外是入口的高度自修
+// （repairCanvasHeightIfNeeded：实得高度 ≠ 期望时补发 ui_height，随后本帧不画，
+// 与选择器的 DRAW 自修同一口径与同一个崩溃防线——补发在取绘制引用之前）。
+void drawCanvas(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
+                PF_EventExtra* extra) {
+    const PF_Rect f = extra->effect_win.current_frame;
+    if (f.right <= f.left || f.bottom <= f.top) return;
+    // 视口高度：注册值是上限（kCanvasViewH），短内容时按内容收缩（见
+    // canvasDesiredHeight）。自修必须在取绘制引用之前：PF_UpdateParamUI 会重建
+    // ECW，真补发了就本帧不画，交给重排后的下一次 DRAW。
+    if (repairCanvasHeightIfNeeded(in_data, out_data, params, f)) {
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        return;
+    }
+    // 视口行数按**实得**高度反算：滚动钳制/翻页/滚动条都用它（AE 丢弃运行期高度时
+    // 仍按实得高度工作，内容可滚动到达，不裁切）。
+    s_canvasViewRows = canvasViewRowsOf(f);
+    ensureSuites(in_data, out_data);
+    UiSuites& su = uiSuites();
+    if (!su.drawbotReady || !su.cui) return;
+    DRAWBOT_Suites* dbs = &su.drawbot;
+    DRAWBOT_DrawRef drawRef = nullptr;
+    su.cui->PF_GetDrawingReference(extra->contextH, &drawRef);
+    if (!drawRef) return;
+    DRAWBOT_SurfaceRef surface = nullptr;
+    DRAWBOT_SupplierRef supplier = nullptr;
+    dbs->drawbot_suiteP->GetSurface(drawRef, &surface);
+    dbs->drawbot_suiteP->GetSupplier(drawRef, &supplier);
+    if (!surface || !supplier) return;
+
+    fillCanvasBackground(su, dbs, surface, supplier, f);
+
+    // 固定视口：滚动行数按本条内容行数钳制（切到行数更少的文件后自动回到可见范围）
+    const int maxScroll = canvasMaxScroll(in_data, params);
+    // 滚轮目标登记：内容超出视口时把画布矩形登记给 WH_MOUSE_LL（钩子吃掉画布上的
+    // 滚轮并转成内部滚动）；内容不足一屏时剔除，滚轮照旧透传给参数面板。
+    if (maxScroll > 0) {
+        selWheelUpsertTarget(in_data->effect_ref, f, SelWheelKind::Canvas);
+        s_canvasRect = host::selWheelRectOf(f.left, f.top, f.right, f.bottom);
+        s_canvasRectValid = true;
+    } else {
+        selWheelRemoveTarget(in_data->effect_ref, &f);
+    }
+    // 排队中的画布滚轮行数在本次绘制前并入滚动偏移（钩子吃完滚轮后合成鼠标位移
+    // 触发重绘，见 selWheelMouseProc）
+    consumeCanvasWheel(in_data, params, f);
+    if (s_canvasScrollRow < 0) s_canvasScrollRow = 0;
+    if (s_canvasScrollRow > maxScroll) s_canvasScrollRow = maxScroll;
+    // 发布滚动边界：到顶/到底后钩子把滚轮透传给参数面板（内嵌滚动区的常见行为，
+    // 避免画布滚到头后滚轮被无声吞掉）。
+    if (maxScroll > 0) {
+        publishCanvasWheelLimits(f, s_canvasScrollRow <= 0, s_canvasScrollRow >= maxScroll);
+    }
+
+    // 身份名解析不到（文件被删除/改名）：顶部两行显示提醒（第一行 = 文件名，
+    // 第二行 = 后果与操作指引，文案见 uiNoticePolicy.h）。纯绘制：不写参数、
+    // 不改任何 UI 属性。
+    glsl::Param first;
+    if (!uniformAt(in_data, params, 0, &first)) {
+        std::string lostName;
+        if (lostShaderIdentity(in_data, params, &lostName)) {
+            for (int row = 0; row < 2; ++row) {
+                const std::string notice = slotLostNotice(row, lostName);
+                if (notice.empty()) continue;
+                const int t = f.top + host::kCanvasPadY + row * host::kSlotUiHeight;
+                const int b = t + host::kSlotUiHeight;
+                if (b > f.bottom) break;
+                fillRectPx(dbs, surface, supplier, f.left, t, f.right, b, &col::WarnBg);
+                const int textL = f.left + kInset;
+                const int avail = (std::max)(1, f.right - textL - 2);
+                drawText(dbs, surface, supplier, textL, t + (host::kSlotUiHeight + 12) / 2 - 1,
+                         notice.c_str(), &col::Warn, kDRAWBOT_TextAlignment_Left,
+                         kDRAWBOT_TextTruncation_EndEllipsis, static_cast<float>(avail));
+            }
+        }
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        return;
+    }
+
+    int y = canvasContentTop(f);
+    for (int i = 0; i < host::kMaxParams; ++i) {
+        glsl::Param p;
+        if (!uniformAt(in_data, params, i, &p)) break;
+        const int bandH = host::kSlotUiHeight * slotUiRows(p);
+        const int top = y;
+        const int bottom = y + bandH;
+        y = bottom;
+        if (bottom <= f.top) continue;   // 已滚出视口上方：跳过但仍占内容高度
+        if (top >= f.bottom) break;      // 已滚出视口下方：后面的行都不画
+        // 行名（左列，超宽按 EndEllipsis 截断）
+        const int nameL = f.left + kInset;
+        const int nameR = (std::max)(nameL + 1, f.left + canvasNameWidth(f) - kInset);
+        drawText(dbs, surface, supplier, nameL, top + (bandH + 12) / 2 - 1, p.name.c_str(),
+                 &kCanvasText, kDRAWBOT_TextAlignment_Left,
+                 kDRAWBOT_TextTruncation_EndEllipsis, static_cast<float>(nameR - nameL));
+
+        float v[kFloatsPerSlot];
+        bool haveV = false;
+        if (s_pickerOpen && s_pickerSlot == i) {
+            // 取色器模态期间 params[] 不保证有效（见 s_pickerSnapshot），画快照
+            v[0] = s_pickerSnapshot[0];
+            v[1] = s_pickerSnapshot[1];
+            v[2] = s_pickerSnapshot[2];
+            v[3] = s_pickerSnapshot[3];
+            haveV = true;
+        } else {
+            haveV = readSlot4(params, i, v);
+        }
+        if (!haveV) continue;
+        const PF_Rect ctrl = canvasControlRect(f, top, bottom);
+        switch (kindFor(p)) {
+        case ControlKind::Slider: {
+            float lo = 0.0f, hi = 1.0f;
+            rangeFor(p, 0, &lo, &hi);
+            const bool ed = editingThis(in_data, i, 0);
+            drawSlider(dbs, surface, supplier, ctrl, p, v[0], lo, hi, ed);
+            break;
+        }
+        case ControlKind::Point:
+            drawPoint(in_data, dbs, surface, supplier, ctrl, i, p, v);
+            break;
+        case ControlKind::Swatch:
+            drawSwatch(dbs, surface, supplier, ctrl, p, v);
+            break;
+        }
+    }
+    drawCanvasScrollbar(dbs, surface, supplier, f, maxScroll);
+    extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+}
+
+PF_Err handleDraw(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[], PF_EventExtra* extra) {
+    // 编辑框销毁后 ECW 重绘（DRAW）是最可靠的后续事件——ACTIVATE/IDLE 在
+    // 编辑框打开/销毁间隙可能不触发（WS_POPUP 持焦点时 AE 暂停 IDLE），
+    // 这里兜底 flush 编辑框提交值，保证 Enter 后立即应用。
+    flushPendingCommit(in_data, out_data, params);
+    if (extra->effect_win.area != PF_EA_CONTROL) return PF_Err_NONE;
+    const int idx = static_cast<int>(extra->effect_win.index);
+    if (idx == host::kIdxCanvas) {
+        drawCanvas(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
+    if (idx == kIdxFileSelector) {
+        // 滚轮消费主路径：钩子吃掉滚轮后 InvalidateRect 触发本 DRAW——应用待滚
+        // 行数后绘制（IDLE 实测几乎不派发——事件计数 evt-type10 全程仅 1 次，
+        // 不能作消费路径；ADJUST_CURSOR 兜底在 handleCursor，仅覆盖伴随的鼠标移动）
+        selWheelApplyIdle(in_data, out_data, params, extra);
+        drawFileSelector(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
+    if (idx == host::kIdxSolveBtn) {
+        drawSolveResetBtn(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
+    return PF_Err_NONE;
+}
+
+PF_Err handleClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[], PF_EventExtra* extra) {
+    const int idx = static_cast<int>(extra->effect_win.index);
+    // 消费合成点击抑制标记：Enter 提交后 SendInput 注入的那次 DO_CLICK 仅用于在
+    // 有效事件里补 change_flags 持久化，不应重新打开编辑框/触发控件动作。
+    // 时间戳守卫：仅抑制注入后 200ms 内的那次点击，避免用户稍后到达的真实点击
+    // 被误判为合成点击（否则"第二次点击打不开编辑框"）。
+    // 抑制标记是**归属实例**的会话状态——注入的点击物理上落在打开编辑框
+    // 实例的数值框上，B 实例的 DO_CLICK 不应误吞 A 的抑制标记（否则 A 的合成
+    // 点击到达时不再被抑制 → A 重开编辑框/误触发控件动作）
+    const DWORD now = GetTickCount();
+    EditInstanceState* st = editStateOf(in_data);
+    const bool isSynthetic = st && st->suppressClick && (now - st->suppressClickTick) < 200;
+    if (st) st->suppressClick = false;
+    // 只有控件区 DO_CLICK 是写值的有效事件：编辑框失焦/回车产生的待写值在此补
+    // change_flags 完成持久化（WM_KILLFOCUS 先于 DO_CLICK 到达，先写参数）。
+    // 标题区/组行点击同样是 DO_CLICK，但本函数随后不认领事件（交还 AE 原生交互）；
+    // 若在这里按有效事件写 CHANGED_VALUE，AE 不会落盘（AE_Effect.h:2250-2255 要求
+    // 配 PF_EO_HANDLED_EVENT）→ 工程重载回滚。故非控件区只写句柄供显示，保留
+    // pendingPersist，由失焦后延迟注入的合成控件区点击完成持久化。
+    flushPendingCommit(in_data, out_data, params,
+                       /*validEvent=*/extra->effect_win.area == PF_EA_CONTROL);
+    if (isSynthetic) {
+        // 合成点击只为触发持久化，值已在 flushPendingCommit 写入，不执行控件动作。
+        // 关键：flushPendingCommit 在 PF_Cmd_EVENT 里设了 PF_ChangeFlag_CHANGED_VALUE，
+        // SDKL（AE_Effect.h:2255）要求同时设 PF_EO_HANDLED_EVENT，否则 AE 不落盘 → 回滚。
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        uiDebug("[click] synthetic consumed, handled+persisted");
+        // 刻意**不**消费脚本切文件的「待重置」：合成点击不是用户对控件的真实操作，
+        // 该标记继续留给下一次真实 DO_CLICK（保持「仅真实点击触发重置」的契约）。
+        return PF_Err_NONE;
+    }
+    // 脚本切文件：UPDATE_PARAMS_UI 阶段登记的「待重置」在此（合法写值上下文）
+    // 落盘——复用与手动点击完全相同的单点实现 resetSlotsToFileDefaults。
+    if (consumePendingSlotReset(in_data, params)) {
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        if (out_data) out_data->out_flags |= PF_OutFlag_FORCE_RERENDER;
+        uiDebug("[slotreset] file defaults applied (validEvent DO_CLICK)");
+    }
+    // —— 只处理**控件区**的事件 ——
+    // AE 对同一个参数会分别派发两种区域的 DO_CLICK：PF_EA_CONTROL（控件区，用户真正
+    // 点的是数值框/滑条）与 PF_EA_PARAM_TITLE（参数名/标题区），而 `effect_win.current_frame`
+    // 是**该区自己的矩形**（AE_EffectUI.h:479-491：PF_EA_NONE/PF_EA_PARAM_TITLE/PF_EA_CONTROL，
+    // current_frame = "full frame of the current area"，另有独立的 param_title_frame）。
+    // 两者不是同一个矩形：窄面板下 AE 会把参数名独占一行、控件放到下一行。
+    // 注意：必须放在 flushPendingCommit / 合成点击消费 / 待重置消费**之后**——那些是
+    // 持久化与状态机的合法落点，与 area 无关；只把"控件交互"这一步限定到控件区。
+    // 标题区事件**不认领**（不置 PF_EO_HANDLED_EVENT）：秒表、折叠三角与拖动改名等
+    // 原生交互由 AE 自己处理。
+    if (extra->effect_win.area != PF_EA_CONTROL) return PF_Err_NONE;
+    if (idx == host::kIdxCanvas) {
+        handleCanvasClick(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
+    if (idx == kIdxFileSelector) {
+        handleFileSelectorClick(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
+    if (idx == host::kIdxSolveBtn) {
+        handleSolveResetBtnClick(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
     return PF_Err_NONE;
 }
 
@@ -2577,6 +3241,9 @@ PF_Err handleIdle(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[
 
 PF_Err handleDrag(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
                   PF_EventExtra* extra) {
+    // 只有控件区参与拖拽状态机：continue_refcon 只在控件区 DO_CLICK 里打包，
+    // 标题区事件若落到这里会按旧/空状态写值。非控件区一律不认领，交还 AE。
+    if (extra->effect_win.area != PF_EA_CONTROL) return PF_Err_NONE;
     // 「重算结算器」按钮：拖拽把指针带出按钮范围 = 取消按下（标准按钮手感，松手不触发）。
     // 本控件不做连续拖拽动作，故只需按下态撤销 + 重绘。
     if (static_cast<int>(extra->effect_win.index) == host::kIdxSolveBtn) {
@@ -2617,30 +3284,9 @@ PF_Err handleDrag(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[
         }
         return PF_Err_NONE;
     }
-    if (ds.slot < 0 || ds.slot >= kMaxParams || ds.comp < 0 || ds.comp >= kFloatsPerSlot) return PF_Err_NONE;
-    glsl::Param p;
-    if (!uniformAt(in_data, params, ds.slot, &p)) return PF_Err_NONE;
-    const ControlKind kind = kindFor(p);
-
-    const int idx = slotParamIndex(ds.slot);
-    if (idx < 0) return PF_Err_NONE;
-    const PF_Rect f = extra->effect_win.current_frame;
-    const int px = extra->u.do_click.screen_point.h;
-
-    float v[kFloatsPerSlot];
-    if (!readSlot4(params, ds.slot, v)) return PF_Err_NONE;
-
-    float lo = 0.0f, hi = 1.0f;
-    rangeFor(p, ds.comp, &lo, &hi);
-    const int dw = dragWidth(f, kind, p);
-    const float delta = static_cast<float>(px - ds.startPx) * (hi - lo) / static_cast<float>(dw);
-    const float nv = clampf(ds.startVal + delta, lo, hi);
-    if (nv == v[ds.comp]) {   // 值未实际变化（像素微移/精度不足）→ 跳过刷新，减少无效渲染
-        return PF_Err_NONE;
-    }
-    writeSlotComp(params, ds.slot, ds.comp, nv);
-    // 拖拽路径节流 UPDATE_NOW：invalidate 照旧（滑块跟手），渲染 ~30Hz（见 finishChange）
-    finishChange(in_data, out_data, extra, params, idx, /*throttleUpdateNow=*/true);
+    // 槽位拖拽只发生在画布行（槽位分量本身不在 ECW 里）；非画布参数不认领。
+    if (static_cast<int>(extra->effect_win.index) != host::kIdxCanvas) return PF_Err_NONE;
+    handleCanvasDrag(in_data, out_data, params, extra);
     return PF_Err_NONE;
 }
 
@@ -2700,6 +3346,11 @@ PF_Err handleCursor(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* param
         }
         return PF_Err_NONE;
     }
+    // 画布：落在某个 uniform 行内时给手形光标（悬停反馈只有光标）
+    if (idx == host::kIdxCanvas) {
+        handleCanvasCursor(in_data, out_data, params, extra);
+        return PF_Err_NONE;
+    }
     return PF_Err_NONE;
 }
 
@@ -2742,10 +3393,46 @@ void drawTriDown(DRAWBOT_Suites* dbs, DRAWBOT_SurfaceRef surface, DRAWBOT_Suppli
         fillRectPx(dbs, surface, supplier, cx - k, yBot - k, cx + k + 1, yBot - k + 1, c);
 }
 
+// 选择器高度自修（DRAW 开头、取绘制引用之前调用）：切图层/切选择后 AE 会按注册
+// 高度重建 ECW，而 UPDATE_PARAMS_UI 里的补发会被随后的重建覆盖（实机 err=0 但实得
+// 高度仍是注册值），表现为「展开箭头还在、文件列表消失」。DRAW 发生在重建之后，
+// 这里补发 ui_height 才能落在重建后的布局上。补发后本帧直接返回、不取绘制引用
+//（PF_UpdateParamUI 会重建 ECW，之后的 surface/params 可能是陈旧引用）。
+// 计数按实例身份 id 键控、有上限；实得高度正确即清零（防 AE 忽略时反复重建 ECW）。
+bool repairFileSelHeightIfNeeded(PF_InData* in_data, PF_OutData* out_data,
+                                 PF_ParamDef* params[], const PF_Rect& f) {
+    if (!params || !params[kIdxFileSelector]) return false;
+    const A_short wantH = static_cast<A_short>(fileSelHeight(in_data, params));
+    const uint64_t key = InstanceInstanceId(in_data);
+    if (static_cast<A_short>(f.bottom - f.top) == wantH) {
+        s_selHeightRepair[key] = 0;
+        return false;
+    }
+    int& tries = s_selHeightRepair[key];
+    if (tries >= kSelHeightRepairMax) return false;
+    ++tries;
+    PF_ParamUtilsSuite3* pus = nullptr;
+    PF_Err e = AEFX_AcquireSuite(in_data, out_data, kPFParamUtilsSuite,
+                                 kPFParamUtilsSuiteVersion3, nullptr,
+                                 reinterpret_cast<void**>(&pus));
+    if (e != PF_Err_NONE || !pus) return false;
+    PF_ParamDef def = *params[kIdxFileSelector];
+    def.ui_height = wantH;
+    e = pus->PF_UpdateParamUI(in_data->effect_ref, kIdxFileSelector, &def);
+    AEFX_ReleaseSuite(in_data, out_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, nullptr);
+    return e == PF_Err_NONE;
+}
+
 void drawFileSelector(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[],
                       PF_EventExtra* extra) {
-    (void)out_data;
     const PF_Rect f = extra->effect_win.current_frame;
+    // 高度自修必须在取绘制引用之前：PF_UpdateParamUI 会重建 ECW，之后的
+    // surface/params 都可能是陈旧引用。真补发了就本帧不画（交给 AE 重排后的
+    // 下一次 DRAW）。
+    if (repairFileSelHeightIfNeeded(in_data, out_data, params, f)) {
+        extra->evt_out_flags |= PF_EO_HANDLED_EVENT;
+        return;
+    }
     ensureSuites(in_data, out_data);
     UiSuites& su = uiSuites();
     if (!su.drawbotReady || !su.cui) return;
@@ -3085,7 +3772,7 @@ void handleFileSelectorClick(PF_InData* in_data, PF_OutData* out_data, PF_ParamD
     const int fileIdx = scroll + row;
     if (fileIdx < 0 || fileIdx >= n) return;
 
-    // 真相源：新索引写入尾部隐藏原生参数 kIdxFileIndexParam（140）——脚本与 UI
+    // 真相源：新索引写入尾部隐藏原生参数 kIdxFileIndexParam——脚本与 UI
     // 都从这里读写、随工程持久化；CHANGED_VALUE 在 DO_CLICK 有效上下文内让 AE
     // 立即落盘。渲染/SmartRender/SyncParamUI 均按该参数取文件（instanceFileIndex）。
     if (params && params[kIdxFileIndexParam]) {
@@ -3196,33 +3883,10 @@ void ShutdownWheelHook() {
 // 折叠值，展开的文件列表被裁剪）。effect_ref 键控表亦不可行：无实例销毁清理
 // 钩子（无 SEQUENCE_RESET/SETDOWN 处理），悬空条目无界泄漏。改为无条件按
 // **本实例**当前状态计算期望高度：高度取自本实例选择器 handle 的展开位 +
-// 进程级文件列表行数（与 fileSelHeight 绘制口径一致）。
-// （收起留白）：按 params[].ui_height 与期望值比对时——
-// 实测 AE 对 PUI_CONTROL 的 ui_height **不回写**到 UPDATE_PARAMS_UI 的
-// params[]（恒为 PARAMS_SETUP 注册的 24）：展开（24≠177）总能长高，收起
-//（24==24）恒 no-op → 收起后控件停留展开高度、下方一片空白。改为追踪本实例
-// 上次经 PF_UpdateParamUI 应用的高度（初始 = 注册值 kFileSelCollapsedH），
-// 与期望值比对——不依赖 AE 是否回写。播放期逐帧 UPDATE_PARAMS_UI 下
-// applied==want 即 no-op；重复同值更新 AE 端本就无变化不重建。条目随
-// ShutdownInstanceUI（SEQUENCE_SETDOWN）清理，防 effect_ref 地址复用误判。
-static std::map<void*, A_short> s_selAppliedH;
-
-// 选择器**展开态**的权威副本（effect_ref 键控）。针对"点开 GLSL 文件
-// 列表 → 参数组全部展开 + 滚动条持续滚动"：
-// 原因：展开态唯一存放处是选择器的 ARBITRARY handle f[1]，而该句柄的回读**不稳**——
-// 详见 setFileSelExpanded 注释（"DRAW/ADJUST_CURSOR 上下文写该句柄不生效"）。
-// 实测证据（%TEMP%\as_effect_host_trace.log 的 fsel-sync-diag）：
-//   calls=109 emit=9  want=177 applied=24  EMIT
-//   calls=110 emit=10 want=177 applied=24  EMIT
-//   calls=111 emit=11 want=24  applied=177 EMIT
-// want（=展开态推导的期望高度）与 applied 在 177↔24 间来回翻转，**每翻一次就发
-// PF_UpdateParamUI → AE 重建 ECW → 又触发 UPDATE_PARAMS_UI → 再翻** → 无限重建，
-// 用户可见"持续滚动"，而每次重建还会把「参数」组强制展开。
-// 修法：与 s_selAppliedH / g_layerAppliedBits / g_reconciledIdx 同款——把展开态
-// 放进**实例内存**作为权威；handle 仅在内存无记录时作为首次来源（工程恢复），
-// 并继续写回以维持持久化。
-// 条目随 ShutdownInstanceUI（SEQUENCE_SETDOWN）清理，防 effect_ref 地址复用误判。
-static std::map<void*, bool> s_selExpanded;
+// 选择器展开态的唯一权威是文件前部按实例身份 id 键控的 s_selExpanded（见
+// fileSelState 上方注释）：handle f[1] 的回读跨上下文不稳定，只作首次来源与持久化
+// 写回；高度下发（SyncFileSelectorUI）与绘制（drawFileSelector）都从同一份内存读，
+// 避免「高度按展开下发、绘制按折叠画」留下空白条。
 
 // fsel-sync / fsel-sync-diag 计数探针、选择器高度一手信号与进程级发射序号
 // （含其跨 TU 接口）已整族删除——
@@ -3253,8 +3917,32 @@ PF_Err SyncFileSelectorUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     return PF_Err_NONE;
 }
 
-// 分配 16 字节 ARBITRARY_DATA handle（仅服务文件选择器：dephault + PF_Arbitrary_*
-// 回调输出；槽位现为原生 FLOAT_SLIDER，不再使用）。
+// UPDATE_PARAMS_UI 里的画布高度下发（与选择器同款约束：PF_UpdateParamUI 只在此
+// 上下文合法，DRAW 里只做「实况不符」的自修，见 repairCanvasHeightIfNeeded）。
+// 首次下发前 applied 取 PARAMS_SETUP 注册值 kCanvasViewH（上限）；与期望值不同才发，
+// 重复同值 AE 端无变化。
+PF_Err SyncCanvasUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) {
+    if (!params || !params[host::kIdxCanvas]) return PF_Err_NONE;
+    PF_ParamDef def = *params[host::kIdxCanvas];
+    const A_short wantH = static_cast<A_short>(canvasDesiredHeight(in_data, params));
+    const auto it = s_canvasAppliedH.find(in_data->effect_ref);
+    const A_short appliedH = (it != s_canvasAppliedH.end())
+        ? it->second : static_cast<A_short>(host::kCanvasViewH);
+    if (appliedH == wantH) return PF_Err_NONE;
+    PF_ParamUtilsSuite3* pus = nullptr;
+    PF_Err err = AEFX_AcquireSuite(in_data, out_data, kPFParamUtilsSuite,
+                                   kPFParamUtilsSuiteVersion3, nullptr,
+                                   reinterpret_cast<void**>(&pus));
+    if (err != PF_Err_NONE || !pus) return PF_Err_NONE;
+    def.ui_height = wantH;
+    err = pus->PF_UpdateParamUI(in_data->effect_ref, host::kIdxCanvas, &def);
+    AEFX_ReleaseSuite(in_data, out_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, nullptr);
+    if (err == PF_Err_NONE) s_canvasAppliedH[in_data->effect_ref] = wantH;
+    return PF_Err_NONE;
+}
+
+// 分配 ARBITRARY_DATA handle（文件选择器 / 参数画布 / 重算按钮的 dephault 与
+// PF_Arbitrary_* 回调输出共用）：按 FileSelHandle 定长布局清零并写魔数，见 fileSelLayout.h。
 PF_Err AllocFileSelHandle(PF_InData* in_data, PF_OutData* out_data,
                           const float v[4], PF_ArbitraryH* outH) {
     (void)out_data;
@@ -3332,7 +4020,7 @@ bool ReadFileSelSelection(PF_InData* in_data, PF_ArbitraryH h, int* index, std::
     return true;
 }
 
-// 本实例选中文件的位置索引。真相源 = 隐藏参数 kIdxFileIndexParam（140）：UI 点选与
+// 本实例选中文件的位置索引。真相源 = 隐藏参数 kIdxFileIndexParam：UI 点选与
 // 脚本写入都落在这里，渲染/SmartRender/SyncParamUI 也都读这里。
 // 参数缺失（理论上不应发生）→ 回退选择器 handle 的 v[0] → 再回退 kDefaultFileIndex。
 // 越界钳制仍由 shaderPathForIndex 统一完成。
@@ -3507,6 +4195,14 @@ PF_Err ShutdownInstanceUI(PF_InData* in_data) {
     // 脚本切文件的「待重置」状态同款拆除（防 effect_ref 地址复用误读旧索引 →
     // 新实例被误重置）
     releaseSlotReset(ref);
+    // 选择器展开态内存真相源（实例身份 id 键控）同款清除
+    s_selExpanded.erase(InstanceInstanceId(in_data));
+    // 选择器高度自修计数条目同款清除（键 = 实例身份 id）
+    s_selHeightRepair.erase(InstanceInstanceId(in_data));
+    // 画布高度追踪/自修条目同款清除（applied 按 ref、自修按实例身份 id）：
+    // 新实例注册高度恒为 kCanvasViewH，条目不存在即取该默认
+    s_canvasAppliedH.erase(ref);
+    s_canvasHeightRepair.erase(InstanceInstanceId(in_data));
     s_editByInstance.erase(ref);
     return PF_Err_NONE;
 }

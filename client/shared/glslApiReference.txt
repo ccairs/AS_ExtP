@@ -100,7 +100,7 @@ for (int i = 0; i < 8; ++i) {
 - 数值只保证「灯与灯之间的相对关系正确」，与 AE 自身渲染的亮度不可比
 
 ### uAspect 使用规范
-fragCoord 是 0~1 UV，不含宽高比。**UV 空间计算几何形状（圆/方/距离场/极坐标）必须用 uAspect 校正**，否则随容器宽高比拉伸变形。
+fragCoord 是 0~1 UV，不含宽高比。**UV 空间计算几何形状必须用 uAspect 校正**，否则随容器宽高比拉伸变形。
 - 中心原点：`vec2 p = (fragCoord - 0.5) * vec2(uAspect, 1.0);`
 - 左下原点：`vec2 p = fragCoord * vec2(uAspect, 1.0);`
 
@@ -403,17 +403,17 @@ vec4 mainImage(vec2 fragCoord, float time) {
   表达式的 uniform 槽位**（相机/灯光/输入类都是每次调用一份，同样满足不了这一条）
 
 ## 自定义参数（uniform 白名单）
-- 只允许 uniform float / vec2 / vec3 / vec4，宿主自动注册为 AE 效果参数（滑块；vec3/vec4 颜色语义时为取色器，vec4 含 alpha）
+- 只允许 uniform float / vec2 / vec3 / vec4，注册为 AE 效果参数（滑块；vec2/vec3 颜色语义为取色器，vec4 恒为取色器）；颜色语义 = 整词 color/colour 或短词 col/tint/rgb/bg（短词后至多一个字母/数字后缀，可隔 _，如 uColA）
 - 最多 32 个；声明多少个就显示多少个滑块
 - **写成别的类型（`int`/`bool`/`mat*` 等）不会注册**——控件里没有对应滑条、值恒为 GL
   默认 0（两侧都跳过该声明，面板提交回执会点名）；需要开关时改成 `float` 参数按阈值判断
-- **数组形态两侧口径不同**：`uniform float w[3];` 在宿主里按元素展开成 3 个槽位（元素默认 1.0，同无初始化器 float），
+- **数组形态两侧口径不同**：`uniform float w[3];` 在宿主里按元素展开成 3 个槽位（元素默认 1.0），
   面板预览按裸名注册 1 个参数——参数个数不同（面板裸名参数默认同样是 1.0），改用多个标量声明
 - 命名用驼峰/下划线（如 uAmount、uColor、uSpeed），不要与内置变量同名
 ### 默认值
 - 默认值在声明行以初始化器给出：`uniform float uAmount = 0.5;` 中 `0.5` 即该参数的默认值
 - GLSL 规范不允许 uniform 携带初始化器；宿主在编译前剥离初始化器（`= 0.5`），仅将剥离出的值用作该参数的默认值
-- 初始化器只识别数值字面量，以及 `vec2(...)` / `vec3(...)` / `vec4(...)` 数值字面量（分量数必须等于 n；`vec3(0.5)` 这类广播写法不识别）；其他表达式（如 `PI * 0.5`）不识别，按未声明初始化器处理
+- 初始化器只识别数值字面量，以及 `vec2(...)` / `vec3(...)` / `vec4(...)` 数值字面量（分量数必须等于 n；`vec3(0.5)` 这类广播写法不识别）；其他表达式不识别，按未声明初始化器处理
 - 未声明初始化器时的默认值：float 为 1.0；vec4 各分量为 1.0；vec2、vec3 各分量为 0.0
 
 ### 滑块范围
@@ -427,7 +427,7 @@ vec4 mainImage(vec2 fragCoord, float time) {
 - 需要确定的范围时应显式声明 @range
 
 ## 硬性规则
-1. 必须实现 mainImage(vec2, float)，不要定义 main() 或其他入口（**唯一例外**：可选的迭代趟入口 iterateImage，见「迭代趟」节）；也不要定义 noise1/noise2/noise3/noise4（桌面驱动仍暴露 1.30 废弃内置，同名定义会因重载返回类型不一致而宿主编译失败）
+1. 必须实现 mainImage(vec2, float)，不要定义 main() 或其他入口（**唯一例外**：可选的迭代趟入口 iterateImage，见「迭代趟」节）；也不要定义 noise1/noise2/noise3/noise4（同名定义会因重载返回类型不一致而编译失败）
 2. 不要重新声明内置变量（iChannel0/uTime/uResolution/uAspect/uLayerSize/uHasCam/uCamFov/uCamPos/uCamMatrix/uWorldMatrix/uHasLights/uLightCount/uLightType/uLightPos/uLightDir/uLightColor/uLightParams/iPrev/uIter/uIterCount/uStep/uFrame/uDt/iHistory0/iHistory1/iHistory2/iHistory3）——重声明会被自动移除、不报错；**唯一例外**：可选的映射图层 iChannel1/2/3 必须由你自己声明（拼装前会移除你这行声明、用骨架里的声明，不算重复声明，见「映射图层」节）
 3. 效果必须是纯函数式：每像素独立计算，禁止全局可变状态
 4. 代码内可写 // 注释；输出纯代码（不要解释文字；Markdown 围栏会被自动剥离，不算错误）

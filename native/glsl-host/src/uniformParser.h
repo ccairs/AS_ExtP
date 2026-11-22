@@ -152,16 +152,19 @@ int parseHistoryFrames(const std::string& src);
 // 每帧制切到每秒制忘删旧行时，取新模式更符合"改到一半"的场景）。
 IterConfig parseIterConfig(const std::string& src);
 
-// uniform 名是否颜色语义（含完整词 "color"/"colour"，词法边界校验）——
+// uniform 名是否颜色语义（完整词 "color"/"colour"，或短词 col/tint/rgb/bg）——
 // customUI 据此决定 vec2/vec3 渲染为取色器（Swatch）还是分量滑条（Point）。
 // 按 4 字符前缀 "colo"/"coul" 任意位置匹配时，
 // coulomb 等物理量命名被误判颜色语义丢分量编辑；迁入本模块（纯 C++ 可测）
 // 并改为完整词 + 词法边界匹配：串首/尾、'_'（snake_case 分隔符）与驼峰边界
 //（uColor/colorTint 的 case 过渡）均视为词边界，既有命名形态保持命中。
+// 短词额外要求整词后至多一个字符段（uColA / uBg / uTint / col0），避免
+// colOffset / bgDir / tintSpeed 这类「颜色词 + 普通词干」的向量被误判。
 bool isColorNamed(const std::string& n);
 // 角度语义判定：匹配词干 "angle"/"deg"/"rot" 于词首边界，允许后缀
 // 派生（rotation / rotSpeed / degrees / degToRad 均命中）。用途：槽位滑条量程与
 // 精度——角度类给 -360..360，而非通用标量的 -10..10（见 params.h slotSliderRange）。
-// 与 isColorNamed 的"整词"口径不同：颜色必须整词，否则 coulomb 类命名被误判。
+// 与 isColorNamed 的「整词 + 至多一个字符段」口径不同：颜色短词后接普通词干
+// 不命中（coulomb / colOffset），角度词干允许派生后缀（rotation / degToRad）。
 bool isAngleNamed(const std::string& n);
 } // namespace glsl

@@ -323,7 +323,7 @@ static void test_slot_index_boundaries() {
     // 索引 → 槽位：仅分量0（5,9,…,129）映射为槽位
     assert(host::slotFromIndex(5) == 0);
     assert(host::slotFromIndex(129) == 31);
-    // 隐藏分量（6 = 槽0 分量1）与非槽位参数（133 = 「参数」组 END）返回 -1
+    // 隐藏分量（6 = 槽0 分量1）与非槽位参数（133 = 自绘画布）返回 -1
     assert(host::slotFromIndex(6) == -1);
     assert(host::slotFromIndex(133) == -1);
     // 越界入参返回 -1

@@ -69,7 +69,7 @@
         '3. 产出效果：先 get_current_shader 读预览区（同上）；submit_shader/submit_js_effect 编译校验；提交后用 getShaderPreview 查看预览图，确认真实渲染结果。',
         '',
         '## 效果与工程联动',
-        '4. 提交后用 shader_library(mode=save) 写入效果库；再用 executeExtendScript 给图层 addProperty AS_Effect_Host，文件索引（save 回执或 hostOrder）与 uniform 槽位值分两次写（写索引会重置槽位值）；参数按名（分量 y/z/w、颜色 g/b/a；无名回退 matchName 槽位号），写完读该属性 .value 核对。',
+        '4. 提交后用 shader_library(mode=save) 入库；再用 executeExtendScript 给图层 addProperty AS_Effect_Host，文件索引（刚保存用 save 回执，否则 hostOrder）与槽位值分两次写（写索引重置槽位值）；参数用 matchName 槽位（`AS_Effect_Host-0(500+4i+c)`），勿按名，写完读 .value。',
         '5. 仅提交未入库时代码只在预览区；AE 渲染的是效果库里选中的文件。',
         '',
         '## 跨工具要点',

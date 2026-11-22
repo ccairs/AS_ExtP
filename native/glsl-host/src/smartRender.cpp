@@ -179,7 +179,7 @@ PF_Err smartRender(PF_InData* in_data, PF_OutData* out_data,
     PF_Err err = PF_Err_NONE;
 
     // 热重载：SmartRender 声明后 AE 不再调用 Render，必须在此检测文件变化。
-    // 选中索引真相源 = 尾部隐藏原生参数 kIdxFileIndexParam（140，脚本/UI 都写
+    // 选中索引真相源 = 尾部隐藏原生参数 kIdxFileIndexParam（脚本/UI 都写
     // 这里，随工程持久化）；再取该文件的 per-file 缓存快照——不再写任何全局镜像，
     // 多实例交替渲染互不覆盖。选择器 ARBITRARY handle f[0] 已降级为只写不读的
     // 遗留载体，不再作为索引来源；SmartRender 中 params 数组不可靠，文件名/索引/

@@ -10,7 +10,7 @@
  *                     componentDiskIds[4], componentNames[], default[4], hasDefault,
  *                     defaultDeclared[4],
  *                     range: { min, max, precision, declared, declaredMin, declaredMax } } ] } } }
- *   · propertyIndex = 5 + 4*slot + comp（native params.h：kIdxSlots=5 / kFloatsPerSlot=4）；
+ *   · propertyIndex = 5 + 4*slot + comp（native params.h：kIdxSlots=5 / kFloatsPerSlot=4）；槽位分量索引恒为 5..132，133 起的画布/映射图层/相机/文件索引参数不进本映射；
  *   · signature.hash = 源文件 UTF-8 字节 FNV-1a 32（8 位十六进制）；
  *   · componentNames 只列**命名分量**（float=1 / vec2=2 / vec3=3 / vec4=4），components 恒 4 项。
  *
@@ -163,7 +163,7 @@
         return base + c;
     }
 
-    // 按宿主库索引（实例参数 140 的值）找映射条目。返回 [{ key, entry }]：
+    // 按宿主库索引（实例参数 141 的值）找映射条目。返回 [{ key, entry }]：
     // 0 条 = 该 shader 尚未被宿主记录；多条 = 同一库索引在映射里有多份（路径不同/重复落盘）。
     function findEntriesByLibraryIndex(doc, libraryIndex) {
         var out = [];

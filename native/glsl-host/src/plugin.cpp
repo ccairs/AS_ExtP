@@ -100,26 +100,20 @@ static int slotNamedCompCount(const glsl::Param& p) {
     }
 }
 
-// 槽位分量名（ACP）：分量0 = uniform 名；分量1/2/3 = 名 + 语义后缀；
-// 超出该 uniform 类型有效分量数的分量（未用分量）名 = "—"。
+// 槽位分量名（ACP）：分量0 = 空串（显示名由画布按当前 uniform 自绘）；
+// 分量1/2/3 = 名 + 语义后缀；超出该 uniform 类型有效分量数的分量（未用分量）名 = "—"。
 //
-// 后缀按**语义**选取（而非无条件用 .g/.b/.a）：
-//   颜色语义（= 该参数在面板上会被画成取色器）→ .g / .b / .a
-//   其余向量 → .y / .z / .w
-// 「颜色语义」的判定必须与 customUI.cpp kindFor 的控件选型**完全同口径**，
-// 否则会出现"面板显示取色器 + alpha 滑条、名字却是 .y/.z/.w"的自相矛盾：
-//   kindFor：Vec4 恒为 Swatch（色块）；Vec2/Vec3 仅在 glsl::isColorNamed 时为 Swatch。
-// 故此处 = (type == Vec4) || glsl::isColorNamed(p.name)。
-// （若只按 isColorNamed 分流，vec4 uTestColor4 会被判成向量给出 .y/.z/.w，
-//   与面板的色块控件不符——由命名探针 shader 实测发现。）
-// 动因：分量名是**AI 唯一的寻址入口**（AI 按名字读写参数，见
-// client/modules/agent/engine/shaderTools.js 的 buildSetParamScript，按
-// property("<uniform 名>") 寻址）。旧口径让 vec3 位置量的 y/z 分量命名为
-// .g/.b（绿/蓝），AI 想设 y 分量只会试 .y 而失败——既然要求"AI 易读易操作"，
-// 后缀就必须反映分量语义，而非恒取颜色通道名。
+// 后缀按语义选取：颜色语义（面板画成取色器）→ .g / .b / .a；其余向量 → .y / .z / .w。
+// 「颜色语义」判定必须与 customUI.cpp kindFor 的控件选型同口径：kindFor 对 Vec4
+// 恒用 Swatch（色块），Vec2/Vec3 仅在 glsl::isColorNamed 时用 Swatch；故此处
+// = (type == Vec4) || glsl::isColorNamed(p.name)。
+// 用途：分量名随参数定义下发，供 param-map 表达分量语义；脚本/AI 侧寻址用索引或
+// matchName 槽位（隐藏参数的运行期改名不反映到脚本属性模型）。
 //
 // 单点维护：PARAMS_SETUP 注册与 SyncParamUI 运行时同步共用，避免两处命名发散。
 static std::string slotCompNameAcp(const glsl::Param& p, int comp) {
+    // comp<=0 返回 uniform 原名：当前调用方只按空名取值（分量0 的注册名恒为空串），
+    // 该分支留给按原名寻址的调用方。
     if (comp <= 0) return utf8ToAcp(p.name.c_str());
     if (comp >= slotNamedCompCount(p)) return utf8ToAcp("—");
     static const char* const kColorSuffix[3] = {".g", ".b", ".a"};
@@ -461,7 +455,7 @@ static void logCmd(const char* stage, PF_Cmd cmd) {
 static PF_Err Render(PF_InData* in_data, PF_OutData* out_data,
                      PF_ParamDef* params[], PF_LayerDef* output);
 
-// —— ARBITRARY DATA 回调前向声明（选择器 16B handle；定义在 Render 之后）——
+// —— ARBITRARY DATA 回调前向声明（选择器/画布共用 v2 定长句柄；定义在 Render 之后）——
 static PF_Err HandleArbitrary(PF_InData* in_data, PF_OutData* out_data, PF_ArbParamsExtra* extra);
 
 // 透传占位：无效果文件时拷贝输入到输出（逐行，取 rowbytes 最小值防越界）
@@ -502,10 +496,8 @@ static host::ShaderSnapshot loadEffectFile() {
     logCmd("load-path", (int)snap.path.size());
     logCmd("load-src", (int)snap.source.size());
     logCmd("load-parsed", (int)snap.uniforms.size());
-    // 预置签名：与 SyncParamUI 相同算法 → 首次 UPDATE_PARAMS_UI 变 no-op，
-    // 避免 SyncParamUI 把空签名当"结构变化"而对 32 个槽位做一次全量重建
-    // （AE 重建 ECW 会把「参数」组从默认折叠强制展开，从而露出未激活槽位的垃圾行，
-    //   见 GROUP_START 注册处注释）。
+    // 预置默认文件的签名与参数映射：UPDATE_PARAMS_UI 已无槽位行可重建，首次同步只
+    // 校准画布高度；param-map 先落盘，面板在用户还没切文件时也能按索引寻址。
     if (!snap.path.empty()) {
         host::setEntrySignature(snap.path, host::uniformSignature(snap.uniforms));
         // 默认文件的映射先落盘（面板在用户还没切文件时也能
@@ -619,38 +611,12 @@ static void reconcileFileIndexChange(PF_InData* in_data, PF_OutData* out_data,
 }
 
 // —— 重建判定诊断（logUiRebuild）与「隐藏槽位行」A/B 探针（hideSlotRowsProbe）——
-// 该族已删除（定位结论见
-// g_slotAppliedRows
-// 声明处的注释里）。
+// 均已删除：槽位分量全部不在 ECW 里出现，没有「重建判定」需要观测。
 
 // 映射图层行的「已应用声明位」基线（effect_ref 键控内存值，见 SyncParamUI 映射
 // 图层段）：仅在 UPDATE_PARAMS_UI 上下文读写，实例销毁 PF_Cmd_SEQUENCE_SETDOWN
 // 清除（防 effect_ref 地址复用误判），与 g_reconciledIdx / s_selAppliedH 同款口径。
 static std::map<void*, unsigned> g_layerAppliedBits;
-
-// —— 槽位行「已下发状态」基线（effect_ref 键控内存值）——
-// 逐行记录本实例上次真正经 PF_UpdateParamUI 下发的 {名字, 启用, 行数}。初值 = **注册态**
-// （PARAMS_SETUP 按 kDefaultFileIndex 的 uniform 列表写下的行状态，见 registeredSlotRows
-// 的复算）——不是回声、不是猜测：命名单点实现（slotCompNameAcp）与注册共用，所以
-// 复算结果与 AE 首帧显示一致（cosmetic 字段不入工程、不随撤销/重存持久化 →
-// 工程恢复/重加效果时 ECW 显示的就是注册态，见 SyncParamUI 顶部注释）。
-//
-// 依据 = trace 的 emit-pass 探针（证据链见 SyncParamUI 内注释）：
-// 五修前按**整体 uniform 签名**判定变化 → 首见实例/切文件一律"全量下发" 131 行
-// （128 槽位分量 + 3 图层行）。实测每行更新的代价 = 一次 AE 重建 ECW，且把折叠的
-// 「参数」组**顶开**（AE 必须显示被更新的行）：
-//   grp-echo bits=6 emit=0 → emit-pass slots=131 → grp-echo bits=4 emit=1
-// （04:45:52 前，五修构建实测；bits 置位=折叠 → 6→4 = 由折叠变展开）。
-// 131 次重建 = 布局反复重排 → 用户症状"参数全部展开 + 滚动条持续滚动"。
-// 逐行差值后：新建图层加效果（desired == 注册态）→ 差值恒空 → **0 发射**；
-// 切文件 → 只写真正改名/改启用态的行（同名同型文件 = 0 发射）。与 params.h 里
-// loadEffectFile 注释的原设计意图（"让首次 UPDATE_PARAMS_UI 为 no-op"）一致。
-struct SlotRowState {
-    std::string name;      // 该行应显示的名字（ACP 编码，含 "—" 占位）
-    bool enabled = false;  // 仅分量0（可见行）有意义：分量1..3 恒隐藏，不参与置灰
-    int  rows = 1;         // 仅分量0 有意义：可见行的视觉行数（行高 = kSlotUiHeight × 本值）
-};
-static std::map<void*, std::vector<SlotRowState>> g_slotAppliedRows;
 
 // —— param-map 已写基线（effect_ref 键控）——
 // key = shaderPath + "|" + uniformSignature。只在 UPDATE_PARAMS_UI（主线程）读写；
@@ -658,39 +624,9 @@ static std::map<void*, std::vector<SlotRowState>> g_slotAppliedRows;
 // 不用"每帧都写"：index.json 是整文件重写，逐帧写会变成 UI 卡顿源。
 static std::map<void*, std::string> g_paramMapApplied;
 
-// 按某 uniform 列表复算 128 行的期望状态（与 PARAMS_SETUP 的 addSlot 同款公式：
-// 分量0 = uniform 名、其余分量 = 名.y/.z/.w 或 .g/.b/.a，超出类型分量数 = "—"；
-// 槽位下标 ≥ uniform 数 = 未激活 → "—" + 置灰）。
-static std::vector<SlotRowState> slotRowsFor(const std::vector<glsl::Param>& u) {
-    std::vector<SlotRowState> rows;
-    rows.reserve(static_cast<size_t>(host::kMaxParams) * host::kFloatsPerSlot);
-    for (int i = 0; i < host::kMaxParams; ++i) {
-        const bool active = (i < static_cast<int>(u.size()));
-        for (int c = 0; c < host::kFloatsPerSlot; ++c) {
-            SlotRowState s;
-            s.name = active ? slotCompNameAcp(u[i], c) : utf8ToAcp("—");
-            s.enabled = active;
-            // 可见行的视觉行数（见 params.h slotUiRows）：Vec2=2 / Vec3=3，颜色命名的
-            // vec2/vec3（走色块）与 Float/Vec4 为 1。分量1..3 是隐藏数值容器
-            // （PF_PUI_NO_ECW_UI、高度 0），行数无意义，恒 1 → 不参与差值。
-            s.rows = (c == 0 && active) ? host::slotUiRows(u[i]) : 1;
-            rows.push_back(s);
-        }
-    }
-    return rows;
-}
-
-// 注册态（= PARAMS_SETUP 按 kDefaultFileIndex 写下的行状态）：首见实例的基线。
-// checkReload=false 取注册当时的快照：PARAMS_SETUP 不重跑，ECW 显示的名字就是
-// 注册当时的；若默认文件随后被热重载，也不该让基线跟着漂移。
-static const std::vector<SlotRowState>& registeredSlotRows() {
-    static std::vector<SlotRowState> s_rows =
-        slotRowsFor(host::getShaderForIndex(host::kDefaultFileIndex, false).uniforms);
-    return s_rows;
-}
-
 // 注册态里「映射图层」行的声明位（addSlot 的 declared 取自 snap0.channelsUsed）：
-// 图层行基线的初值——同款理由，避免首见实例退化成回声比对。
+// 图层行基线的初值——不拿 params[] 回声比对（AE 不回写 cosmetic 字段，见 SyncParamUI
+// 映射图层段）。
 static unsigned registeredChannelBits() {
     static const unsigned s_bits =
         static_cast<unsigned>(host::getShaderForIndex(host::kDefaultFileIndex, false).channelsUsed) &
@@ -698,10 +634,6 @@ static unsigned registeredChannelBits() {
     return s_bits;
 }
 
-// —— 诊断探针：隐藏全部槽位行 ——
-// 该探针已删除。曾用于 A/B 判定
-// 「面板被打扰是否必须有可见的槽位行」（环境开关控制注册期挂
-// PF_PUI_NO_ECW_UI）；「单控件承载」重构的取舍即依据该判定。
 
 // —— 分组折叠位：不写回、不学习 ——
 // 四修的"捕获回声 → 学习 → 趟末全量重申"学习器已撤销，取舍依据（四修构建
@@ -714,39 +646,31 @@ static unsigned registeredChannelBits() {
 //      症状 = "不断地向下滚动"。这两条正是用户报告"上次修完更糟"的两个组成。
 // 结论（与 SDK AE_Effect.h:404-407 一致）：分组 twirl 态是 **AE 的领域**——PF 侧
 // 既可动态改（flags 白名单含 COLLAPSE_TWIRLY）也不保证生效/保持，任何"读回声 →
-// 写回 → 再读"的对抗都会把 AE 的偶发状态固化成插件决策。故本插件不再写
-// PF_ParamFlag_COLLAPSE_TWIRLY（注册期的 START_COLLAPSED 保留：那是初始化语义）。
+// 写回 → 再读"的对抗都会把 AE 的偶发状态固化成插件决策。故**分组**不再写
+// PF_ParamFlag_COLLAPSE_TWIRLY（「映射图层」组注册期保留 START_COLLAPSED；
+// 「参数」组注册即展开，见组注册处）。
 // 只读回声探针（grp-echo / emit-pass）已删除；
 // 若需重启"AE 因何展开「参数」组"的定位，需重建上述只读回声探针，按其输出判读。
 
 // 说明：四修的 emitGroupTwirlBits（把基线折叠位写回 AE）+ captureGroupTwirlState
-// （学习器 + 循环断路器）已整体删除，理由见上方探针注释（写回不被 AE 采纳、
+// （学习器 + 循环断路器）已整体删除，理由见上方注释（写回不被 AE 采纳、
 // 反噬为"全部展开"，且自身即 ECW 重建源 → "持续滚动"）。
 
-// 按当前 uniform 列表同步 32 个槽位的名称与启用状态（Task 8）。
-// AE 限制：ui_flags 中 INVISIBLE/NO_ECW_UI 只能在设置时生效，运行时不可逆
+// 按当前 uniform 列表同步可见 UI：映射图层行的启用态/名字，以及画布高度。
+// AE 限制：ui_flags 中 INVISIBLE/NO_ECW_UI 只能注册期设定，运行时不可逆
 // （官方文档：仅 Premiere 支持动态切换）。AE 中可运行时修改的是
-// PF_PUI_DISABLED（置灰）与 name（经 PF_UpdateParamUI，见 SDK Supervisor 样例）。
-// 因此：有 uniform 的槽位 → 命名 + 启用；无 uniform → 置灰。
+// PF_PUI_DISABLED（置灰）、ui_height 与 name（经 PF_UpdateParamUI，见 SDK Supervisor 样例）。
+// 槽位分量全部 NO_ECW_UI 且不可见 → 它们不参与任何运行时下发；显示由画布自绘，
+// 因此名字/值不依赖回调时机（复制图层/工程恢复不发 UPDATE_PARAMS_UI 也能首屏正确）。
 //
 // 注意：PF_UpdateParamUI 是"纯外观"改动，不入撤销栈、也不随工程持久化——
 // 效果被删除后重加（AE 从工程数据恢复参数，不重跑 PARAMS_SETUP）时，
-// 恢复的是 PARAMS_SETUP 时定义的状态。所以正确的名称/禁用状态必须在
-// PARAMS_SETUP 定义参数时就写入（见 PF_Cmd_PARAMS_SETUP），这里只负责
-// 运行时（热重载导致 uniform 变化）的增量同步。
+// 恢复的是 PARAMS_SETUP 时定义的状态。
 //
 // 每次 PF_UpdateParamUI 都会让 AE 重建 ECW，且**更新折叠组内的参数会把该组顶开**
-// （AE 必须显示被更新的行）——实测证据见 g_slotAppliedRows 声明处。而
-// UPDATE_PARAMS_UI 在 ECW 打开期间逐帧到达，因此**每趟只下发逐行差异**：
-// 名字/启用态/行数未变的行一个字节都不发，单纯拖动滑块、与注册态一致的新实例、
-// 同名同型的换文件都是纯 no-op。
-// 已废除 `forceRedraw`（按整体 uniform 签名强制全量重发 131 行）——
-// 它就是"加效果/切文件 → 131 次重建 → 参数组被顶开 + 持续滚动"的发射源。类型变化
-// 需要改名这件事已被逐行差值覆盖（改名规则含类型语义：vec4/颜色名 → .g/.b/.a，
-// 其余 → .y/.z/.w，见 slotCompNameAcp）；滑条范围/精度是注册期常量（kSlotSliderValid*），
-// 不随 uniform 类型变化，无需运行时下发。
-// **行数**也是类型相关量（Vec3 要 3 行高，见 params.h slotUiRows），
-// 同样并入逐行差值——注册期那次行高只对"当时的默认文件"正确。
+// （AE 必须显示被更新的行）。故本函数只在**真变化**时下发：映射图层行的声明位。
+// 画布高度不在本函数：短内容收缩由 SyncCanvasUI（UPDATE_PARAMS_UI）下发、DRAW 自修。
+// 画布注册期挂 SKIP_REVEAL_WHEN_UNHIDDEN，高度变化不 twirl down 父组、不滚动。
 static PF_Err SyncParamUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) {
     PF_ParamUtilsSuite3* pus = nullptr;
     PF_Err err = AEFX_AcquireSuite(in_data, out_data, kPFParamUtilsSuite,
@@ -775,122 +699,32 @@ static PF_Err SyncParamUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
             g_paramMapApplied[in_data->effect_ref] = mapKey;
         }
     }
-    // uniform 结构签名的逐趟比对诊断（ui-rebuild）已删除：
-    // 变化判定本就下沉到逐行差值；签名存储仅在载入路径写入（见 host::setEntrySignature 调用处）。
+    // —— 槽位分量：无可见行，零下发 ——
+    // 128 个分量注册期全部 PF_PUI_NO_ECW_UI（不出现在 ECW）→ 本函数不对它们做任何
+    // PF_UpdateParamUI：名字/启用态/行高都已不是显示依据，显示完全由画布自绘
+    // （customUI.cpp drawCanvas）。这也是"点击不滚动"的结构前提：ECW 里没有任何
+    // 可被 reveal 的槽位行。
 
-    // —— 槽位行：逐行差值下发（基线 = 已下发状态，初值 = 注册态）——
-    // 逐行比较 desired（当前选中文件的 uniform 复算）与 applied（本实例上次下发的
-    // 状态），只写不同者。首见实例（新建图层加效果/工程恢复/重加效果）初始化为
-    // 注册态 → 与注册态一致的实例（新建 + 默认文件）差值恒空 → 零发射。
-    const std::vector<SlotRowState> wantRows = slotRowsFor(uniformsCopy);
-    std::vector<SlotRowState>& applied = g_slotAppliedRows[in_data->effect_ref];
-    if (applied.size() != wantRows.size()) applied = registeredSlotRows();   // 首见（或尺寸异常）
-    // 每趟进入槽位同步先记「基线判定的差异行数 + 当前文件
-    // 索引/路径」，用于区分「名字没更新」的两种来源。真机判读（<数据根>\temp\logs\as_effect_host.log）：
-    //   · 没有本行 → 这趟根本没进 SyncParamUI（ECW 未打开 / AE 未发 UPDATE_PARAMS_UI）；
-    //   · changed=0 → 基线认为已一致；若脚本/ECW 仍是旧名，即「名字没刷新/基线错」；
-    //   · changed>0 但无 ui-name-apply 行 → 只改了启用态/行高，没改名；
-    //   · changed>0 且有 ui-name-apply → 看该行 ret 判 AE 是否接受改名。
-    {
-        int changedRows = 0;
-        for (size_t k = 0; k < wantRows.size(); ++k) {
-            const bool rowsDiffer = ((k % static_cast<size_t>(host::kFloatsPerSlot)) == 0)
-                && (wantRows[k].rows != applied[k].rows);
-            if (wantRows[k].name != applied[k].name ||
-                wantRows[k].enabled != applied[k].enabled || rowsDiffer) {
-                ++changedRows;
-            }
-        }
-        char _enter[192];
-        std::snprintf(_enter, sizeof(_enter), "changed=%d want=%u uniforms=%u idx=%d path=%s",
-                      changedRows, static_cast<unsigned>(wantRows.size()),
-                      static_cast<unsigned>(n), idx, snap.path.c_str());
-        host::rfLogLine("ui-sync-enter", _enter);
-    }
-    for (int i = 0; i < host::kMaxParams; ++i) {
-        for (int c = 0; c < host::kFloatsPerSlot; ++c) {
-            const int pidx = host::slotCompIndex(i, c);   // 分量索引恒为 5+4i+c
-            if (pidx < 0) continue;
-            const size_t k = static_cast<size_t>(i) * host::kFloatsPerSlot +
-                             static_cast<size_t>(c);
-            const SlotRowState& w = wantRows[k];
-            // 行高差异只对分量0（可见行）成立；隐藏分量恒 1，不参与
-            const bool rowsDiffer = (c == 0) && (w.rows != applied[k].rows);
-            if (w.name == applied[k].name && w.enabled == applied[k].enabled && !rowsDiffer) continue;   // 纯 no-op
-            PF_ParamDef def = *params[pidx];  // 复制当前定义，仅改 UI 字段
-            PF_STRNNCPY(def.name, w.name.c_str(), sizeof(def.name));
-            if (c == 0) {
-                // 仅可见分量（分量0）同步启用状态；分量1..3 恒 PF_PUI_NO_ECW_UI，
-                // 其名字仅供脚本/AI 按名寻址（见客户端 glslApiReference「分量寻址」），
-                // 不参与置灰。
-                // 未激活槽位置灰兜底不变（「参数」组展开时的 "▶ ⊙ —" 占位行仍存在，
-                // 该组默认折叠掩盖之，根治待"单控件承载"重构）。
-                //
-                // **行高随选中 shader 的类型走**：注册期只在 PARAMS_SETUP
-                // 那一刻按**当时的默认文件**算过一次行高，而 PARAMS_SETUP 不因切文件重跑
-                // （值类型固定是刻意的，见 addSlot），于是切到分量数不同的 shader 后框高与
-                // 绘制行数不符——实测症状：向量被压扁、三行挤在半高里、数值框互相重叠
-                // （用户报「有部分挤在一起」）。故把行数并入逐行差值：只在真变了时写，
-                // 且与改名走**同一次** PF_UpdateParamUI，不额外增加 ECW 重建次数。
-                // 这修正了旧"ui_height 一律不改写"：当时所有行同为 22px、
-                // 改写确实一无所获（且高度 0 被视为未指定、藏不住行）；现在行高按类型
-                // 变化（Vec3 要 3×22），不改写就会画错。reveal 副作用与改名同源——
-                // 切文件本就会改名下发，故不新增可感知的抖动。
-                if (rowsDiffer) {
-                    def.ui_height = static_cast<short>(host::kSlotUiHeight * w.rows);
-                    // 取证：值 = slot*1000 + 新高度（高度 ≤ 3×22，不重叠）。
-                    // 与 customUI 的 "slot-rect" 一行配对看：前者=我们下发的，
-                    // 后者=AE 实际给控件框的——两者不一致就是 AE 没采纳下发值。
-                    host::rfLog("slot-h-apply", (long)(i * 1000 + host::kSlotUiHeight * w.rows));
-                }
-                if (w.enabled) def.ui_flags &= ~PF_PUI_DISABLED;   // 启用
-                else           def.ui_flags |= PF_PUI_DISABLED;    // 置灰兜底
-            }
-            // PF_UpdateParamUI 只能改 cosmetic 字段（name/ui_flags/ui_height/slider_min/max/precision），
-            // 不能改 value/dephault（见 AE_EffectSuites.h PF_ParamUtilsSuite3 文档）。
-            // 默认值/范围只在 PARAMS_SETUP 时定义；运行时只同步名称与启用状态。
-            // 成功才记基线（与 s_selAppliedH 同款）：失败保持"待下发"，下趟重试。
-            // 探针（行为零变化）：每次真正改名都记 slot/desired name/
-            // 返回码/当前实例 uniform 数。真机判读（<数据根>\temp\logs\as_effect_host.log）：
-            //   ret=0 + n 正确 + ECW 名字仍旧 → AE 接受调用但名称是注册态快照
-            //     （cosmetic 不随工程持久化）→ 走 param-map 按索引寻址；
-            //   ret!=0 → AE 拒绝改名（名称不可用，同样只能按索引寻址）；
-            //   无本行 → 本趟没有改名（desired == applied），先查是否根本没切到新文件。
-            // name 是 ACP（uniform 名恒 ASCII，日志按 UTF-8 读不会乱码）。
-            const bool nameChanged = (w.name != applied[k].name);
-            const PF_Err uiErr = pus->PF_UpdateParamUI(in_data->effect_ref, pidx, &def);
-            if (uiErr == PF_Err_NONE) {
-                applied[k] = w;
-            }
-            if (nameChanged) {
-                host::rfLog("ui-name-apply", w.name.c_str(), (long)i, (long)c,
-                            (long)uiErr, (long)n);
-            }
-        }
-    }
-
-    // —— 映射图层行启用态（iChannel1/2/3）：shader 声明才启用（槽位同款）——
-    // 与槽位语义一致：先声明后选图层；热重载增删声明 → ECW 行即时启用/置灰。
+    // —— 映射图层行启用态（iChannel1/2/3）：shader 声明才启用 ——
+    // 先声明后选图层；热重载增删声明 → ECW 行即时启用/置灰。
     // **行无法隐藏**（V1 判定：LAYER 未挂 PF_PUI_CONTROL → ui_height 不生效——依据 SDK 注 AE_Effect.h:2290 + 代码复核，本仓库无真机日志）——未声明的
-    // 行**常显但 DISABLED**；行名注册期恒为「映射图层 N」，改名「—」只在 SyncParamUI 里、
-    // 该声明位由有变无时发生（
-    // ——按声明显隐行、注册期就带「—」名字、行可隐藏——均与实现不符，见 `.h` 的 V1 注）。
+    // 行**常显但 DISABLED**；行名注册期恒为「映射图层 N」，改名「—」只在该声明位
+    // 由有变无时发生。
     // 行置灰时旧工程已选的图层值保留（持久化），只是不 checkout 不渲染；
     // shader 加回声明即恢复。
     // 变化检测基线 = 本实例「上次经 PF_UpdateParamUI 应用的声明位」（effect_ref
     // 键控内存值，与 reconcileFileIndexChange / SyncFileSelectorUI 同款口径），
-    // **初值 = 注册态声明位**（registeredChannelBits）——与槽位行同款（六修）：不再
-    // 在首见实例上退化为 params[] 回声比对（回声不可靠，见上；AE 对 PF_PUI_CONTROL
-    // 参数的 ui_height 已实测不回写，LAYER 又未挂 PF_PUI_CONTROL——AE_Effect.h:2290
-    // 标注 ui_width/ui_height "不采用"）。首见实例（新建图层加效果）与注册态一致
-    // → 差值恒空 → 零发射。
+    // **初值 = 注册态声明位**（registeredChannelBits）：不在首见实例上退化为 params[]
+    // 回声比对（AE 对 PF_PUI_CONTROL 参数的 ui_height 不回写，LAYER 又未挂
+    // PF_PUI_CONTROL——AE_Effect.h:2290 标注 ui_width/ui_height "不采用"）。
+    // 首见实例（新建图层加效果）与注册态一致 → 差值恒空 → 零发射。
     const unsigned wantBits = static_cast<unsigned>(snap.channelsUsed) &
                               ((1u << host::kIdxMapChannels) - 1u);
     const auto lit = g_layerAppliedBits.find(in_data->effect_ref);
     const unsigned lprev = (lit != g_layerAppliedBits.end())
         ? lit->second : registeredChannelBits();
     // 本趟结束要写回的基线：未变化的位置保持原值，变化的位置**只有下发成功才推进**
-    //（失败保持"待下发"→ 下趟重试，与槽位分支同款）。
+    //（失败保持"待下发"→ 下趟重试）。
     unsigned appliedBits = lprev;
     for (int i = 0; i < host::kIdxMapChannels; ++i) {
         const int pidx = host::kIdxLayerBase + i;
@@ -908,18 +742,18 @@ static PF_Err SyncParamUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
             lui |= PF_PUI_DISABLED;                         // 置灰兜底
             lnameWant = utf8ToAcp("—");
         }
-        // ui_height 不改写（与槽位分支同款）：LAYER 行本就无法
-        // 隐藏（V1 判定：行常显但 DISABLED，依据同 params.h），高度更新只添 reveal 风险、无视觉收益；
-        // 注册期已统一 kLayerUiHeight。
+        // ui_height 不改写：LAYER 行本就无法隐藏（V1 判定：行常显但 DISABLED，
+        // 依据同 params.h），高度更新只添 reveal 风险、无视觉收益；注册期已统一
+        // kLayerUiHeight。
         // 声明位未变即纯 no-op（比对内存基线，不碰回声）。
         const bool lchanged = (declared != (((lprev) >> i) & 1));
         if (lchanged) {
             PF_STRNNCPY(ldef.name, lnameWant.c_str(), sizeof(ldef.name));
             ldef.ui_flags = lui;
-            // 成功才记该位基线（与槽位分支同款）：无条件写
-            // wantBits——一次 PF_UpdateParamUI 失败就让该行永久停在错误的名字/启用态
-            // （基线已推进 → lchanged 恒 false → 永不下发）。而契约恰恰告诉用户/模型
-            // "判别看行是否置灰"——行态失真的判据本身也会失真。
+            // 成功才记该位基线：此前无条件写 wantBits——一次 PF_UpdateParamUI 失败
+            // 就让该行永久停在错误的名字/启用态（基线已推进 → lchanged 恒 false →
+            // 永不下发）。而契约恰恰告诉用户/模型"判别看行是否置灰"——行态失真的
+            // 判据本身也会失真。
             if (pus->PF_UpdateParamUI(in_data->effect_ref, pidx, &ldef) == PF_Err_NONE) {
                 appliedBits = (appliedBits & ~(1u << i)) | (declared ? (1u << i) : 0u);
             }
@@ -932,8 +766,12 @@ static PF_Err SyncParamUI(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef*
     // 写回不被 AE 采纳（trace: grp-bits-adopt echo=4 base=4 —— 写"折叠"后回声仍
     // 是展开 → 断路器采信展开 → 此后每次都主动写"展开"），且它自身每次都是 3 个
     // PF_UpdateParamUI（AE 重建 ECW）→ 逐趟重排/滚动。分组 twirl 态交还 AE 管理，
-    // 见上方「分组折叠位：不写回、不学习」注释与
-    // 与该写回"不被 AE 采纳"的实测 trace 证据。
+    // 见上方「分组折叠位：不写回、不学习」注释与该写回"不被 AE 采纳"的实测 trace 证据。
+
+    // 画布高度：注册值是 15 行上限；短内容由 SyncCanvasUI（UPDATE_PARAMS_UI）收缩，
+    // 复制/切图层后 AE 按注册高度重建 ECW 时由 DRAW 入口的自修补发（customUI.cpp
+    // repairCanvasHeightIfNeeded）。即使补发被丢弃，视口按实得高度工作（滚动可到达，
+    // 不裁切），不会留下不可用状态。
 
     AEFX_ReleaseSuite(in_data, out_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, nullptr);
     return PF_Err_NONE;
@@ -1131,8 +969,8 @@ extern "C" DllExport PF_Err EffectMain(
             logCmd("ps-file-group-start", (int)err);
             if (err != PF_Err_NONE) return err;
 
-            // 文件选择器（自绘控件）：ARBITRARY_DATA + PF_PUI_CONTROL（16B handle；
-            // 展开/滚动会话态存 f[1]/f[2]，f[0] 为只写不读的遗留索引，见 customUI.cpp）。
+            // 文件选择器（自绘控件）：ARBITRARY_DATA + PF_PUI_CONTROL（句柄布局见
+            // fileSelLayout.h；展开/滚动会话态存 v[1]/v[2]，v[0] 为只写不读的遗留索引）。
             // 必须 ARBITRARY——实测 AE 对标准参数类型不采用 ui_height，展开/折叠会整体失效。
             // 选中索引真相源是尾部隐藏原生参数 kIdxFileIndexParam（PF_PUI_NO_ECW_UI）。
             AEFX_CLR_STRUCT(def);
@@ -1173,14 +1011,12 @@ extern "C" DllExport PF_Err EffectMain(
             logCmd("ps-file-group-end", (int)err);
             if (err != PF_Err_NONE) return err;
 
-            // —— 「参数」分组：全部 32 个槽位（默认折叠）——
-            // 每槽 4 个分量各注册为 PF_Param_FLOAT_SLIDER
-            //（分量0 = 可见自绘行 + PF_PUI_CONTROL；分量1..3 = PF_PUI_NO_ECW_UI
-            //  隐藏数值容器）。值类型固定（不随 uniform 类型变化）→ AE 缓存/重加
-            // 不重跑 PARAMS_SETUP 均不影响；控件形态由绘制时按当前 uniform 类型
-            // 决定（见 customUI.cpp）。单分组布局：所有分量0 行统一 kSlotUiHeight
-            // 注册（运行时不再改写高度），未激活槽位 DISABLED
-            // 置灰 + 名称"—"兜底。
+            // —— 「参数」分组：128 个槽位分量（纯数值容器）+ 一个自绘画布 ——
+            // 每槽 4 个分量各注册为 PF_Param_FLOAT_SLIDER，**全部** PF_PUI_NO_ECW_UI：
+            // 值/disk ID/量程/默认值照旧（脚本读写、时间线关键帧、渲染不受影响）。
+            // 值类型固定（不随 uniform 类型变化）→ AE 缓存/重加不重跑 PARAMS_SETUP
+            // 均不影响；控件形态由画布按当前 uniform 类型自绘（见 customUI.cpp）。
+            // 组内唯一的可见行是画布（kIdxCanvas），高度按 uniform 行数同步。
             auto addSlot = [&](int i) -> PF_Err {
                 const bool active = (i < static_cast<int>(snap0.uniforms.size()));
                 float dv[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1193,43 +1029,20 @@ extern "C" DllExport PF_Err EffectMain(
                 for (int c = 0; c < host::kFloatsPerSlot; ++c) {
                     AEFX_CLR_STRUCT(def);
                     def.param_type = PF_Param_FLOAT_SLIDER;
-                    // 命名：分量0 = uniform 名；分量1/2/3 = 名.g/.b/.a；未用分量/未用槽位 "—"
-                    const std::string slotName = active
-                        ? slotCompNameAcp(snap0.uniforms[i], c) : utf8ToAcp("—");
+                    // 命名：分量0 = **空**（显示名由画布按当前 uniform 自绘）；
+                    // 分量1/2/3 = 名.g/.b/.a 或 名.y/.z/.w（仅脚本按分量寻址用）；
+                    // 未用分量为 "—"。
+                    const std::string slotName = (c == 0)
+                        ? std::string()
+                        : (active ? slotCompNameAcp(snap0.uniforms[i], c) : utf8ToAcp("—"));
                     PF_STRNNCPY(def.name, slotName.c_str(), sizeof(def.name));
-                    if (c == 0) {
-                        // 可见行（自绘整行）：挂 PF_PUI_CONTROL，ui_width/height 生效
-                        def.ui_flags  = PF_PUI_CONTROL | PF_PUI_DONT_ERASE_CONTROL;
-                        if (!active) def.ui_flags |= PF_PUI_DISABLED;   // 置灰兜底
-                        def.ui_width  = host::kSlotUiWidth;
-                        // 行高**统一注册、运行时不再改写**：高度
-                        // 0↔17 的运行时更新是 AE 原生 reveal（un-hide → "twirl down
-                        // parents + scroll into view"，AE_Effect.h:434-436）的触发源，
-                        // 且视觉上一无所获（0 被视为未指定、行照占位）。
-                        // 未激活行靠 DISABLED + 名称"—"表达，占位行问题由该组默认
-                        // 折叠掩盖（根治待"单控件承载"重构）。
-                        // 行高 = 单行高 × 视觉行数（见 params.h slotUiRows）：点控件每个
-                        // 分量独占一行，Vec3 要三行高才画得下（
-                        // 一行内并排分量列——Vec3 每列太窄，滑条难拖）。
-                        // **注册期一次算定**（同下条注释的三修纪律：运行时改写 ui_height
-                        // 会触发 AE 原生 reveal，且视觉一无所获）。未激活槽位没有 uniform
-                        // 可依据，按单行注册。
-                        def.ui_height = static_cast<short>(
-                            host::kSlotUiHeight * (active ? host::slotUiRows(snap0.uniforms[i]) : 1));
-                        // SKIP_REVEAL_WHEN_UNHIDDEN：注册期压制 reveal 的两半——SDK 原文
-                        // （AE_Effect.h:434-436）"it won't twirl down it's parents and scroll
-                        // it into view"。这是本插件能对"分组被顶开"施加的**唯一**抑制手段
-                        //（分组自身的 twirl flag 实测对显示无效，且运行期写入也无效）。
-                        // 七修曾为"让组常开"而撤销本行，结果是 reveal 只剩滚动、组并不展开，
-                        // 结论：回到默认折叠 —— 故本行保留。
-                        def.flags = PF_ParamFlag_SKIP_REVEAL_WHEN_UNHIDDEN;
-                    } else {
-                        // 隐藏数值容器：标准参数类型不采用 ui_height，用 NO_ECW_UI
-                        // 注册即完全不出现在 ECW（仅脚本/关键帧可见其值）
-                        def.ui_flags  = PF_PUI_NO_ECW_UI;
-                        def.ui_width  = host::kSlotUiWidth;
-                        def.ui_height = 0;
-                    }
+                    // 全部 4 分量都是**隐藏数值容器**：标准参数类型不采用 ui_height，
+                    // 用 NO_ECW_UI 注册即完全不出现在 ECW。值/disk ID/量程/默认值照旧
+                    // 注册 → 脚本读写、时间线关键帧与渲染路径不受影响
+                    //（AE_Effect.h:2194：NO_ECW_UI 在 AE 不影响时间线关键帧轨）。
+                    def.ui_flags  = PF_PUI_NO_ECW_UI;
+                    def.ui_width  = host::kSlotUiWidth;
+                    def.ui_height = 0;
                     // fs_d.value/dephault 是 PF_FpShort(float)：显式窄化到目标类型，
                     // 别用 PF_FpLong 的 cast 让编译器在赋值处隐式收窄（/W4 C4244）
                     def.u.fs_d.value    = def.u.fs_d.dephault = static_cast<PF_FpShort>(dv[c]);
@@ -1264,16 +1077,13 @@ extern "C" DllExport PF_Err EffectMain(
             def.param_type = PF_Param_GROUP_START;
             copyParamNameAcp(S_EFFECTHOST_PLUGIN_PARAM_GROUP_PARAMS,
                              def.name, sizeof(def.name));
-            // 默认**折叠**。
-            // 四种做法（注册期默认展开 / 写分组 flag / 一次行更新轻推 /
-            // 撤销本组行的 SKIP_REVEAL），结论是：
-            //   · 分组 twirl 态**只能**由 reveal 改变，而 reveal 由"行更新"驱动且**只保证
-            //     滚到被更新的那一行**——无法做到"整组摊开、用到的参数一次全见"；
-            //   · 因此"让参数一直保持打开"在 AE 侧做不到稳定效果，只能默认折叠。
-            // 保留的成果（不要回退）：六修的逐行差值下发（首见实例 0 发射、切文件只发变化的
-            // 行）、五修的"不写分组 flag"、三修的"运行时不改写 ui_height"。
-            def.flags = PF_ParamFlag_START_COLLAPSED;
-            def.uu.id = host::kIdxGroupStart;
+            // **注册即展开**：AE 的分组 twirl 位对显示无效（只能靠"行更新触发的
+            // reveal"改变），任何 ECW 重建都把折叠位重置为注册默认（展开）。
+            // 边界：手动收起后，下一次 ECW 重建会重置回展开——折叠选择不被记录。
+            // 分组自身的 twirl flag 不写、不读：它对 ECW 显示无效，写回还会反噬成
+            // "全部展开"并逐趟重建（见「分组折叠位：不写回、不学习」注释）。
+            def.flags = 0;
+            def.uu.id = host::kGroupStartDiskId;                        // 盘 ID 固定 4
             err = PF_ADD_PARAM(in_data, -1, &def);
             logCmd("ps-group-start", (int)err);
             if (err != PF_Err_NONE) return err;
@@ -1284,9 +1094,44 @@ extern "C" DllExport PF_Err EffectMain(
             }
             logCmd("ps-slots", host::kMaxParams);
 
+            // —— 自绘画布：组内唯一可见行，承载全部 uniform（见 params.h kIdxCanvas）——
+            // ARBITRARY_DATA + PF_PUI_CONTROL：AE 只对 ARBITRARY+CONTROL 采纳 ui_height
+            // （AE_Effect.h:2290-2291）。
+            // CANNOT_TIME_VARY：画布不是值、做不了关键帧——不挂会在标题左侧画出秒表。
+            // 参数名为空串：AE 仍画一行空标题 + twirly，即「参数」组里的容器行。
+            // 高度注册为 kCanvasViewH（15 行上限的视口）：短内容由 SyncCanvasUI
+            //（UPDATE_PARAMS_UI）收缩到内容高度、DRAW 里按实况自修；复制/恢复出的
+            // 实例上 AE 可能丢弃运行期高度，实得高度即视口（按实得行数滚动，不裁切）。
+            {
+                const A_short initialH = static_cast<A_short>(host::kCanvasViewH);
+                PF_ArbitraryH cvDflt = nullptr;
+                float cvZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+                err = host::AllocFileSelHandle(in_data, out_data, cvZero, &cvDflt);
+                logCmd("ps-canvas-alloc", (int)err);
+                if (err != PF_Err_NONE) return err;
+                // PF_ADD_ARBITRARY2 宏内失败直接 return（Param_Utils.h），包 lambda
+                // 拦截以便回收已分配的 dephault（AE 未接管时泄漏）
+                auto addCanvas = [&]() -> PF_Err {
+                    AEFX_CLR_STRUCT(def);
+                    PF_ADD_ARBITRARY2("",
+                                      host::kCanvasWidth, initialH,
+                                      PF_ParamFlag_SKIP_REVEAL_WHEN_UNHIDDEN |
+                                      PF_ParamFlag_CANNOT_TIME_VARY,
+                                      PF_PUI_CONTROL | PF_PUI_DONT_ERASE_CONTROL,
+                                      cvDflt, host::kCanvasUiId, host::kSlotRefcon);
+                    return PF_Err_NONE;
+                };
+                err = addCanvas();
+                logCmd("ps-canvas-add", (int)err);
+                if (err != PF_Err_NONE) {
+                    PF_DISPOSE_HANDLE(cvDflt);
+                    return err;
+                }
+            }
+
             AEFX_CLR_STRUCT(def);
             def.param_type = PF_Param_GROUP_END;
-            def.uu.id = host::kIdxGroupEnd;                             // 133
+            def.uu.id = host::kGroupEndDiskId;                          // 盘 ID 固定 133
             err = PF_ADD_PARAM(in_data, -1, &def);
             logCmd("ps-group-end", (int)err);
             if (err != PF_Err_NONE) return err;
@@ -1297,15 +1142,14 @@ extern "C" DllExport PF_Err EffectMain(
             // **行高恒定**（kLayerUiHeight，运行时不再改写——LAYER 行本就无法隐藏，
             // 见 `.h` 里的 V1 判定注）；未声明的行只加 DISABLED 置灰，启用态由
             // SyncParamUI 按当前文件声明同步（热重载「想变就变」）。
-            // （"行高按 snap0.channelsUsed 初始"
-            //   行高注册即定、不随声明变化。）槽位区段为 5..132，本组顺延至
-            // 134..138；组内仍在槽位区段之后（旧工程磁盘 ID 变化 → 恢复默认 <none>）。
+            // 盘 ID 全部固定（params.h kLayerBaseDiskId 等）：索引随画布插入而位移，
+            // 用索引当盘 ID 会让旧工程的图层选择落到别的参数上。
             AEFX_CLR_STRUCT(def);
             def.param_type = PF_Param_GROUP_START;
             copyParamNameAcp(S_EFFECTHOST_PLUGIN_PARAM_GROUP_MAP_LAYERS,
                              def.name, sizeof(def.name));
             def.flags = PF_ParamFlag_START_COLLAPSED;
-            def.uu.id = host::kIdxLayerGroupStart;                      // 134
+            def.uu.id = host::kLayerGroupStartDiskId;                   // 盘 ID 固定 134
             err = PF_ADD_PARAM(in_data, -1, &def);
             logCmd("ps-layer-group-start", (int)err);
             if (err != PF_Err_NONE) return err;
@@ -1313,14 +1157,13 @@ extern "C" DllExport PF_Err EffectMain(
             for (int i = 0; i < host::kIdxMapChannels; ++i) {
                 AEFX_CLR_STRUCT(def);
                 const bool declared = (snap0.channelsUsed >> i) & 1;
-                // 行高统一注册、运行时不再改写（同槽位分支）：
+                // 行高统一注册、运行时不再改写：
                 // LAYER 行无法隐藏（V1 判定：行常显），未声明的行只加 DISABLED 置灰——
                 // **行名注册期恒为「映射图层 N」**，改名「—」只在 SyncParamUI 里、该声明位
-                // 由有变无时发生（"未声明的行 DISABLED
-                // + 名称'—'"，与实现不符；槽位分支注册即写「—」是另一回事）。
+                // 由有变无时发生。
                 def.ui_height = static_cast<A_short>(host::kLayerUiHeight);
                 if (!declared) def.ui_flags |= PF_PUI_DISABLED;
-                // SKIP_REVEAL_WHEN_UNHIDDEN：注册期压制 reveal（同槽位行；
+                // SKIP_REVEAL_WHEN_UNHIDDEN：注册期压制 reveal（同画布；
                 // PF_ADD_LAYER 宏不触碰 flags，此处先行设置即可）
                 def.flags = PF_ParamFlag_SKIP_REVEAL_WHEN_UNHIDDEN;
                 char lnameAcp[32];
@@ -1329,13 +1172,13 @@ extern "C" DllExport PF_Err EffectMain(
                 //（默认不选图层；checkout 时 data==NULL → 黑透明采样）。宏内部
                 // 检出错误会直接 return（与上方槽位/选择器的 PF_ADD_PARAM 同款约定）。
                 PF_ADD_LAYER(lnameAcp, PF_LayerDefault_NONE,
-                             host::kIdxLayerBase + i);
+                             host::kLayerBaseDiskId + i);
                 logCmd("ps-layer-add", i);
             }
 
             AEFX_CLR_STRUCT(def);
             def.param_type = PF_Param_GROUP_END;
-            def.uu.id = host::kIdxLayerGroupEnd;                        // 138
+            def.uu.id = host::kLayerGroupEndDiskId;                     // 盘 ID 固定 138
             err = PF_ADD_PARAM(in_data, -1, &def);
             logCmd("ps-layer-group-end", (int)err);
             if (err != PF_Err_NONE) return err;
@@ -1348,7 +1191,7 @@ extern "C" DllExport PF_Err EffectMain(
                 char camAcp[32];   // 参数名 ACP 缓冲：不可表示时回退 en-US（见 acpName.h）
                 copyParamNameAcp(S_EFFECTHOST_PLUGIN_PARAM_CAM3D_ENABLE,
                                  camAcp, sizeof(camAcp));
-                PF_ADD_CHECKBOXX(camAcp, 1 /*默认勾选*/, 0, host::kIdxCamEnable);
+                PF_ADD_CHECKBOXX(camAcp, 1 /*默认勾选*/, 0, host::kCamEnableDiskId);
             }
             logCmd("ps-cam-enable", host::kIdxCamEnable);
 
@@ -1389,14 +1232,14 @@ extern "C" DllExport PF_Err EffectMain(
             // shader 侧收到的 uHasLights/uLightCount 与整个灯光数组均为零值，
             // 与「无灯合成」及面板预览同语义。
             // 【必须追加在文件索引参数之后】AE 按 disk ID 恢复旧工程参数值，插在
-            // 140 位会把隐藏的文件索引挤到 141，旧工程的 140 将被本复选框误读——
-            // 严格遵守 params.h 的「只能在尾部追加」纪律。ECW 观感不受影响
+            // 文件索引之前会让旧工程存下的那份索引被本复选框误读——严格遵守
+            // params.h 的「只能在尾部追加」纪律。ECW 观感不受影响
             //（文件索引挂 PF_PUI_NO_ECW_UI 不显示）。
             {
                 char lightsAcp[32];   // 参数名 ACP 缓冲：不可表示时回退 en-US（见 acpName.h）
                 copyParamNameAcp(S_EFFECTHOST_PLUGIN_PARAM_LIGHTS3D_ENABLE,
                                  lightsAcp, sizeof(lightsAcp));
-                PF_ADD_CHECKBOXX(lightsAcp, 1 /*默认勾选*/, 0, host::kIdxLightEnable);
+                PF_ADD_CHECKBOXX(lightsAcp, 1 /*默认勾选*/, 0, host::kLightEnableDiskId);
             }
             logCmd("ps-light-enable", host::kIdxLightEnable);
 
@@ -1424,8 +1267,8 @@ extern "C" DllExport PF_Err EffectMain(
 
             // —— 「重算结算器」按钮控件（见 params.h kIdxSolveBtn）——
             // 纯 UI 的自绘控件：位置在参数表末尾（= 视觉上「启用三维灯光」的下一行，
-            // 隐藏的 142 不占行）。点击只做两件事：让 142 的计数器 +1（缓存失效载体）
-            // 与置 FORCE_RERENDER；结算状态复位由渲染路径据指纹变化完成。
+            // 隐藏的 kIdxSolveGen 不占行）。点击只做两件事：让 kIdxSolveGen 的计数器 +1
+            // （缓存失效载体）与置 FORCE_RERENDER；结算状态复位由渲染路径据指纹变化完成。
             {
                 PF_ArbitraryH btnDflt = nullptr;
                 float btnZero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -1455,7 +1298,7 @@ extern "C" DllExport PF_Err EffectMain(
             }
 
             // —— 「实例身份」不在参数表里 ——
-            // 曾在此注册隐藏 FLOAT_SLIDER 身份参数（索引 144/disk 213）。真机复验证伪
+            // 曾在此注册隐藏 FLOAT_SLIDER 身份参数（disk 213）。真机复验证伪
             // 其前提「PARAMS_SETUP 每实例执行一次」：**每 AE 会话只发一次**（同一会话
             // 两次 addProperty 只有一行 params-setup-done），新实例参数初值一律取注册期
             // dephault（AE_Effect.h:416-423 明文）→ 参数路给不出每实例不同初值。
@@ -1482,6 +1325,8 @@ extern "C" DllExport PF_Err EffectMain(
             // 选中索引（kIdxFileIndexParam）取该文件的 uniform 列表同步槽位
             // 应用文件选择器待定的高度变更（展开/折叠/刷新后行数变化）
             err = host::SyncFileSelectorUI(in_data, out_data, params);
+            // 应用画布高度变更（短内容收缩到内容行数；注册高度是 15 行上限）
+            err = host::SyncCanvasUI(in_data, out_data, params);
             // 选中索引已是单一真相源（kIdxFileIndexParam）——无需双向对账，
             // SyncParamUI 直接按 instanceFileIndex 取该文件的 uniform 列表
             // 例外：索引若由脚本/表达式/工程恢复写入（非点击路径），需在此补上
@@ -1619,8 +1464,6 @@ extern "C" DllExport PF_Err EffectMain(
             if (in_data) g_reconciledIdx.erase(in_data->effect_ref);
             // 映射图层行的已应用声明位基线同款清除（防地址复用误判 → 图层行显隐不再更新）
             if (in_data) g_layerAppliedBits.erase(in_data->effect_ref);
-            // 槽位行基线同款清除（防地址复用误判 → 新实例首见以注册态重新初始化）
-            if (in_data) g_slotAppliedRows.erase(in_data->effect_ref);
             // param-map 已写基线同款清除（防地址复用后新实例被误判"已写过"）
             if (in_data) g_paramMapApplied.erase(in_data->effect_ref);
             // 时变掩码/通道身份载体同款清除（renderer.cpp s_maskCarriers，
@@ -1654,13 +1497,15 @@ extern "C" DllExport PF_Err EffectMain(
                 ++s_evtTypeLogged[et];
                 logCmd((std::string("evt-type") + std::to_string(et)).c_str(), PF_Cmd_EVENT);
             }
-            // 32 槽位的自绘控件事件（DRAW/DO_CLICK/DRAG/ADJUST_CURSOR），
-            // 仅在 ECW 中触发；非槽位参数由本函数直接返回 NONE 交给 AE 默认处理。
+            // ECW 自定义 UI 事件（DRAW / DO_CLICK / DRAG / ADJUST_CURSOR / ACTIVATE /
+            // DEACTIVATE / CLOSE_CONTEXT / IDLE）：HandleUIEvent 按事件类型分发，各处理器
+            // 再按 effect_win.index 认领自绘控件（文件选择器 / 参数画布 / 重算按钮）；
+            // 其余参数索引一律返回 NONE 交回 AE 默认处理。
             err = host::HandleUIEvent(in_data, out_data, params, extra);
             break;
         }
         case PF_Cmd_ARBITRARY_CALLBACK:
-            // ARBITRARY_DATA 参数（文件选择器）的生命周期回调（持久化/复制等）
+            // ARBITRARY_DATA 参数（文件选择器 / 参数画布 / 重算按钮）的生命周期回调（持久化/复制等）
             err = HandleArbitrary(in_data, out_data, reinterpret_cast<PF_ArbParamsExtra*>(extra));
             break;
         case PF_Cmd_SMART_PRE_RENDER:
@@ -1710,8 +1555,8 @@ static PF_Err Render(PF_InData* in_data, PF_OutData* out_data,
                       static_cast<unsigned>(snap.source.size()), snap.path.c_str());
         host::rfDiag(d);
     }
-    // uniform 结构变化由 UPDATE_PARAMS_UI（主线程）经 uiSignature 比对统一重建槽位行；
-    // 渲染线程不得调用 SyncParamUI → PF_UpdateParamUI（该套件仅限主线程 UI 上下文，SDK 约定）
+    // 画布高度下发在 UPDATE_PARAMS_UI（主线程）与 DRAW 入口的自修；渲染线程不得
+    // 调用该套件（仅限主线程 UI 上下文，SDK 约定）。
     // 尚无效果文件：透传输入（文件被删除/清空时保留上次成功源码回退渲染）
     if (snap.source.empty()) { host::rfLog("pass-through", 0); return PassThrough(params, output); }
     const std::string& effectSourceCopy = snap.source;
@@ -1826,8 +1671,9 @@ static PF_Err Render(PF_InData* in_data, PF_OutData* out_data,
 }
 
 // —— ARBITRARY DATA 回调（PF_Cmd_ARBITRARY_CALLBACK）——
-// 文件选择器的 16B handle（4×float，f[0] = 选中索引）。AE 在持久化/复制等场景调用；
-// 槽位现为 4 个原生 FLOAT_SLIDER，不再走此回调。
+// 文件选择器与参数画布两个 ARBITRARY_DATA 参数共用本回调。句柄是 v2 定长布局
+// （魔数 8 + 4×float + 名字长度 2 + 名字 256 = 282B，见 fileSelLayout.h）：
+// v[0] = 位置索引、v[1]/v[2] = 展开/滚动、name = 身份名；画布的句柄只作占位（全零）。
 static PF_Err HandleArbitrary(PF_InData* in_data, PF_OutData* out_data, PF_ArbParamsExtra* extra) {
     if (!extra) return PF_Err_NONE;
     PF_Err err = PF_Err_NONE;

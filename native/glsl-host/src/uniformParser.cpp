@@ -1028,8 +1028,21 @@ static bool atSemanticWordEnd(const std::string& n, size_t e) {
     if (!std::isalnum(static_cast<unsigned char>(n[e]))) return true;
     return std::isupper(static_cast<unsigned char>(n[e])) != 0;
 }
-// 不区分大小写地查找 w，且须落在词首边界上；requireWordEnd=true 时还要求词尾边界。
-static bool findSemanticWord(const std::string& n, const char* w, bool requireWordEnd) {
+// 词尾判据：Any = 不要求词尾（角度词干允许派生后缀）；WordEnd = 须落在词边界；
+// SingleSegment = 词尾后至多一个字符段（可隔一个 '_'，如 uColA / col0 / col_A）。
+enum class WordTailPolicy { Any, WordEnd, SingleSegment };
+
+static bool atSegmentTail(const std::string& n, size_t e) {
+    size_t k = e;
+    if (k >= n.size()) return true;
+    if (n[k] == '_') ++k;
+    if (k >= n.size()) return true;
+    if (!std::isalnum(static_cast<unsigned char>(n[k]))) return false;
+    return k + 1 == n.size();
+}
+
+// 不区分大小写地查找 w，须落在词首边界上，词尾按 policy 判定。
+static bool findSemanticWord(const std::string& n, const char* w, WordTailPolicy policy) {
     const auto lowerCh = [](char c) {
         return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     };
@@ -1041,7 +1054,8 @@ static bool findSemanticWord(const std::string& n, const char* w, bool requireWo
         }
         if (!eq) continue;
         if (!atSemanticWordStart(n, i)) continue;
-        if (requireWordEnd && !atSemanticWordEnd(n, i + wl)) continue;
+        if (policy == WordTailPolicy::WordEnd && !atSemanticWordEnd(n, i + wl)) continue;
+        if (policy == WordTailPolicy::SingleSegment && !atSegmentTail(n, i + wl)) continue;
         return true;
     }
     return false;
@@ -1054,10 +1068,19 @@ static bool findSemanticWord(const std::string& n, const char* w, bool requireWo
 // snake_case 命名保持命中，不影响 coulomb 修复——其不含 color/colour 子串）。
 // 按 4 字符前缀 "colo"/"coul" 任意位置匹配时：coulomb/coulombConstant 等
 // 物理量命名被误判颜色语义，vec3 被渲染成取色器丢分量编辑。
+//
+// 短颜色词（col / tint / rgb / bg）：整词后只能是串尾、一个 '_' 或**至多一个
+// 字符段**（uColA / uColB / uColC / uBg / uTint / col0 / col_A 命中）；colOffset /
+// bgDir / tintSpeed 这类「颜色词 + 普通词干」的向量保持分量滑条（词尾后超过一个
+// 字符即按非颜色处理）。
 bool isColorNamed(const std::string& n) {
     static const char* const kWords[] = {"color", "colour"};
     for (const char* w : kWords) {
-        if (findSemanticWord(n, w, /*requireWordEnd=*/true)) return true;
+        if (findSemanticWord(n, w, WordTailPolicy::WordEnd)) return true;
+    }
+    static const char* const kShortWords[] = {"col", "tint", "rgb", "bg"};
+    for (const char* w : kShortWords) {
+        if (findSemanticWord(n, w, WordTailPolicy::SingleSegment)) return true;
     }
     return false;
 }
@@ -1066,13 +1089,12 @@ bool isColorNamed(const std::string& n) {
 // **不要求词尾边界**：调用方（params.h slotSliderRange）要给角度类 uniform 一个
 // -360..360 的滑条量程，必须覆盖词干派生名 rotation / rotSpeed / degrees / degToRad，
 // 词尾边界会把它们全部漏掉（"rot" 后接 'a' 就被判为不匹配）。
-// 与 isColorNamed 的整词口径不同是有意的：颜色必须整词（否则 coulomb 类误判，
-// 见上），而角度词干在词首出现时无同类误判（degrade 一类命名在实际 shader 中
-// 不表示角度，但这也是本判定能容忍的最坏误报）。
+// 与 isColorNamed 的「整词 + 至多一个字符段」口径不同：颜色短词后接普通词干
+// 不命中（coulomb / colOffset），角度词干允许派生后缀（rotation / degToRad）。
 bool isAngleNamed(const std::string& n) {
     static const char* const kStems[] = {"angle", "deg", "rot"};
     for (const char* w : kStems) {
-        if (findSemanticWord(n, w, /*requireWordEnd=*/false)) return true;
+        if (findSemanticWord(n, w, WordTailPolicy::Any)) return true;
     }
     return false;
 }

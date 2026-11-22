@@ -790,9 +790,53 @@
     return s;
   }
 
+  // 颜色语义判定（与 native/glsl-host/src/uniformParser.cpp isColorNamed 同口径）：
+  // 整词 color/colour（词边界），或短词 col/tint/rgb/bg（词尾后至多一个字符段，
+  // 可隔一个 '_'）。词首边界 = 串首 / 非字母数字 / 驼峰（前小写接本词首大写）。
+  // 短词后接普通词干不算颜色：colOffset / bgDir / tintSpeed 仍按分量控件。
+  function isColorNamed(name) {
+    var n = String(name == null ? '' : name);
+    function isAlnum(c) { return /[A-Za-z0-9]/.test(c); }
+    function isUpper(c) { return c >= 'A' && c <= 'Z'; }
+    function isLower(c) { return c >= 'a' && c <= 'z'; }
+    function wordStart(i) {
+      if (i === 0) return true;
+      if (!isAlnum(n.charAt(i - 1))) return true;
+      return isUpper(n.charAt(i)) && isLower(n.charAt(i - 1));
+    }
+    function wordEnd(e) {
+      if (e >= n.length) return true;
+      var c = n.charAt(e);
+      return !isAlnum(c) || isUpper(c);
+    }
+    function segmentTail(e) {
+      var k = e;
+      if (k >= n.length) return true;
+      if (n.charAt(k) === '_') k++;
+      if (k >= n.length) return true;
+      return isAlnum(n.charAt(k)) && k + 1 === n.length;
+    }
+    function find(word, tailOk) {
+      for (var i = 0; i + word.length <= n.length; i++) {
+        if (n.substr(i, word.length).toLowerCase() !== word) continue;
+        if (!wordStart(i)) continue;
+        if (tailOk && !tailOk(i + word.length)) continue;
+        return true;
+      }
+      return false;
+    }
+    if (find('color', wordEnd) || find('colour', wordEnd)) return true;
+    var shorts = ['col', 'tint', 'rgb', 'bg'];
+    for (var i = 0; i < shorts.length; i++) {
+      if (find(shorts[i], segmentTail)) return true;
+    }
+    return false;
+  }
+
   global.AEEffectLab = global.AEEffectLab || {};
   global.AEEffectLab.parseUniforms = parseUniforms;
   global.AEEffectLab.setUniformDefault = setUniformDefault;
+  global.AEEffectLab.isColorNamed = isColorNamed;   // 面板预览按此选色块控件，与宿主同一判据表
   global.AEEffectLab.stripUniformInitializers = stripUniformInitializers;
   global.AEEffectLab.stripComments = stripComments;   // 供 glslValidator 预检复用（单一实现防语义漂移）
   // 供 glslValidator.buildFragmentSource 在拼接前调用（面板侧的：宿主已剥离，

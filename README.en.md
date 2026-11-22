@@ -4,7 +4,7 @@
 
 > A multi-module extension platform (CEP) that brings AI into After Effects.
 >
-> Version: v1.0.3
+> Version: v1.0.4
 
 AS_ExtP is an AI extension platform for After Effects — a CEP panel plus two native AE plug-ins (a GLSL effect host and the AE Hotbox). The panel consists of several modules: **Agent** (conversational control through large language models), **ComfyUI** (AI image / video generation), **Asset Library** (project assets and presets), and **MCP / Skill / Memory / Model management** (capability extension and configuration).
 
@@ -220,7 +220,7 @@ A generic pixel-effect `.aex` host plug-in. Effect logic lives in external `.gls
 - **3D camera coupling**: reads the comp camera and injects its matrix, position and field of view (`uCamFov`) into built-in uniforms, so perspective in GLSL matches the AE camera, enabling true spatial alignment
 - **AE light coupling**: enumerates comp lights (type / position / orientation / color × intensity / cone falloff, up to 8) into `uLight*` uniforms, so effects can react to AE lights live
 - **Layer map inputs**: declaring `iChannel1/2/3` enables the corresponding layer rows (undeclared, the three rows stay visible but disabled — the host's LAYER row cannot be hidden), letting other layers act as textures (`iChannel0` is the built-in "this layer")
-- **Parameter slots**: one slider per scalar, each component of a vec2 / vec3 on its own row, and vec4 / color-semantic vectors rendered as a color picker; component 0 is addressed by the uniform name itself and the rest by `.y/.z/.w` (color semantics use `.g/.b/.a`; there is no `.r`); display range and valid input range are set separately
+- **Parameter slots**: a single plugin-drawn canvas inside the "Parameters" group draws one row per uniform of the selected shader — a slider for scalars, one row per component for vec2 / vec3 point controls, and color-picker swatches for vec4 / color-semantic vectors; row names and values come from the current file every frame, so copies, shader switches and project restores are correct on first paint. Scripts and AI address slots through the host's param map (`propertyIndex`) or parameter matchName; the selected-file index is hidden parameter 141 (it moved from 140). Display range and valid input range are set separately
 - **Effect library index**: the host exports the authoritative index, so the panel and the host stay in sync; a selected file that disappears is passed through instead of silently swapping in another shader
 
 ![GLSL effect host with an ocean shader: editing the .glsl file hot-reloads the frame](assets/readme/glsl-host-in-ae-ocean.png)

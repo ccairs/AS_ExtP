@@ -801,6 +801,17 @@ static void test_is_color_named_boundaries() {
     assert(glsl::isColorNamed("my_colour_value"));   // 下划线词边界
     assert(glsl::isColorNamed("COLOUR"));            // 大小写不敏感
     assert(glsl::isColorNamed("colourMix"));
+    // 命中：短颜色词 + 至多一个字符段（uColA / uBg / uTint / col0 / col_A）
+    assert(glsl::isColorNamed("uColA"));
+    assert(glsl::isColorNamed("uColB"));
+    assert(glsl::isColorNamed("uColC"));
+    assert(glsl::isColorNamed("uBg"));
+    assert(glsl::isColorNamed("uTint"));
+    assert(glsl::isColorNamed("uRgb"));
+    assert(glsl::isColorNamed("col"));
+    assert(glsl::isColorNamed("col0"));
+    assert(glsl::isColorNamed("col_A"));
+    assert(glsl::isColorNamed("uRGB"));
     // 不命中：4 字符前缀的更长物理量词（审计例）
     assert(!glsl::isColorNamed("coulomb"));
     assert(!glsl::isColorNamed("coulombConstant"));
@@ -808,11 +819,19 @@ static void test_is_color_named_boundaries() {
     // 不命中：color/colour 作为更长词的非词首部分
     assert(!glsl::isColorNamed("decolorize"));
     assert(!glsl::isColorNamed("colorectal"));
+    // 不命中：短颜色词后接普通词干（颜色词 + 词干的向量仍是分量控件）
+    assert(!glsl::isColorNamed("uColOffset"));
+    assert(!glsl::isColorNamed("bgDir"));
+    assert(!glsl::isColorNamed("uTintSpeed"));
+    assert(!glsl::isColorNamed("uColAB"));
+    assert(!glsl::isColorNamed("column"));
+    assert(!glsl::isColorNamed("colormap"));
     // 不命中：无关命名
     assert(!glsl::isColorNamed("uOffset"));
     assert(!glsl::isColorNamed("uSpeed"));
+    assert(glsl::isColorNamed("u_col_a"));
+    assert(glsl::isColorNamed("col_"));
     assert(!glsl::isColorNamed(""));
-    assert(!glsl::isColorNamed("col"));              // 不足 5 字符非完整词
     std::cout << "PASS test_is_color_named_boundaries\n";
 }
 

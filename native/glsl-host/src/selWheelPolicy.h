@@ -130,4 +130,28 @@ inline SelWheelHandleState selWheelHandleState(std::uintptr_t h, bool (*isWindow
     return SelWheelHandleState::Dead;
 }
 
+// —— 滚轮档数与行号平移（纯函数，单测钉方向/余量/钳制）——
+// Windows 一档滚轮 = WHEEL_DELTA（120）；一次事件可能携带多档（高分辨率滚轮/
+// 触控板），也可能不足一档。本头文件不依赖 Win32，常量在此自行定义。
+constexpr int kWheelDelta = 120;
+
+// 把一次滚轮事件的 delta 并入累计余量，返回本次消费掉的整档数（可正可负；
+// 0 = 不足一档，余量保留在 rawAccum 里等下一次）。方向由调用方解释：
+// 正值 = 向前滚（内容上移）。
+inline int selWheelTakeNotches(int& rawAccum, int wdelta) {
+    rawAccum += wdelta;
+    const int notches = rawAccum / kWheelDelta;
+    rawAccum -= notches * kWheelDelta;
+    return notches;
+}
+
+// 行号按 delta 平移并钳到 [0, maxScroll]；调用方负责把「返回值 == 原值」当作
+// 无变化（不重绘），这样滚到边界后继续滚不会累积超量。
+inline int selWheelClampRow(int row, int delta, int maxScroll) {
+    int want = row + delta;
+    if (want < 0) want = 0;
+    if (want > maxScroll) want = maxScroll;
+    return want;
+}
+
 } // namespace host

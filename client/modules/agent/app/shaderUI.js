@@ -1020,10 +1020,14 @@
     }
 
     // —— 右抽屉：编译状态 + 参数控件 + 应用 ——
-    // 控件类型映射（与原生 ECW customUI.cpp kindFor 对齐）：
-    //   float → Slider（单滑块）；vec2/vec3 名字含 color/colour → Swatch（取色器）；
+    // 控件类型映射（与原生 ECW customUI.cpp kindFor 对齐；颜色语义判定取
+    // AEEffectLab.isColorNamed，与宿主 glsl::isColorNamed 共用同一张判据表）：
+    //   float → Slider（单滑块）；vec2/vec3 颜色语义 → Swatch（取色器，单行）；
     //   vec4 → Swatch（取色器 + alpha 滑块）；其余 vec2/vec3 → Point（多分量滑块）。
-    function isColorName(name) { return /color|colour/i.test(String(name || '')); }
+    function isColorName(name) {
+      var lab = window.AEEffectLab;
+      return !!(lab && typeof lab.isColorNamed === 'function' && lab.isColorNamed(name));
+    }
     function clamp01(v) { return Math.max(0, Math.min(1, Number(v) || 0)); }
     function toHex(v) {
       var n = Math.round(clamp01(v) * 255);
@@ -1171,10 +1175,11 @@
       row.appendChild(comps); row.appendChild(valEl);
     }
 
-    // 颜色型（vec3/vec4 命名含 color，或 vec4）→ 取色器；vec4 额外 alpha 滑块（0~1）
+    // 颜色型（vec2/vec3 命中颜色语义，或 vec4）→ 取色器；分量数与 value 一致，
+    // vec4 额外 alpha 滑块（0~1）。
     function buildColorControl(row, u, value, sync, hasAlpha) {
-      var n = hasAlpha ? 4 : value.length;
-      var base = value.slice(0, Math.min(n, 4));
+      var n = hasAlpha ? 4 : Math.min(value.length, 3);
+      var base = value.slice(0, n);
       while (base.length < n) base.push(1);
       var wrap = document.createElement('div');
       wrap.className = 'u-color';
@@ -1189,10 +1194,10 @@
       updateVal();
       cinput.addEventListener('input', function () {
         var rgb = hexToRgb(cinput.value);
-        for (var i = 0; i < 3; i++) base[i] = rgb[i];
-        sync(hasAlpha ? base : base.slice(0, 3));
+        for (var i = 0; i < Math.min(3, base.length); i++) base[i] = rgb[i];
+        sync(base.slice(0, n));
         updateVal();
-        setUniformDefaultValue(u, hasAlpha ? base : base.slice(0, 3));
+        setUniformDefaultValue(u, base.slice(0, n));
       });
       wrap.appendChild(cinput);
       if (hasAlpha) {

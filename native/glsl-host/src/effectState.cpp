@@ -709,8 +709,8 @@ void setEntrySignature(const std::string& path, const std::string& sig) {
 // —— 槽位参数索引（单分组布局，见 effectState.h 注释）——
 // PARAMS_SETUP 在主线程执行，此后不变，普通 int 足够（无并发写）。
 // 单分组：32 槽位 × 4 分量全部注册进「参数」组，分量索引恒为
-// kIdxSlots + slot*kFloatsPerSlot + comp；分量0 可见（自绘整行），分量1..3
-// 隐藏（PF_PUI_NO_ECW_UI），不再有「未激活参数」组偏移。
+// kIdxSlots + slot*kFloatsPerSlot + comp；4 个分量全部隐藏（PF_PUI_NO_ECW_UI），
+// 显示由画布自绘。
 int slotCompIndex(int slot, int comp) {
     if (slot < 0 || slot >= kMaxParams) return -1;
     if (comp < 0 || comp >= kFloatsPerSlot) return -1;

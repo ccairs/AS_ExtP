@@ -1372,11 +1372,12 @@
     // agent/engine/shaderTools.js 共用一份实现）。本工具不接受脚本代码——三段固定模板
     // 经 createHandler 通道下发（AST 门照过）；写操作走既有 Undo 包裹（wrapUndo）。
     // 槽位口径（native params.h）：propertyIndex = 5 + 4*slot + comp，
-    // kIdxSlots=5 / kMaxParams=32 / kFloatsPerSlot=4 ⇒ 槽位分量索引 5..132；
-    // 选中文件索引的真相源是隐藏原生参数 140（kIdxFileIndexParam）。
+    // kIdxSlots=5 / kMaxParams=32 / kFloatsPerSlot=4 ⇒ 槽位分量索引 5..132（本工具只认这段）；
+    // 其后是非槽位参数：133 画布、135..139 映射图层组、140 相机开关、142 起为灯光与重算控件。
+    // 选中文件索引的真相源是隐藏原生参数 141（kIdxFileIndexParam）。
     var SHADER_SLOT_PROP_FIRST = 5;
     var SHADER_SLOT_PROP_LAST = 132;
-    var SHADER_FILE_INDEX_PROP = 140;
+    var SHADER_FILE_INDEX_PROP = 141;
 
     // 映射索引必须是整数且落在槽位区间：宿主只写 5 + 4*slot + comp（整数），
     // 非整数/越界即映射损坏或被篡改。不允许 Math.round 后照写——把 5.9 折成 6
@@ -1427,7 +1428,7 @@
             '      if (typeof fv === \'number\' && isFinite(fv)) fileIdx = Math.round(fv);\n' +
             '    }\n';
 
-        // ① 列实例：合成里所有 matchName === 'AS_Effect_Host' 的效果（含 140 的值）。
+        // ① 列实例：合成里所有 matchName === 'AS_Effect_Host' 的效果（含 141 的值）。
         var enumScript = 'result = (function () {\n' +
             '  try {\n' +
             compPrologue +
@@ -1495,7 +1496,7 @@
             '  }\n' +
             '})();\n';
 
-        // ③ 写一个分量：先核对 140（映射属于另一个 shader 时**不**回退按名写），
+        // ③ 写一个分量：先核对 141（映射属于另一个 shader 时**不**回退按名写），
         // 再 setValue，读回确认；old 取写入前的值（回执要能说明改了什么）。
         // 三个数值由面板侧生成（库索引 / 参数索引 / 数值），**只接受校验过的整数/有限数**——
         // 写成数字字面量而不是从 __args 读：目标索引必须与宿主映射逐字对得上，
@@ -1795,7 +1796,7 @@
                 var shaderIdx = Number(target.shaderIdx);
                 if (!Number.isInteger(shaderIdx) || shaderIdx < 0) {
                     return shaderParamsError('NO_MAP',
-                        '该实例没有选中 shader 文件（参数 140 = ' + String(target.shaderIdx) + '）：'
+                        '该实例没有选中 shader 文件（参数 141 = ' + String(target.shaderIdx) + '）：'
                             + '先在效果控件里选中一个 shader。');
                 }
                 var hits = lib.findEntriesByLibraryIndex(map.doc, shaderIdx);

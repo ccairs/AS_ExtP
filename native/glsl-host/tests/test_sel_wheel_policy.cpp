@@ -223,6 +223,47 @@ static void test_hit_handle_state_three_way() {
     std::cout << "PASS test_hit_handle_state_three_way\n";
 }
 
+// 滚轮档数归一与行号钳制（画布滚轮）：一次 WM_MOUSEWHEEL 可能携带多档或不足
+// 一档（高分辨率滚轮/触控板），画布每档 1 行；方向 = 向前滚（正 delta）偏移减。
+static void test_notch_and_clamp() {
+    // 整档：+120 → 1 档；−360 → −3 档
+    {
+        int raw = 0;
+        assert(host::selWheelTakeNotches(raw, 120) == 1 && raw == 0);
+        assert(host::selWheelTakeNotches(raw, -360) == -3 && raw == 0);
+        assert(host::selWheelTakeNotches(raw, 240) == 2 && raw == 0);
+    }
+    // 不足一档：不消费、余量累积，凑满一档才返回非零
+    {
+        int raw = 0;
+        assert(host::selWheelTakeNotches(raw, 40) == 0 && raw == 40);
+        assert(host::selWheelTakeNotches(raw, 40) == 0 && raw == 80);
+        assert(host::selWheelTakeNotches(raw, 40) == 1 && raw == 0);
+    }
+    // 负向余量：−40 −40 −40 → −1 档（整除向零取整，余量同样保持）
+    {
+        int raw = 0;
+        assert(host::selWheelTakeNotches(raw, -40) == 0 && raw == -40);
+        assert(host::selWheelTakeNotches(raw, -40) == 0 && raw == -80);
+        assert(host::selWheelTakeNotches(raw, -40) == -1 && raw == 0);
+    }
+    // 跨事件余量：+60 ×4 = +240 → 中途凑满一档
+    {
+        int raw = 0;
+        assert(host::selWheelTakeNotches(raw, 60) == 0 && raw == 60);
+        assert(host::selWheelTakeNotches(raw, 60) == 1 && raw == 0);
+    }
+    // 钳制：两端截断，中间平移；maxScroll=0 时恒 0
+    assert(host::selWheelClampRow(0, -1, 5) == 0);
+    assert(host::selWheelClampRow(0, 1, 5) == 1);
+    assert(host::selWheelClampRow(3, -2, 5) == 1);
+    assert(host::selWheelClampRow(5, 3, 5) == 5);
+    assert(host::selWheelClampRow(5, -5, 5) == 0);
+    assert(host::selWheelClampRow(2, 9, 0) == 0);
+    assert(host::selWheelClampRow(-3, 1, 5) == 0);
+    std::cout << "PASS test_notch_and_clamp\n";
+}
+
 } // namespace
 
 void runSelWheelPolicyTests() {
@@ -234,5 +275,6 @@ void runSelWheelPolicyTests() {
     test_hit_ignores_staleness();
     test_pending_prune_stale();
     test_hit_handle_state_three_way();
+    test_notch_and_clamp();
     std::cout << "ALL SEL WHEEL POLICY TESTS PASSED\n";
 }
