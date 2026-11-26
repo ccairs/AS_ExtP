@@ -636,4 +636,6 @@
   global.AEEffectLab.SOLVE_DEFAULT = SOLVE_DEFAULT;
   global.AEEffectLab.SOLVE_MAX = SOLVE_MAX;
   global.AEEffectLab.RES_DEFAULT = RES_DEFAULT;
+  // 网格长边上限（@solveRes 钳制值）：渲染器/抓帧据此决定结算网格的封顶基数（单一来源）。
+  global.AEEffectLab.RES_MAX = RES_MAX;
 })(window);

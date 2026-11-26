@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="5.0" ExtensionBundleId="AS_ExtP" ExtensionBundleVersion="1.0.4" ExtensionBundleName="AS_ExtP">
+<ExtensionManifest Version="5.0" ExtensionBundleId="AS_ExtP" ExtensionBundleVersion="1.0.5" ExtensionBundleName="AS_ExtP">
     <ExtensionList>
-        <Extension Id="AS_ExtP" Version="1.0.4" />
+        <Extension Id="AS_ExtP" Version="1.0.5" />
     </ExtensionList>
     <ExecutionEnvironment>
         <HostList>

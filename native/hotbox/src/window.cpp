@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <unordered_set>
 #include <wincodec.h>
 #include <wincodecsdk.h>
 #pragma comment(lib, "d2d1.lib")
@@ -154,6 +155,7 @@ const int kCaptureSlot = 0;               // 正上方弧段（-90° 方向）= 
 const double kSettingsSpan = 26.0;        // 设置段角度跨度（较窄，给左右弧段腾位）
 const double kSegGap = 2.0;               // 弧段间透明缝（分隔弧段，替代描边）
 const size_t kRecentMax = 100;            // 最近使用保留条数（单条 ≈ 100B，100 条约十几 KB）
+const size_t kTypoMaxResults = 8;          // 手误容错一次最多列出的近似条目数
 
 // 非均匀弧段布局：各段以等分中心角（60°）为中心展开；设置段较窄（26°）居中正下方，
 // 其余段保持 60° 标准跨度——设置段省出的角度在它两侧留空隙，弧段互不重叠。
@@ -222,6 +224,8 @@ bool g_inHeightAnim = false;          // 高度动画进行中
 double lerp(double a, double b, double t) { return a + (b - a) * t; }
 std::vector<data::Item> g_items;     // 全量数据（首次进搜索模式加载，缓存）
 std::vector<data::Item> g_results;   // 当前过滤+查询结果
+std::unordered_set<std::string> g_typoKeys;   // 近似匹配结果的条目 key（行首标 ≈；精确命中时清空）
+int g_filterHintCount = 0;           // 「当前筛选无命中 · 切到『全部』有 N 条」的 N（0 = 不提示）
 int g_resultSel = 0;                 // 选中行
 int g_scrollTop = 0;                 // 结果列表可视窗口顶部行（滚轮独立滚动；选中行越界时贴边）
 int g_listRows = kMaxRowsInit;       // 当前可见行数（拖拽列表下方分隔条调整）
@@ -1202,6 +1206,7 @@ void paintSearch(const D2D1::Matrix3x2F& baseTx, ID2D1SolidColorBrush* brBorder,
                                          (FLOAT)(kListX + kListW - 10), y + (FLOAT)kRowH);
         // 图标 + 名称（左对齐；右边界贴类型小标列左侧留 4px）
         std::wstring line = std::wstring(iconFor(it.type)) + L" " + utf8ToWide(it.name);
+        if (!g_typoKeys.empty() && g_typoKeys.count(it.key)) line = L"≈ " + line;
         D2D1_RECT_F rcName = D2D1::RectF((FLOAT)(kListX + 14), y, rcType.left - 4.0f,
                                          y + (FLOAT)kRowH);
         g_rt->DrawText(line.c_str(), (UINT32)line.size(), g_fmtLeft, rcName, brText,
@@ -1243,11 +1248,19 @@ void paintSearch(const D2D1::Matrix3x2F& baseTx, ID2D1SolidColorBrush* brBorder,
     std::string status;
     ID2D1SolidColorBrush* brStatus = brText;
     if (!g_msg.empty()) { status = g_msg; brStatus = brAccent; }
-    else if (g_query.empty()) {
-        // 空查询＝最近使用列表；无记录时才显示输入提示（保持干净空状态）
+    else if (search::normalizeQuery(g_query).empty()) {
+        // 空查询（含只敲了空格）＝最近使用列表；无记录时才显示输入提示（保持干净空状态）
         status = g_results.empty()
                      ? std::string(Tr(S_HOTBOX_WINDOW_SEARCH_PLACEHOLDER))
                      : trFormat(S_HOTBOX_WINDOW_STATUS_RECENT, (int)g_results.size());
+    }
+    else if (!g_typoKeys.empty()) {
+        // 近似匹配（手误容错）：结果行首带 ≈，状态行点明未精确命中
+        status = trFormat(S_HOTBOX_WINDOW_STATUS_TYPO, (int)g_results.size());
+    }
+    else if (g_filterHintCount > 0) {
+        // 当前类型筛选下无命中，但「全部」里有——提示切筛选
+        status = trFormat(S_HOTBOX_WINDOW_STATUS_FILTER_HINT, g_filterHintCount);
     }
     else if (g_results.empty()) { status = Tr(S_HOTBOX_WINDOW_STATUS_NO_MATCH); }
     else if (g_items.empty()) { status = Tr(S_HOTBOX_WINDOW_STATUS_DATA_UNAVAILABLE); brStatus = brAccent; }
@@ -2588,6 +2601,7 @@ void loadData() {
         FindClose(h);
     }
     search::PinyinIndex::instance().rebuild(g_items);   // 拼音索引随数据重建（字典惰性资源加载）
+    search::TypoIndex::instance().rebuild(g_items);     // 近似索引（手误容错）与数据同序重建
     g_dataSig = sig;          // 记录本次加载的签名（加载前计算值）
     g_dataSigValid = sigOk;   // 不可判定（AEGP 未就绪/效果数为 0）时不记录，保持每次重载
     g_dataLoaded = true;
@@ -2595,8 +2609,13 @@ void loadData() {
 
 // 重跑查询：空查询列出最近使用（按当前类型过滤，无记录则为空状态）；
 // 有关键词时模糊匹配 + 最近使用优先，并收敛选中行与可视窗口。
+// 查询词先裁首尾空白：EDIT 文本原样保留（绘制/光标定位用它），检索只认归一后的词——
+// 空格态（只敲了空格）与空查询同口径，直接列最近使用。
 void rerunQuery() {
-    if (g_query.empty()) {
+    const std::string queryText = search::normalizeQuery(g_query);
+    g_typoKeys.clear();
+    g_filterHintCount = 0;
+    if (queryText.empty()) {
         // 空查询：最近使用即默认列表（时间倒序，与环上动态槽同源）
         g_results = search::filterByType(g_recent, g_filterType);
         g_resultSel = 0;
@@ -2604,10 +2623,21 @@ void rerunQuery() {
         if (g_mode == Mode::kSearch) updateSearchWindowSize();
         return;
     }
-    g_results = search::query(g_items, g_filterType, g_query);
-    // 用过的（命中最近使用）前移到最前：输入变化后选中行归零（EN_CHANGE），
-    // 排序即决定「打完字直接回车」执行哪条
-    g_results = search::rankRecentFirst(g_results, g_recent);
+    g_results = search::query(g_items, g_filterType, queryText);
+    if (g_results.empty()) {
+        // 手误容错：精确/子序列/拼音都没命中时给最接近的几条（行首标 ≈，状态行点明近似）
+        g_results = search::TypoIndex::instance().suggest(g_items, g_filterType, queryText,
+                                                          kTypoMaxResults);
+        for (const auto& it : g_results) g_typoKeys.insert(it.key);
+        if (g_results.empty() && g_filterType != "all") {
+            // 类型筛选把结果挡掉了：给「切到全部」的提示（条数按精确层算）
+            g_filterHintCount = (int)search::query(g_items, "all", queryText).size();
+        }
+    } else {
+        // 用过的（命中最近使用）前移到最前：输入变化后选中行归零（EN_CHANGE），
+        // 排序即决定「打完字直接回车」执行哪条
+        g_results = search::rankRecentFirst(g_results, g_recent);
+    }
     if (g_resultSel >= (int)g_results.size()) g_resultSel = (int)g_results.size() - 1;
     if (g_resultSel < 0) g_resultSel = 0;
     ensureSelVisible();
@@ -4868,6 +4898,8 @@ void window_showAt(int screenX, int screenY) {
     g_scrollTop = 0;
     g_query.clear();                // 清空上次搜索文本，防止搜索模式残影
     g_results.clear();              // 清空上次搜索结果
+    g_typoKeys.clear();             // 近似标记与结果同生命周期
+    g_filterHintCount = 0;          // 筛选提示同结果生命周期
     g_resultSel = 0;
     g_filterType = "all";           // 过滤类型同为搜索会话状态——上次选的
                                     // 「效果/脚本/预设」若跨弹出残留，按字母键直接

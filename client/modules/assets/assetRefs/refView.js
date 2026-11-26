@@ -6,12 +6,27 @@
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // 自动转码开关（模块设置 → 素材库 → 自动转码；与设置面板同一 localStorage 键，默认开）。
-    // 三处自动转码入口共用本判定：详情兜底 _playMovFallback / 网格缩略图
-    // onThumbVideoUnplayable / 全屏 _onLbVideoUnplayable。关闭时不发起转码——详情与全屏
-    // 显示关闭提示，网格保持静态封面；既有缓存不受影响（清缓存按钮仍可用）。
+    // 自动转码开关（模块设置 → 素材库 → 自动转码，默认开）。实现与快速执行栏悬停预览共用
+    // （AEAssetsShared.autoTranscodeEnabled，设置键只有一份）。三处自动转码入口共用本判定：
+    // 详情兜底 _playMovFallback / 网格缩略图 onThumbVideoUnplayable / 全屏
+    // _onLbVideoUnplayable。关闭时不发起转码——详情与全屏显示关闭提示，网格保持静态封面；
+    // 既有缓存不受影响（清缓存按钮仍可用）。
     function _autoTranscodeEnabled() {
+        var S = global.AEAssetsShared;
+        if (S && typeof S.autoTranscodeEnabled === 'function') return S.autoTranscodeEnabled();
         try { return localStorage.getItem('assets.autoTranscode') !== '0'; } catch (_) { return true; }
+    }
+
+    // 转码限宽（模块设置里的缓存分辨率），缺省 854。与快速执行栏悬停预览共用同一判据。
+    function _transcodeMaxWidth() {
+        var S = global.AEAssetsShared;
+        if (S && typeof S.transcodeMaxWidth === 'function') return S.transcodeMaxWidth();
+        var maxWidth = 854;
+        try {
+            var mw = localStorage.getItem('assets.transcodeMaxWidth');
+            if (mw != null) { var p = parseInt(mw, 10); if (!isNaN(p)) maxWidth = p; }
+        } catch (_) {}
+        return maxWidth;
     }
 
     // ── Lightbox：图片缩放/拖动/惯性 / 视频带 controls 播放 ──
@@ -187,8 +202,7 @@
                     }
                     var token = ++_lbFallbackToken;
                     var transcodedDir = dd.replace(/[\\\/]+$/, '') + '/temp/transcoded';
-                    var maxWidth = 854;
-                    try { var mw = localStorage.getItem('assets.transcodeMaxWidth'); if (mw != null) { var p = parseInt(mw, 10); if (!isNaN(p)) maxWidth = p; } } catch (_) {}
+                    var maxWidth = _transcodeMaxWidth();
                     var hasTrans = global.AEAssetsShared && typeof global.AEAssetsShared.transcodeMov === 'function';
                     if (!hasTrans) return;
                     curFb.innerHTML = '<div style="padding:12px 16px;text-align:center;color:var(--text-muted);font-size:12px">'
@@ -389,33 +403,12 @@
         }
 
         // 首帧文件名 → { dir, prefix, ext, count, start, width }；文件名不合规返回 null。
-        // width > 0 表示带前导零命名（frame_001）→ 补零到首帧位宽；无前导零（frame_1..frame_10）
-        // 按自然位数增长（补零会推出不存在的 frame_010）。
+        // 推导实现与快速执行栏悬停预览共用（AEAssetsShared.sequenceMetaFromItem），
+        // 帧名规则只有一份。
         function _sequenceMeta(r) {
-            var seq = r && r.sequence;
-            var src = r && r.originalPath;
-            if (!seq || !src) return null;
-            var p = String(src).replace(/\\/g, '/');
-            var slash = p.lastIndexOf('/');
-            var dir = slash >= 0 ? p.slice(0, slash) : '';
-            var base = slash >= 0 ? p.slice(slash + 1) : p;
-            var prefix = String(seq.prefix || '');
-            var ext = String(seq.ext || '');
-            var count = Number(seq.count) || 0;
-            if (!prefix || !ext || count < 2) return null;
-            if (base.indexOf(prefix) !== 0) return null;
-            var mid = base.slice(prefix.length);
-            if (mid.length <= ext.length || mid.slice(-ext.length).toLowerCase() !== ext.toLowerCase()) return null;
-            mid = mid.slice(0, -ext.length);
-            if (!/^\d+$/.test(mid)) return null;
-            return {
-                dir: dir,
-                prefix: prefix,
-                ext: ext,
-                count: count,
-                start: parseInt(mid, 10),
-                width: mid.charAt(0) === '0' ? mid.length : 0
-            };
+            var S = global.AEAssetsShared;
+            if (S && typeof S.sequenceMetaFromItem === 'function') return S.sequenceMetaFromItem(r);
+            return null;   // 共享层缺席：不出帧列表，详情保持首帧静态
         }
 
         // 由 img 的 data-seq-* 重建 meta（详情渲染时已算过，避免二次解析路径）
@@ -434,40 +427,12 @@
             };
         }
 
-        // 第 i 帧文件名
-        function _sequenceFrameName(meta, i) {
-            var s = String(meta.start + i);
-            if (meta.width > 0) { while (s.length < meta.width) s = '0' + s; }
-            return meta.prefix + s + meta.ext;
-        }
-
-        // 帧 URL 列表：目录扫描命中才收（缺帧不推进 <img>）；扫描不可用时按推导兜底
+        // 帧 URL 列表：目录扫描命中才收（缺帧不推进 <img>）；扫描不可用时按推导兜底。
+        // 实现与快速执行栏悬停预览共用（AEAssetsShared.sequenceFrameUrls）。
         function _sequenceFrameUrls(meta) {
-            var names = [];
-            for (var i = 0; i < meta.count; i++) names.push(_sequenceFrameName(meta, i));
-            var toUrl = (global.AEShared && typeof global.AEShared.toFileUrl === 'function')
-                ? global.AEShared.toFileUrl : null;
-            var build = function (hitSet) {
-                var out = [];
-                for (var j = 0; j < names.length; j++) {
-                    if (hitSet && !hitSet[names[j]]) continue;
-                    var u = toUrl ? toUrl(meta.dir + '/' + names[j]) : '';
-                    if (u) out.push(u);
-                }
-                return out;
-            };
-            var AEFS = global.AEFS;
-            var lister = AEFS && (AEFS.listFilesAsync || AEFS.listFiles);
-            if (typeof lister !== 'function') return Promise.resolve(build(null));
-            return Promise.resolve()
-                .then(function () { return lister.call(AEFS, meta.dir); })
-                .then(function (list) {
-                    if (!Array.isArray(list) || !list.length) return build(null);
-                    var hitSet = {};
-                    for (var k = 0; k < list.length; k++) hitSet[String(list[k])] = true;
-                    return build(hitSet);
-                })
-                .catch(function () { return build(null); });
+            var S = global.AEAssetsShared;
+            if (S && typeof S.sequenceFrameUrls === 'function') return S.sequenceFrameUrls(meta);
+            return Promise.resolve([]);
         }
 
         function _seqTick(entry) {
@@ -519,8 +484,7 @@
                 return;
             }
             var transcodedDir = (dataDir || '').replace(/[\\\/]+$/,'') + '/temp/transcoded';
-            var maxWidth = 854;
-            try { var mw = localStorage.getItem('assets.transcodeMaxWidth'); if (mw != null) { var p = parseInt(mw, 10); if (!isNaN(p)) maxWidth = p; } } catch (_) {}
+            var maxWidth = _transcodeMaxWidth();
             var hasTrans = global.AEAssetsShared && typeof global.AEAssetsShared.transcodeMov === 'function';
             if (!hasTrans) return;
 
@@ -932,11 +896,7 @@
                 if (!movPath) return;
                 v.dataset.fbLoading = '1';
                 var transcodedDir = (dataDir || '').replace(/[\\\/]+$/, '') + '/temp/transcoded';
-                var maxWidth = 854;
-                try {
-                    var mw = localStorage.getItem('assets.transcodeMaxWidth');
-                    if (mw != null) { var p = parseInt(mw, 10); if (!isNaN(p)) maxWidth = p; }
-                } catch (_) {}
+                var maxWidth = _transcodeMaxWidth();
                 global.AEAssetsShared.transcodeMov(movPath, transcodedDir, function (p) {
                     if (p && p.status === 'running' && hint) hint.show(AEI18n.t('转码中…'));
                 }, maxWidth).then(function (webmPath) {

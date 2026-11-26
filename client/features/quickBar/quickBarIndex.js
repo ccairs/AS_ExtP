@@ -99,6 +99,9 @@
         if (_focusTimer) { clearTimeout(_focusTimer); _focusTimer = null; }
         if (_entranceTimer) { clearTimeout(_entranceTimer); _entranceTimer = null; }
         _hideContextMenu();
+        if (global.AEQuickBarPreview && typeof global.AEQuickBarPreview.hide === 'function') {
+            global.AEQuickBarPreview.hide();
+        }
         // _hideContextMenu 在鼠标不在面板上时会重启半透明延迟 timer；面板即将关闭，
         // 需在其后再清一次并复位 qb-dimmed，否则残留到下次 open() 后面板呈半透明
         if (_dimTimer) { clearTimeout(_dimTimer); _dimTimer = null; }
@@ -245,6 +248,15 @@
         var listEl = _overlayEl.querySelector('.qb-list');
         listEl.addEventListener('click', _onListClick);
         listEl.addEventListener('contextmenu', _onListContextMenu);
+        // 悬停缩略图：事件委托挂在列表容器上（虚拟滚动重建条目 DOM 绑定不失效）；
+        // 条目对象由本模块按 id 解析，浮层不读入口状态。预览是附加物，绑定失败不让入口构造失败。
+        if (global.AEQuickBarPreview && typeof global.AEQuickBarPreview.bindList === 'function') {
+            try {
+                global.AEQuickBarPreview.bindList(listEl, _findItemById);
+            } catch (e) {
+                console.warn('[QuickBar] 悬停预览绑定失败: ' + (e && e.message ? e.message : e));
+            }
+        }
         _overlayEl.querySelector('.qb-search').addEventListener('input', _onSearchInput);
         _overlayEl.addEventListener('mousedown', _onOverlayMouseDown);
         document.addEventListener('mousedown', _onDocumentMouseDown, true);
@@ -485,6 +497,10 @@
 
     function _renderList() {
         if (!_overlayEl) return;
+        // 列表即将重建：先收掉悬停浮层（行元素被替换后 mouseout 不保证到达）
+        if (global.AEQuickBarPreview && typeof global.AEQuickBarPreview.hide === 'function') {
+            global.AEQuickBarPreview.hide();
+        }
         var listEl = _overlayEl.querySelector('.qb-list');
         var emptyEl = _overlayEl.querySelector('.qb-empty');
         if (!listEl) return;
@@ -716,8 +732,11 @@
     function _getItemFromEvent(e) {
         var el = e.target.closest('.qb-item');
         if (!el) return null;
-        var id = el.getAttribute('data-id');
-        var tab = _state.tabs[_state.activeTab];
+        return _findItemById(el.getAttribute('data-id'));
+    }
+
+    function _findItemById(id) {
+        var tab = _state && _state.tabs[_state.activeTab];
         if (!tab || !tab.items) return null;
         for (var i = 0; i < tab.items.length; i++) {
             if (tab.items[i].id === id) return tab.items[i];

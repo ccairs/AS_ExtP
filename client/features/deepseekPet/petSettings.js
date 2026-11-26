@@ -33,6 +33,9 @@
     // 的原文件整包覆盖。用户提示走既有 AEToast 通道一次（不新增 UI 组件）
     var _readFailed = false;
     var _readFailNotified = false;
+    // 初始读盘是否已落定：false 期间内存仍是默认值，任何整包写都会把磁盘上的其它设置
+    //（名字/尺寸/活动区域）覆盖成默认。未调用 init 的实例保持 true（沿用既有写行为）
+    var _loadSettled = true;
 
     function createSettings() {
         var _loadPromise = null;
@@ -41,7 +44,12 @@
 
         function init() {
             _defaultsSnapshot = Object.assign({}, _settings);
-            _loadPromise = _loadFromDisk();
+            _loadSettled = false;
+            _loadPromise = _loadFromDisk().then(function () {
+                _loadSettled = true;
+            }, function () {
+                _loadSettled = true;
+            });
             return _loadPromise;
         }
 
@@ -270,39 +278,116 @@
             return !!AEFS.writeFileSync(filePath, content);
         }
 
-        // 写盘唯一出口：_readFailed 时拒绝覆盖写。
-        // sync=true（面板卸载 flush）优先走 AEFS 同步通道原子写——Bridge 同步 XHR /
-        // cep.fs 原生同步调用，beforeunload 内可完成；同步不可用时回落异步链并如实
-        // 返回 false（异步 XHR 在卸载窗口可能来不及，边界见 petIndex.flush 注释）
-        function _persist(sync) {
+        // 写盘快照：初始读盘未落定或 _readFailed 时拒绝覆盖写。返回 null 表示本次不可写
+        //（无数据目录/通道缺失/序列化失败）
+        function _snapshotForWrite() {
             var p = _getFilePath();
-            if (!p || typeof AEFS === 'undefined' || !AEFS.writeFile) return false;
+            if (!_loadSettled) {
+                console.warn('[petSettings] 初始读盘未完成：拒绝用默认值整包覆盖 settings.json');
+                return null;
+            }
             if (_readFailed) {
                 console.warn('[petSettings] 读取失败态：拒绝覆盖写 settings.json（原文件内容未读到，写回会用默认值整包覆盖）');
-                return false;
+                return null;
             }
-            var dir = p.substring(0, p.lastIndexOf('/'));
+            if (!p || typeof AEFS === 'undefined' || !AEFS.writeFile) return null;
             // JSON.stringify 加 try/catch 防止循环引用抛错
             var dataStr;
             try {
                 dataStr = JSON.stringify(_settings);
             } catch (e) {
                 console.warn('[petSettings] JSON.stringify failed: ' + e);
+                return null;
+            }
+            return { path: p, dataStr: dataStr };
+        }
+
+        // 同步原子写（面板卸载 flush 用）：走 AEFS 同步通道——Bridge 同步 XHR /
+        // cep.fs 原生同步调用，beforeunload 内可完成
+        function _persistSync() {
+            var snap = _snapshotForWrite();
+            if (!snap) return false;
+            var dir = snap.path.substring(0, snap.path.lastIndexOf('/'));
+            return _syncAtomicWrite(snap.path, dir, snap.dataStr);
+        }
+
+        // 异步原子写：resolve 本次写盘结果（true=已落盘，false=拒绝写/写失败），
+        // 供 persistNow 的调用方判定「关闭状态是否真的存下来了」
+        function _persistAsync() {
+            var snap = _snapshotForWrite();
+            if (!snap) return Promise.resolve(false);
+            var dir = snap.path.substring(0, snap.path.lastIndexOf('/'));
+            // 改走 .tmp→rename 原子写，写盘瞬间崩溃不再留半截 JSON；
+            // 加 .catch 防止 mkdir/writeFile reject 时 unhandledrejection
+            return AEFS.mkdir(dir).then(function () {
+                return _atomicWriteFile(snap.path, snap.dataStr);
+            }).then(function (ok) {
+                return !!ok;
+            }, function (e) {
+                console.warn('[petSettings] save to disk failed: ' + e);
+                return false;
+            });
+        }
+
+        // 写盘唯一出口（保留 sync 参数语义）：sync=true 优先同步原子写并返回结果，
+        // 同步通道不可用/写失败时回落异步链（卸载窗口内能否完成取决于异步通道）；
+        // sync=false 起异步链后恒返回 false（异步结果由 _persistAsync 的消费方判定）
+        function _persist(sync) {
+            if (!sync) {
+                _persistAsync();
                 return false;
             }
-            if (sync && _syncAtomicWrite(p, dir, dataStr)) return true;
-            // 加 .catch 防止 mkdir/writeFile reject 时 unhandledrejection
-            // 改走 .tmp→rename 原子写，写盘瞬间崩溃不再留半截 JSON
-            AEFS.mkdir(dir).then(function () {
-                return _atomicWriteFile(p, dataStr);
-            }).catch(function (e) {
-                console.warn('[petSettings] save to disk failed: ' + e);
-            });
+            if (_persistSync()) return true;
+            // 初始读盘未落定 / 读失败态两处都会拒写：同步已告警过，不再起异步链避免重复告警
+            if (!_readFailed && _loadSettled) _persistAsync();
             return false;
         }
 
+        // 读失败态下的写前重读：通道故障多为瞬时，重读成功即解除保护态（恢复可写）并
+        // 应用磁盘值（运行时修改由 _applyLoadedContent 的差异保留逻辑继续生效）。
+        // 否则一次读失败会让本次会话再也存不下设置（关闭桌宠后下次打开仍会出现）
+        function _retryReadBeforeWrite() {
+            var p = _getFilePath();
+            if (!p || typeof AEFS === 'undefined') return Promise.resolve(false);
+            if (typeof AEFS.readFileResult !== 'function' && typeof AEFS.readFile !== 'function') {
+                return Promise.resolve(false);
+            }
+            return _readFileTriState(p).then(function (res) {
+                if (res.status === 'failed') {
+                    console.warn('[petSettings] 写前重读仍失败，继续拒绝覆盖写: ' + (res.message || ''));
+                    return false;
+                }
+                if (res.status === 'ok' && res.content) _applyLoadedContent(res.content, p);
+                _readFailed = false;
+                _readFailNotified = false;
+                return true;
+            }, function () { return false; });
+        }
+
+        // 明确意图立即落盘（关闭/开启桌宠）：取消防抖窗口、写盘当场开始——状态决定下次
+        // 面板打开时桌宠是否出现，不能停在 500ms 防抖里等（用户紧接着关面板时只剩卸载
+        // flush 一条通道）。
+        // ① 等初始读盘落定再写：读未完成时内存是默认值，整包写会覆盖磁盘上的名字/尺寸/区域；
+        //    读一直不返回则宁可不写。
+        // ② 读失败态先重读一次，成功即解除保护并把磁盘值合并回内存。
+        // ③ patch 在重读之后叠加：与内置默认相同的修改（如 showPet:true）若先叠加，会被
+        //    _applyLoadedContent 的差异保留逻辑当作未修改而让磁盘旧值胜出。
+        // @returns {Promise<boolean>} true=已落盘；false=读失败态仍不可写/写失败
+        function persistNow(patch) {
+            var ready = _loadSettled ? Promise.resolve() : whenReady();
+            return ready.then(function () {
+                var gate = _readFailed ? _retryReadBeforeWrite() : Promise.resolve(true);
+                return gate.then(function (ok) {
+                    if (patch) updateSettings(patch);
+                    if (_saveDebounceTimer) { clearTimeout(_saveDebounceTimer); _saveDebounceTimer = null; }
+                    if (!ok) return false;
+                    return _persistAsync();
+                });
+            }, function () { return false; });
+        }
+
         // 防抖写盘：连续 updateSettings 只在静默 500ms 后落盘一次，
-        // _persist 执行时同步读取 _settings 即最新快照，天然避免旧快照乱序后写
+        // 写盘执行时同步读取 _settings 即最新快照，天然避免旧快照乱序后写
         function _scheduleSave() {
             if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
             _saveDebounceTimer = setTimeout(function () {
@@ -328,6 +413,25 @@
         function updateSettings(patch) {
             _settings = Object.assign({}, _settings, patch);
             _scheduleSave();
+        }
+
+        // 同步读 showPet（true/false；无法判定返回 null）：桌宠首帧是否出现必须在同步阶段
+        // 决定——异步 whenReady 在 Bridge 半死/慢通道下可能迟迟不 resolve，而 controller
+        // 初始化里的 bridge 离线检测会立刻派发 crashOverride（crash 动画 + 气泡）、夜间
+        // sleepManager 会播 sleep，关掉的桌宠会先出现在面板上并停留到读出结果为止。
+        // 设置文件约 300B，cep.fs 直读的同步成本可忽略。
+        function readShowPetSync() {
+            var p = _getFilePath();
+            if (!p || typeof AEFS === 'undefined' || typeof AEFS.readFileSync !== 'function') return null;
+            var raw = null;
+            try { raw = AEFS.readFileSync(p, { quietNotFound: true }); } catch (e) { return null; }
+            if (typeof raw !== 'string' || !raw) return null;
+            try {
+                var data = JSON.parse(raw);
+                return (data && typeof data.showPet === 'boolean') ? data.showPet : null;
+            } catch (e) {
+                return null;   // 损坏文件交给异步读的解析失败分支备份/重建
+            }
         }
 
         function _buildModelOptions() {
@@ -565,10 +669,14 @@
             }
 
             _modalEl.querySelector('#petSettingShow').addEventListener('change', function (e) {
-                updateSettings({ showPet: e.target.checked });
+                var nextShowPet = !!e.target.checked;
+                // 立即落盘（不等防抖）：该状态决定下次面板打开时桌宠是否出现
+                persistNow({ showPet: nextShowPet }).then(function (ok) {
+                    if (!ok) console.warn('[petSettings] showPet=' + nextShowPet + ' 未能落盘：重新打开面板时状态可能不保持');
+                });
                 if (global.AEDeepseekPet && global.AEDeepseekPet.controller) {
                     var ctrl = global.AEDeepseekPet.controller;
-                    if (e.target.checked) {
+                    if (nextShowPet) {
                         // 开启：从 shutdown 状态恢复
                         if (typeof ctrl.startup === 'function') ctrl.startup();
                         else ctrl.show();
@@ -886,6 +994,10 @@
             whenReady: whenReady,
             getSettings: getSettings,
             updateSettings: updateSettings,
+            // 启动闸门用的同步判定（true/false/null）
+            readShowPetSync: readShowPetSync,
+            // 明确意图立即落盘（resolve 是否已写入）
+            persistNow: persistNow,
             openModal: openModal,
             closeModal: closeModal,
             flush: flush,

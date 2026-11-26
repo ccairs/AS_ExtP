@@ -326,6 +326,45 @@
     }
   }
 
+  // 离屏抓帧（getShaderPreview 的 width 参数）的输出宽度上限（像素）。
+  // 与 imageTranscode 的 4096×2160 是两码事：那是外接通道的转码上限，这里限制的是
+  // 面板内离屏渲染的显存与单帧耗时。结算网格仍按 @solveRes（≤2048），不受此值封顶。
+  var SHADER_PREVIEW_MAX_OUTPUT = 2560;
+  var SHADER_PREVIEW_MIN_OUTPUT = 64;
+
+  // width 参数归一：缺省/空 = 0（不重绘，走实时帧直读）。返回 { width } 或 { error }。
+  function normalizeOutputWidth(raw) {
+    if (raw === undefined || raw === null || raw === '') return { width: 0 };
+    var n = Number(raw);
+    if (!isFinite(n)) {
+      return { error: 'width 需为数字（像素，' + SHADER_PREVIEW_MIN_OUTPUT + '–' + SHADER_PREVIEW_MAX_OUTPUT + '）' };
+    }
+    n = Math.round(n);
+    if (n < SHADER_PREVIEW_MIN_OUTPUT) n = SHADER_PREVIEW_MIN_OUTPUT;
+    if (n > SHADER_PREVIEW_MAX_OUTPUT) n = SHADER_PREVIEW_MAX_OUTPUT;
+    return { width: n };
+  }
+
+  // 预览画幅比（宽/高）：取主预览 canvas；不可用（未挂载/未渲染）时按 16:9。
+  function shaderPreviewAspect() {
+    if (typeof document !== 'undefined') {
+      var canvas = document.getElementById('shaderPreviewCanvas');
+      if (canvas && canvas.width > 0 && canvas.height > 0) return canvas.width / canvas.height;
+    }
+    return 16 / 9;
+  }
+
+  // data URL → { base64, mime }；形态不合法返回 null（与 imageTranscode.hoistInlineImages 同判据）。
+  function splitDataUrl(url) {
+    if (typeof url !== 'string' || url.indexOf('data:image/') !== 0) return null;
+    var semi = url.indexOf(';');
+    var comma = url.indexOf(',');
+    if (semi < 0 || comma < 0 || comma < semi) return null;
+    var b64 = url.slice(comma + 1);
+    if (!b64) return null;
+    return { base64: b64, mime: url.slice(5, semi) || 'image/jpeg' };
+  }
+
   // getShaderPreview 的多时间点参数（与 getPreviewFrame 的 timesInSeconds 同口径）：
   // 1–6 个有限秒数，负值钳到 0。返回 { times, timeClamped } 或 { error }。
   var SHADER_PREVIEW_MAX_TIMES = 6;
@@ -413,6 +452,385 @@
     }
     function writeFailedResult() {
       return { success: false, result: JSON.stringify({ status: 'error', message: '写入预览区失败：写入入口未接受本次写入（GLSL 编辑区缺失、装配未接线，或当前运行身份没有预览区写入通道——如团队子 Agent）。本次未交付——请先重开扩展面板后重试；若当前是团队子 Agent，请把产出交回上级 Agent 再提交。' }) };
+    }
+
+    // ── 离屏抓帧（不依赖 Shader 面板是否挂载）────────────────────────────
+    // 主预览的渲染器随模块卸载销毁（agent/app/main.js unmount 的 destroy）。高分辨率抓帧
+    // 与后台抓帧都必须活过模块卸载：用同一工厂在离屏 canvas 上建第二个实例，代码取自
+    // 预览区（#shaderCodePreview 是静态骨架，卸载后仍在文档里）。
+    var _offscreen = null;
+    var _offscreenUsedAt = 0;
+    // 空闲释放：离屏实例带一次到两次全屏纹理（@solveRes 2048 时约 100MB），常驻不划算。
+    // 超过空闲期（10 分钟）下次取用时销毁重建；渲染中的实例不会被释放（只在入口检查）。
+    var OFFSCREEN_IDLE_MS = 10 * 60 * 1000;
+    function offscreenRenderer() {
+      if (_offscreen && (Date.now() - _offscreenUsedAt) > OFFSCREEN_IDLE_MS) {
+        try { _offscreen.renderer.destroy(); } catch (_) {}
+        _offscreen = null;
+      }
+      if (_offscreen) { _offscreenUsedAt = Date.now(); return _offscreen; }
+      var factory = (typeof deps.createShaderPreviewRenderer === 'function')
+        ? deps.createShaderPreviewRenderer
+        : ((global.AEShaderPreview && typeof global.AEShaderPreview.createShaderPreviewRenderer === 'function')
+            ? global.AEShaderPreview.createShaderPreviewRenderer : null);
+      if (typeof factory !== 'function' || typeof document === 'undefined') return null;
+      var canvas = document.createElement('canvas');
+      var renderer = factory({
+        getCanvas: function () { return canvas; },
+        // 结算网格按 shader 声明的 @solveRes 建（上限 2048），不被输出图尺寸二次封顶——
+        // 这是与面板实时预览的口径差异：预览为速度把网格压到画布长边，抓帧按声明值。
+        getGridBaseSize: function () {
+          return (global.AEEffectLab && Number(global.AEEffectLab.RES_MAX)) || 2048;
+        }
+      });
+      _offscreen = { canvas: canvas, renderer: renderer };
+      _offscreenUsedAt = Date.now();
+      return _offscreen;
+    }
+
+    // 渲染器编译 settle：setSource 走 KHR 并行编译，pending 期间不得出帧。
+    // 上限 30 秒：巨型 shader 冷编译可远超 3 秒；超时转后台后任务继续等这一轮，
+    // 后台窗口（5 分钟）兜住。返回 Promise<boolean>（true = 可出帧）。
+    function waitRendererSettled(renderer, timeoutMs, shouldAbort) {
+      return new Promise(function (resolve) {
+        var waited = 0;
+        (function poll() {
+          if (shouldAbort && shouldAbort()) { resolve(false); return; }
+          var st = (typeof renderer.getStatus === 'function') ? renderer.getStatus() : null;
+          if (!st || !st.pending) { resolve(!!st && st.ok !== false); return; }
+          if (waited >= timeoutMs) { resolve(false); return; }
+          waited += 40;
+          setTimeout(poll, 40);
+        })();
+      });
+    }
+
+    // uniform 默认值写回（与 shaderUI.refreshPreviewFromCode 同口径：剥离初始化器后
+    // GL 里是 0，必须显式设置才能出正确画面）。
+    function applyUniformDefaults(renderer, code) {
+      if (!renderer || typeof renderer.setUniformValue !== 'function') return;
+      var lab = global.AEEffectLab;
+      if (!lab || typeof lab.parseUniforms !== 'function') return;
+      var uniforms = lab.parseUniforms(String(code || '')) || [];
+      for (var i = 0; i < uniforms.length; i++) {
+        var u = uniforms[i];
+        if (!u || !u.name) continue;
+        var def = u.default;
+        if (u.type === 'float') { renderer.setUniformValue(u.name, (typeof def === 'number') ? def : 1.0); continue; }
+        var n = u.type === 'vec2' ? 2 : u.type === 'vec3' ? 3 : 4;
+        var arr = Array.isArray(def) ? def.slice(0, n) : [];
+        var fill = (u.type === 'vec4') ? 1.0 : 0.0;
+        while (arr.length < n) arr.push(fill);
+        renderer.setUniformValue(u.name, arr);
+      }
+    }
+
+    // 离屏抓帧：按 times 渲染并逐帧截 canvas。width > 0 = 输出宽（高按预览画幅比）；
+    // width = 0 = 沿用主预览的像素尺寸（结算网格仍按 @solveRes）。
+    // 单例互斥：同一个离屏实例不能并发 setSource/改尺寸/推进结算。忙时直接报错，
+    // 不排队（排队会让后台任务越叠越多）。
+    var _offscreenBusy = false;
+    function captureOffscreenFrames(times, width, shouldAbort) {
+      if (_offscreenBusy) {
+        return Promise.resolve({ error: '离屏抓帧忙：另一个抓帧任务进行中，请稍后重试。' });
+      }
+      _offscreenBusy = true;
+      var inner;
+      try {
+        inner = captureOffscreenFramesInner(times, width, shouldAbort);
+      } catch (e) {
+        // 同步装配异常（工厂/画布创建）也要解锁，否则后续抓帧全被"忙"挡住
+        _offscreenBusy = false;
+        return Promise.resolve({ error: (e && e.message) || String(e) });
+      }
+      return Promise.resolve(inner).then(function (r) {
+        _offscreenBusy = false;
+        return r;
+      }, function (e) {
+        _offscreenBusy = false;
+        return { error: (e && e.message) || String(e) };
+      });
+    }
+    function captureOffscreenFramesInner(times, width, shouldAbort) {
+      var off = offscreenRenderer();
+      if (!off) return Promise.resolve({ error: '离屏渲染器不可用（AEShaderPreview 未加载）' });
+      if (typeof off.renderer.renderFrameSequenceAsync !== 'function') {
+        return Promise.resolve({ error: '离屏渲染器不支持异步抓帧（面板文件未完整更新）' });
+      }
+      var code = '';
+      try {
+        code = (typeof getCurrentShader === 'function') ? String(getCurrentShader() || '') : '';
+      } catch (_) { code = ''; }
+      if (!code.trim()) code = String((typeof captureShaderPreviewCode === 'function') ? captureShaderPreviewCode() : '');
+      if (!code.trim()) return Promise.resolve({ error: '预览区没有 GLSL 代码，无法离屏渲染' });
+      var ratio = shaderPreviewAspect();
+      var mainCanvas = (typeof document !== 'undefined') ? document.getElementById('shaderPreviewCanvas') : null;
+      var baseW = (mainCanvas && mainCanvas.width > 0) ? mainCanvas.width : 960;
+      var w = width > 0 ? width : baseW;
+      var h = Math.max(1, Math.round(w / ratio));
+      // 长边上限：竖版画幅下 width 是短边（2560 宽会算出 3000+ 高），统一把长边钳到上限
+      var longSide = Math.max(w, h);
+      if (longSide > SHADER_PREVIEW_MAX_OUTPUT) {
+        var shrink = SHADER_PREVIEW_MAX_OUTPUT / longSide;
+        w = Math.max(1, Math.round(w * shrink));
+        h = Math.max(1, Math.round(h * shrink));
+      }
+      off.canvas.width = w;
+      off.canvas.height = h;
+      // 转交主预览的取景：用户拖过相机后，截图构图要与所见一致（未触碰时保持自动取景）
+      var su = global.AEShaderUIInstance;
+      if (su && typeof su.getPreviewCamera === 'function') {
+        try { off.renderer.setCamera(su.getPreviewCamera()); } catch (_) {}
+      }
+      try {
+        off.renderer.setSource(code);
+        applyUniformDefaults(off.renderer, code);
+      } catch (e) {
+        return Promise.resolve({ error: '离屏渲染初始化失败：' + ((e && e.message) || e) });
+      }
+      return waitRendererSettled(off.renderer, 30000, shouldAbort).then(function (ready) {
+        _offscreenUsedAt = Date.now();
+        if (!ready) {
+          if (shouldAbort && shouldAbort()) return { cancelled: true, error: '已取消' };
+          // 编译未通过/超时：可回落到主实例（它可能还挂着上一版 program，能出旧画面）
+          return { error: '离屏渲染未就绪（编译未通过或超时）', fallbackable: true };
+        }
+        var frames = [];
+        return off.renderer.renderFrameSequenceAsync(times, function (meta) {
+          var dataUrl = null;
+          try { dataUrl = off.canvas.toDataURL('image/jpeg', 0.9); } catch (_) { dataUrl = null; }
+          frames.push({ time: meta.time, actualTime: meta.actualTime, frame: meta.frame, dataUrl: dataUrl });
+        }, { shouldAbort: shouldAbort }).then(function (res) {
+          if (!res || res.ok !== true) {
+            return { cancelled: !!(res && res.cancelled), error: (res && res.error) || '离屏渲染失败' };
+          }
+          // 逐帧画面可读性（与主实例多帧路径同口径）：任一帧读不到就整体报错，
+          // 不把缺帧的联系表/单帧当成功回执。
+          if (!frames.length) return { error: '离屏抓帧失败：没有渲染出任何帧。' };
+          for (var fi = 0; fi < frames.length; fi++) {
+            if (!frames[fi] || typeof frames[fi].dataUrl !== 'string' || frames[fi].dataUrl.indexOf('data:image/') !== 0) {
+              return { error: '离屏抓帧失败：时间点 ' + frames[fi].time + 's 的画面不可读。' };
+            }
+          }
+          return {
+            frames: frames,
+            mode: res.mode,
+            frameRate: res.frameRate,
+            timeClamped: !!res.timeClamped,
+            frameWidth: w,
+            frameHeight: h,
+            offscreen: true
+          };
+        });
+      });
+    }
+
+    // 预览区当前 GLSL（getCurrentShader 未注入时的直读兜底：静态骨架元素）。
+    function captureShaderPreviewCode() {
+      if (typeof document === 'undefined') return '';
+      var el = document.getElementById('shaderCodePreview');
+      return el ? String(el.value || '') : '';
+    }
+
+    // 主预览当前 uTime（秒）：暂停时是冻结时刻，播放中是已累计时间。
+    // 取不到（未挂载/旧实例）返回 0——离屏单帧重绘据此对齐「当前时刻」。
+    function currentPreviewTime() {
+      var su = global.AEShaderUIInstance;
+      if (su && typeof su.getPreviewTime === 'function') {
+        try {
+          var t = Number(su.getPreviewTime());
+          if (isFinite(t) && t >= 0) return t;
+        } catch (_) {}
+      }
+      return 0;
+    }
+
+    // ── 后台抓帧（超过等待窗转后台，完成后回投原会话）──────────────────
+    // 与 AE 渲染迟到回执同一套通道：AEEngine.injectSystemResult（写回发起时的会话/lane，
+    // 空闲自动起一轮）。任务表只在内存里，条目随结算删除。
+    var SHADER_BG_WAIT_MS = 10000;
+    var SHADER_BG_HARD_MS = 5 * 60 * 1000;
+    var _bgTasks = Object.create(null);
+    var _bgTaskSeq = 0;
+
+    function bgWaitMs() {
+      var override = (global.AEShaderTools && global.AEShaderTools.BACKGROUND_WAIT_MS);
+      if (override !== undefined && override !== null) {
+        var n = Number(override);
+        if (isFinite(n)) return n > 0 ? n : 0;   // 0 = 不转后台（同步等待，测试/调试用）
+      }
+      return SHADER_BG_WAIT_MS;
+    }
+    // 发起时的会话/lane 快照：优先取**执行侧**（toolExecutor 下发的 getActiveSessionId/
+    // execLane），取不到再回落门面（当前 lane）。后台结果按这个快照写回，用户中途切走不错位。
+    function bgSessionId(execCtx) {
+      try {
+        if (execCtx && typeof execCtx.getActiveSessionId === 'function') {
+          var sv = execCtx.getActiveSessionId();
+          if (typeof sv === 'string' && sv) return sv;
+        }
+      } catch (_) {}
+      try {
+        if (typeof deps.getSessionId === 'function') {
+          var s = deps.getSessionId();
+          if (typeof s === 'string' && s) return s;
+        }
+        if (global.AEEngine && typeof global.AEEngine.getSessionId === 'function') {
+          return global.AEEngine.getSessionId() || null;
+        }
+      } catch (_) {}
+      return null;
+    }
+    function bgLaneId(execCtx) {
+      try {
+        if (execCtx && typeof execCtx.execLane === 'string' && execCtx.execLane) return execCtx.execLane;
+      } catch (_) {}
+      try {
+        if (typeof deps.getLaneId === 'function') {
+          var l = deps.getLaneId();
+          if (typeof l === 'string') return l;
+        }
+        if (global.AEEngine && typeof global.AEEngine.getCurrentLaneId === 'function') {
+          return global.AEEngine.getCurrentLaneId() || '';
+        }
+      } catch (_) {}
+      return '';
+    }
+    function notifyUser(text) {
+      try { if (global.AEToast && typeof global.AEToast.show === 'function') global.AEToast.show(text, 'error'); } catch (_) {}
+    }
+    // 回投后台结果：返回是否真的交出去了。门面以 { ok:false, reason } 报"会话归属不符 /
+    // 通道不可用 / 没有 controller"——这类失败必须回 false，调用方据此给可见告警（不谎报已送达）。
+    function injectBackgroundResult(meta, title, visibleText) {
+      var args = [title, { text: visibleText }, {}, 'user', meta.sessionId || null, meta.laneId || ''];
+      var res;
+      try {
+        if (typeof deps.injectSystemResult === 'function') {
+          res = deps.injectSystemResult.apply(null, args);
+        } else if (global.AEEngine && typeof global.AEEngine.injectSystemResult === 'function') {
+          res = global.AEEngine.injectSystemResult.apply(global.AEEngine, args);
+        } else if (global.AEEngine && global.AEEngine.bridge && typeof global.AEEngine.bridge.injectSystemResult === 'function') {
+          res = global.AEEngine.bridge.injectSystemResult.apply(global.AEEngine.bridge, args);
+        } else {
+          return false;
+        }
+      } catch (_) { return false; }
+      if (res && res.ok === false) return false;
+      return true;
+    }
+    function shaderPreviewTempDir() {
+      var dir = '';
+      try {
+        if (typeof deps.getDataDir === 'function') dir = String(deps.getDataDir() || '');
+        if (!dir && global.AEShared && typeof global.AEShared.getDataDir === 'function') {
+          dir = String((global.AEShared.getDataDir() || {}).dir || '');
+        }
+      } catch (_) { dir = ''; }
+      if (!dir) return '';
+      return dir.replace(/\\+$/, '') + '\\temp\\shader_preview';
+    }
+    // 后台截图落盘（数据目录 temp/shader_preview）。失败返回空串——回执仍给出截图元数据，
+    // 但会如实说明图片未落盘（不谎报路径）。
+    function saveBackgroundImage(dataUrl) {
+      var parts = splitDataUrl(dataUrl);
+      if (!parts || !aefs || typeof aefs.writeFileBase64 !== 'function') return Promise.resolve('');
+      var dir = shaderPreviewTempDir();
+      if (!dir) return Promise.resolve('');
+      // 扩展名按实际 mime：联系表降级路径可能给 PNG（canvas.toDataURL 优先 JPEG，
+      // blobToDataUrl 兜底是 PNG），扩展名与内容必须一致。
+      var ext = (parts.mime === 'image/png') ? '.png' : '.jpg';
+      var filePath = dir + '\\shader_preview_' + Date.now() + ext;
+      var mk = (typeof aefs.mkdir === 'function') ? aefs.mkdir(dir) : Promise.resolve(true);
+      return Promise.resolve(mk).then(function () {
+        return aefs.writeFileBase64(filePath, parts.base64);
+      }).then(function (ok) {
+        return ok ? filePath : '';
+      }).catch(function () { return ''; });
+    }
+    function settleBackgroundTask(taskId, outcome) {
+      var meta = _bgTasks[taskId];
+      if (!meta) return;
+      delete _bgTasks[taskId];
+      var payload = null;
+      try { payload = JSON.parse(outcome && outcome.result || '{}'); } catch (_) { payload = null; }
+      if (!payload || payload.status !== 'ok' || !payload.imageDataUrl) {
+        var why = (payload && payload.message) || '后台截帧失败';
+        var notified = injectBackgroundResult(meta, 'Shader 预览截帧失败',
+          '后台截帧任务 ' + taskId + ' 结束，但没有可用的画面：' + why);
+        if (!notified) notifyUser('Shader 后台截帧失败，但结果未能写入对话（Agent 面板不可用）');
+        return;
+      }
+      var dataUrl = payload.imageDataUrl;
+      saveBackgroundImage(dataUrl).then(function (filePath) {
+        var lines = ['后台截帧完成（taskId=' + taskId + '）。'];
+        lines.push('尺寸：' + payload.width + '×' + payload.height
+          + (payload.contactSheet ? '（联系表，单格 ' + payload.frameWidth + '×' + payload.frameHeight + '）' : '')
+          + '；编译状态：' + (payload.compile || 'unknown') + '。');
+        if (filePath) {
+          lines.push('图片已保存到：' + filePath);
+          lines.push('要查看画面，用 read_image 读取该路径（后台结果不会自动注入图片）。');
+        } else {
+          lines.push('图片落盘失败（数据目录不可用或写入被拒），本次截帧结果只有上面的元数据。');
+        }
+        if (payload.message) lines.push(String(payload.message));
+        var wrote = injectBackgroundResult(meta, 'Shader 预览截帧完成', lines.join('\n'));
+        if (!wrote) notifyUser('Shader 后台截帧已完成，但结果未能写入对话（Agent 面板不可用）');
+      });
+    }
+    // 等待窗：job 在窗口内完成就直接返回；超时则登记后台任务并立即回执，
+    // job 完成后经 settleBackgroundTask 投回发起会话。onDetach 在转后台时调用
+    // （调用方据此冻结本次调用的停止判据——后续调用的「停止」不应掐掉先前遗留的后台任务）。
+    function withBackgroundFallback(job, meta, onDetach) {
+      var waitMs = bgWaitMs();
+      if (!(waitMs > 0)) return Promise.resolve(job);   // 0 = 不转后台
+      var settled = false;
+      return new Promise(function (resolve) {
+        var timer = setTimeout(function () {
+          if (settled) return;
+          settled = true;
+          if (typeof onDetach === 'function') { try { onDetach(); } catch (_) {} }
+          var taskId = 'sp_' + Date.now().toString(36) + '_' + (++_bgTaskSeq);
+          _bgTasks[taskId] = {
+            sessionId: meta.sessionId || null,
+            laneId: meta.laneId || '',
+            startedAt: Date.now()
+          };
+          var hardTimer = setTimeout(function () {
+            if (!_bgTasks[taskId]) return;
+            settleBackgroundTask(taskId, { result: JSON.stringify({ status: 'error', message: '后台截帧超过硬上限（' + Math.round(SHADER_BG_HARD_MS / 1000) + ' 秒）仍未完成，已放弃。' }) });
+          }, SHADER_BG_HARD_MS);
+          Promise.resolve(job).then(function (r) {
+            clearTimeout(hardTimer);
+            settleBackgroundTask(taskId, r);
+          }, function (e) {
+            clearTimeout(hardTimer);
+            settleBackgroundTask(taskId, { result: JSON.stringify({ status: 'error', message: (e && e.message) || String(e) }) });
+          });
+          var waitText = (waitMs >= 1000)
+            ? (Math.round(waitMs / 100) / 10) + ' 秒'
+            : Math.round(waitMs) + ' 毫秒';
+          resolve({
+            success: true,
+            result: JSON.stringify({
+              status: 'accepted',
+              taskId: taskId,
+              message: '本次截帧超过 ' + waitText + '，已转后台执行（taskId=' + taskId
+                + '）。渲染完成后结果会写入本会话（图片保存为文件，回执给路径），期间可以先做别的事。'
+            })
+          });
+        }, bgWaitMs());
+        Promise.resolve(job).then(function (r) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(r);
+        }, function (e) {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve({ success: false, result: JSON.stringify({ status: 'error', message: (e && e.message) || String(e) }) });
+        });
+      });
     }
 
     // ── 写前快照守卫（陈旧读→写拦截）──
@@ -1102,13 +1520,18 @@
         }
 
         // 单帧（默认路径）：截 canvas 当前帧，字段与文案保持既有口径。
-        function capturePreviewFrame(settle) {
-          var dataUrl = captureShaderPreview();
+        // 单帧回执。cap 缺省 = 实时帧直读（现状路径）；离屏重绘传入
+        // { dataUrl, width, height, offscreen }（width 指定且渲染成功时）。
+        function capturePreviewFrame(settle, cap) {
+          var dataUrl = (cap && cap.dataUrl) || captureShaderPreview();
           if (!dataUrl) {
             return { success: false, result: JSON.stringify({ status: 'error', message: '预览不可用：未进入 Shader 模式或 WebGL 未初始化。' }) };
           }
-          var canvas = document.getElementById('shaderPreviewCanvas');
-          var w = canvas ? canvas.width : 0, h = canvas ? canvas.height : 0;
+          var w = (cap && cap.width) || 0, h = (cap && cap.height) || 0;
+          if (!w || !h) {
+            var canvas = document.getElementById('shaderPreviewCanvas');
+            w = canvas ? canvas.width : 0; h = canvas ? canvas.height : 0;
+          }
           var aspect = (w > 0 && h > 0) ? Math.round((w / h) * 1000) / 1000 : null;
           var msg = '已截取 shader 预览帧，图片已注入上下文供视觉分析。';
           if (settle.compileState === 'pending') {
@@ -1116,18 +1539,28 @@
           } else if (settle.compileState === 'error') {
             msg = '当前 shader 编译失败；预览帧是上一版画面或占位帧。';
           }
+          if (cap && cap.offscreen) {
+            msg += '本图按 width 离屏重绘：结算网格按 shader 的 @solveRes 声明值，与面板实时预览的网格口径不同。';
+            if (cap.timeClamped) {
+              msg += '结算器单点上限 10 秒，本次按 10 秒时刻截取（actualTime 为实际时刻）。';
+            }
+          }
+          var offJson = {
+            status: 'ok',
+            compile: settle.compileState,
+            width: w,
+            height: h,
+            aspect: aspect,
+            aspectNote: previewAspectNote(w, h, aspect),
+            offscreen: !!(cap && cap.offscreen),
+            message: msg,
+            imageDataUrl: dataUrl
+          };
+          if (cap && typeof cap.actualTime === 'number') offJson.actualTime = cap.actualTime;
+          if (cap && cap.timeClamped) offJson.timeClamped = true;
           return {
             success: true,
-            result: JSON.stringify({
-              status: 'ok',
-              compile: settle.compileState,
-              width: w,
-              height: h,
-              aspect: aspect,
-              aspectNote: previewAspectNote(w, h, aspect),
-              message: msg,
-              imageDataUrl: dataUrl
-            })
+            result: JSON.stringify(offJson)
           };
         }
 
@@ -1210,11 +1643,12 @@
         }
 
         // 多时间点回执：单点与单帧同形；多点拼联系表，合成失败降级为只注入第一帧。
-        function capturePreviewSequence(settle, norm) {
-          var cap = capturePreviewFramesAt(norm.times);
-          if (cap.error) {
-            return { success: false, result: JSON.stringify({ status: 'error', message: cap.error }) };
+        // 多时间点回执：cap 由调用方提供（离屏渲染结果，或主实例多帧抓帧结果）。
+        function capturePreviewSequence(settle, norm, cap) {
+          if (!cap || cap.error) {
+            return { success: false, result: JSON.stringify({ status: 'error', message: (cap && cap.error) || '多时间点截图失败：没有可用画面。' }) };
           }
+          var offscreen = !!cap.offscreen;
           var frames = cap.frames;
           var total = frames.length;
           var fw = cap.frameWidth || 0, fh = cap.frameHeight || 0;
@@ -1225,8 +1659,10 @@
           if (norm.timeClamped) clampNote += '负值时间点已按 0 处理。';
           if (cap.timeClamped) clampNote += '结算器 shader 单点上限 10 秒，超出的时间点已钳制。';
           var modeNote = cap.mode === 'solver'
-            ? '结算器 shader 按 30fps 从第 0 帧顺序重解到各时间点；采样后预览时间轴停在最后采样点。'
-            : '';
+            ? (offscreen
+                ? '结算器 shader 在离屏实例上按 30fps 从第 0 帧顺序重解到各时间点（网格按 @solveRes，不影响面板实时预览的时间轴）。'
+                : '结算器 shader 按 30fps 从第 0 帧顺序重解到各时间点；采样后预览时间轴停在最后采样点。')
+            : (offscreen ? '离屏重绘：结算网格按 @solveRes，与面板实时预览的网格口径不同。' : '');
           var compileNote = '';
           if (settle.compileState === 'pending') {
             compileNote = 'shader 仍在编译中（等待 3 秒未完成）；画面是上一版本代码的渲染结果，首次加载时为占位空帧。';
@@ -1263,6 +1699,7 @@
               status: 'ok',
               compile: settle.compileState,
               contactSheet: sheetOk,
+              offscreen: offscreen,
               mode: cap.mode,
               times: [],
               frames: [],
@@ -1305,7 +1742,7 @@
 
         registry.register({
           name: 'getShaderPreview',
-          description: '截取 Shader 面板实时预览区画面。默认截当前帧；传 timesInSeconds（1–6 个秒数 = shader 时间 uTime）可指定时间点：1 个返回该时刻单帧，≥2 个逐点抓帧并合成一张带时间标签的联系表（检查动画连续性/出场层次/形变）。无状态 shader 按 uTime 精确重绘，不影响实时画面；结算器（@solve/@solveHz）shader 从第 0 帧按 30fps 顺序重解到各时间点（单点上限 10 秒，超出钳制），抓完后预览时间轴停在最后时间点继续。截图前最多等 3 秒让进行中的编译完成；结果带 compile 字段：ok（编译已完成，图是当前代码的画面）/ pending（3 秒内未编完，图是上一版本代码的画面，首次加载时为占位空帧）/ error（编译失败，图是上一版画面或占位帧）/ unknown（读不到渲染器状态）。返回截图信息（尺寸/编译状态/时间点），图片经 vision hook 自动注入上下文供视觉分析。可选参数 purpose 用于向视觉模型说明本次分析需要关注的内容。用于：调整 shader 参数/代码后验证视觉效果、检查动画、排查渲染异常。需视觉模型或视觉代理模型。width/height 是面板预览框像素尺寸（多帧时是联系表尺寸，frameWidth/frameHeight 才是单帧），aspect 为单帧宽高比；预览画幅不等于目标合成比例，判断构图位置按 aspect 换算。',
+          description: '截取 Shader 面板实时预览区画面。默认截当前帧；传 timesInSeconds（1–6 个秒数 = shader 时间 uTime）可指定时间点：1 个返回该时刻单帧，≥2 个逐点抓帧并合成一张带时间标签的联系表（检查动画连续性/出场层次/形变）。无状态 shader 按 uTime 精确重绘，不影响实时画面；结算器（@solve/@solveHz）shader 从第 0 帧按 30fps 顺序重解到各时间点（单点上限 10 秒，超出钳制）；多帧抓帧在离屏实例上渲染，不改变面板实时预览的时间轴。截图前最多等 3 秒让进行中的编译完成；结果带 compile 字段：ok（编译已完成，图是当前代码的画面）/ pending（3 秒内未编完，图是上一版本代码的画面，首次加载时为占位空帧）/ error（编译失败，图是上一版画面或占位帧）/ unknown（读不到渲染器状态）。返回截图信息（尺寸/编译状态/时间点），图片经 vision hook 自动注入上下文供视觉分析。传 width（64–2560）时按该宽度离屏重绘：结算网格按 shader 声明的 @solveRes（面板实时预览为速度把网格压到画布尺寸，两者结算细节不同）。单次调用超过 10 秒转后台：先回执 accepted 与 taskId，渲染完成后结果写入本会话，图片保存为文件并给出路径（后台结果不自动注入图片，需要查看时用 read_image 读取该路径）。可选参数 purpose 用于向视觉模型说明本次分析需要关注的内容。用于：调整 shader 参数/代码后验证视觉效果、检查动画、排查渲染异常。需视觉模型或视觉代理模型。width/height 是面板预览框像素尺寸（多帧时是联系表尺寸，frameWidth/frameHeight 才是单帧），aspect 为单帧宽高比；预览画幅不等于目标合成比例，判断构图位置按 aspect 换算。',
           input_schema: {
             type: 'object',
             properties: {
@@ -1317,11 +1754,15 @@
                 type: 'array',
                 items: { type: 'number' },
                 description: '多时间点抓帧（秒 = shader 时间 uTime，1–6 个）：1 个返回该时刻单帧，≥2 个合成一张带时间标签的联系表；省略则截当前帧。负值按 0；结算器 shader 单点上限 10 秒（超出钳制，回执 timeClamped=true）。'
+              },
+              width: {
+                type: 'number',
+                description: '输出宽度像素（可选，64–2560；按预览画幅等比定高，超出上限钳到 2560）。提供时离屏重绘（结算网格按 shader 声明的 @solveRes），图片更清晰、结算细节更接近 AE 真机；不提供则读面板实时帧。单帧重绘的取值时刻 = 面板预览当前 uTime。'
               }
             },
             required: []
           },
-          handler: function (args) {
+          handler: function (args, execCtx) {
             args = args || {};
             var norm = null;
             if (args.timesInSeconds !== undefined && args.timesInSeconds !== null) {
@@ -1330,11 +1771,66 @@
                 return Promise.resolve({ success: false, result: JSON.stringify({ status: 'error', message: norm.error }) });
               }
             }
-            // 截图前等编译 settle：pending 期间 canvas 仍是旧画面/空帧，直接截会给
-            // 视觉模型喂错图（详见 waitForPreviewSettle 注释）
-            return waitForPreviewSettle().then(function (settle) {
-              return norm ? capturePreviewSequence(settle, norm) : capturePreviewFrame(settle);
-            });
+            var wRes = normalizeOutputWidth(args.width);
+            if (wRes.error) {
+              return Promise.resolve({ success: false, result: JSON.stringify({ status: 'error', message: wRes.error }) });
+            }
+            var width = wRes.width;
+            // 转后台时冻结停止判据：执行侧 ctx 的停止态属"当前这一轮"，下一轮的停止
+            // 不应掐掉上一轮遗留的后台抓帧（硬上限仍兜底）。
+            var detached = false;
+            var shouldAbort = function () {
+              if (detached) return false;
+              return stopRequested(execCtx);
+            };
+            // 旧装配（离屏渲染器不可用）：多时间点回落主实例的抓帧，settle 口径与旧路径一致
+            var legacySequenceJob = function () {
+              return waitForPreviewSettle().then(function (settle) {
+                return capturePreviewSequence(settle, norm, capturePreviewFramesAt(norm.times));
+              });
+            };
+            // 离屏渲染器在需要重绘（多帧 / 指定 width）时才建；不可用时多帧回落主实例
+            var off = (norm || width > 0) ? offscreenRenderer() : null;
+            var job;
+            if (norm && off) {
+              job = Promise.resolve(captureOffscreenFrames(norm.times, width, shouldAbort)).then(function (cap) {
+                if (cap && cap.error) {
+                  // 编译未通过/超时：主实例可能还挂着上一版 program，回落以保持旧行为
+                  if (cap.fallbackable) return legacySequenceJob();
+                  return { success: false, result: JSON.stringify({ status: cap.cancelled ? 'stopped' : 'error', message: cap.error }) };
+                }
+                return capturePreviewSequence({ compileState: 'ok' }, norm, cap);
+              });
+            } else if (norm) {
+              job = legacySequenceJob();
+            } else if (width > 0 && off) {
+              var t0 = currentPreviewTime();
+              job = Promise.resolve(captureOffscreenFrames([t0], width, shouldAbort)).then(function (cap) {
+                if (cap && cap.error) {
+                  return { success: false, result: JSON.stringify({ status: cap.cancelled ? 'stopped' : 'error', message: cap.error }) };
+                }
+                var frames = cap.frames || [];
+                if (!frames.length) {
+                  return { success: false, result: JSON.stringify({ status: 'error', message: '离屏抓帧失败：没有可用帧。' }) };
+                }
+                var f = frames[0];
+                return capturePreviewFrame({ compileState: 'ok' },
+                  { dataUrl: f.dataUrl, width: cap.frameWidth, height: cap.frameHeight, offscreen: true,
+                    time: f.time, actualTime: f.actualTime, frame: f.frame, timeClamped: cap.timeClamped });
+              });
+            } else if (width > 0) {
+              return Promise.resolve({ success: false, result: JSON.stringify({ status: 'error', message: '高分辨率抓帧不可用：离屏渲染器未加载（面板文件未完整更新）。' }) });
+            } else {
+              // 截图前等编译 settle：pending 期间 canvas 仍是旧画面/空帧，直接截会给
+              // 视觉模型喂错图（详见 waitForPreviewSettle 注释）
+              job = waitForPreviewSettle().then(function (settle) { return capturePreviewFrame(settle, null); });
+            }
+            // 超过等待窗转后台：回执 accepted，完成后经 injectSystemResult 写回原会话。
+            // 外接调用（callerId 前缀 'ext:'）不转后台——它没有可回投的面板会话，
+            // 结果只会写进用户对话、客户端拿不到；超时由外接客户端自己的调用窗负责。
+            var isExtCall = !!(execCtx && typeof execCtx.callerId === 'string'
+              && execCtx.callerId.indexOf('ext:') === 0);
+            return isExtCall ? job : withBackgroundFallback(job, { sessionId: bgSessionId(execCtx), laneId: bgLaneId(execCtx) }, function () { detached = true; });
           },
           scope: { type: 'module', moduleIds: ['shader', 'external-mcp'] },
           stub: false,
@@ -1586,6 +2082,8 @@
   // param-map 过期判定的哈希口径（与宿主 paramMap.cpp 同算法；测试/诊断用）
   global.AEShaderTools.hashUtf8 = hashUtf8;
   global.AEShaderTools.captureShaderPreview = captureShaderPreview;
+  global.AEShaderTools.normalizeOutputWidth = normalizeOutputWidth;
+  global.AEShaderTools.SHADER_PREVIEW_MAX_OUTPUT = SHADER_PREVIEW_MAX_OUTPUT;
   // 多时间点参数归一（纯函数，供单测直接覆盖；handler 同一入口）
   global.AEShaderTools.normalizePreviewTimes = normalizePreviewTimes;
   // 库索引：纯函数导出供单测（宿主侧文本契约的 JS 侧对照）

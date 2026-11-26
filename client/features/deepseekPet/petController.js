@@ -40,6 +40,9 @@
         var _bridgeCheckTimer = null;
         var _resizeHandler = null;
         var _visibilityHandler = null;
+        // sleepManager 是否已 init：关闭态启动时启动闸门会跳过 init，
+        // startup() 需按此补 init（重复 init 会叠加事件监听与定时器）
+        var _sleepManagerInited = false;
         // resize 过渡定时器（_bindEvents 内使用；提升到 createController 顶层，
         // 供 destroy 清理，避免作用域外引用抛 ReferenceError 中断销毁链）
         var _resizeTransitionTimer = null;
@@ -56,6 +59,23 @@
 
             // 暴露 eventBus 到全局，供 petEasterEgg 等外部模块使用
             global.AEDeepseekPet.eventBus = _eventBus;
+
+            // settings 先建：首帧是否显示由磁盘上的 showPet 同步决定（见下方启动闸门）
+            if (global.AEDeepseekPet.createSettings) {
+                _settings = global.AEDeepseekPet.createSettings();
+                _settings.init();
+                // 暴露到全局，供 petIdleAnnounce/petWebSearch/petIndex 读取
+                global.AEDeepseekPet.settings = _settings;
+            }
+            // 启动闸门（同步）：已关闭的桌宠不得先出现在面板上。以下两处运行时在 init 内
+            // 会立刻产生可见动作，必须等闸门结论——bridge 离线检测会派发 crashOverride
+            // （crash 动画 + 气泡），夜间 sleepManager.init 会 emit pet:sleep（sleep 动画）；
+            // 而 showPet 的异步读在 Bridge 半死/慢通道下可能迟迟不 resolve
+            var _closedAtStartup = false;
+            try {
+                _closedAtStartup = !!(_settings && typeof _settings.readShowPetSync === 'function'
+                    && _settings.readShowPetSync() === false);
+            } catch (e) { _closedAtStartup = false; }
 
             _sprites.mount(_container);
             // basePath 用相对路径：sprite 图通过 CSS background-image url() 加载，
@@ -158,12 +178,6 @@
                 _bubble = global.AEDeepseekPet.createBubble(_eventBus, _container);
                 _bubble.init();
             }
-            if (global.AEDeepseekPet.createSettings) {
-                _settings = global.AEDeepseekPet.createSettings();
-                _settings.init();
-                // 暴露到全局，供 petIdleAnnounce/petWebSearch/petIndex 读取
-                global.AEDeepseekPet.settings = _settings;
-            }
             if (global.AEDeepseekPet.createActivityZone) {
                 _activityZone = global.AEDeepseekPet.createActivityZone();
                 // 注入保存回调：委托 petSettings 统一写盘
@@ -225,18 +239,19 @@
             }
 
             _bindEvents();
-            _startBridgeCheck();
-
-            // sleepManager.init 推迟到 _bindEvents 之后：
-            // init 内夜间检测会 emit pet:sleep，此时 controller 的 pet:sleep 监听器已注册
-            if (_sleepManager && typeof _sleepManager.init === 'function') {
-                _sleepManager.init();
+            // 关闭态启动不启动运行时：bridge 离线检测会立刻 dispatch crashOverride
+            // （crash 动画 + 「连接断了」气泡），夜间 sleepManager.init 会 emit pet:sleep，
+            // 两者都会在首帧把桌宠画上面板，随后才被 shutdown 收走
+            if (!_closedAtStartup) {
+                _startBridgeCheck();
+                // sleepManager.init 推迟到 _bindEvents 之后：
+                // init 内夜间检测会 emit pet:sleep，此时 controller 的 pet:sleep 监听器已注册
+                _startSleepManager();
             }
 
-            // 启动后检查 settings.showPet：若上次关闭了，立即 shutdown 暂停所有功能
-            // 这样用户重启页面后桌宠仍保持关闭状态，需从设置面板手动开启
-            // 必须等 whenReady（磁盘加载是异步的）：同步读取只能拿到默认值 showPet=true，
-            // 会导致用户关闭桌宠后重启页面时桌宠照常启动
+            // 异步复核：同步闸门无法判定（null，如无 readFileSync 通道）时以磁盘读取结果兜底；
+            // 同步闸门已判定关闭时在下方立即 shutdown（shutdown 幂等，此处不会重复执行）。
+            // 读盘本身是异步的，同步闸门不可判定时只能等它落定后再决定
             try {
                 if (global.AEDeepseekPet && global.AEDeepseekPet.settings) {
                     global.AEDeepseekPet.settings.whenReady().then(function () {
@@ -247,6 +262,13 @@
                     });
                 }
             } catch (e) {}
+            if (_closedAtStartup) shutdown();
+        }
+
+        function _startSleepManager() {
+            if (!_sleepManager || typeof _sleepManager.init !== 'function') return;
+            _sleepManager.init();
+            _sleepManagerInited = true;
         }
 
         function _checkActivityZone() {
@@ -587,6 +609,27 @@
             }, 450);
         }
 
+        // 显隐状态落盘（关闭桌宠）：persistNow 立即写并回报结果；无该接口的设置实例
+        // 退回防抖写。false 只记日志——读取失败的保护态提示由 petSettings 统一发出，
+        // 这里不重复弹窗
+        function _persistShowPet(showPet) {
+            var settings = global.AEDeepseekPet && global.AEDeepseekPet.settings;
+            if (!settings) return;
+            var pending = null;
+            if (typeof settings.persistNow === 'function') {
+                pending = settings.persistNow({ showPet: showPet });
+            } else if (typeof settings.updateSettings === 'function') {
+                settings.updateSettings({ showPet: showPet });
+            }
+            if (pending && typeof pending.then === 'function') {
+                pending.then(function (ok) {
+                    if (!ok) console.warn('[petController] showPet=' + showPet + ' 未能落盘：重新打开面板时状态可能不保持');
+                }, function (e) {
+                    console.warn('[petController] showPet=' + showPet + ' 落盘异常: ' + (e && e.message ? e.message : e));
+                });
+            }
+        }
+
         // 右键菜单：在指定位置显示自定义菜单
         // 菜单项：打开聊天框 / 进入睡眠 / 唤醒 / 关闭桌宠
         // 菜单外点击、Esc、或选中某项后自动关闭
@@ -639,11 +682,15 @@
             }
             items.push({ separator: true });
             items.push({ id: 'close', label: AEI18n.t('关闭桌宠'), danger: true, action: function () {
-                // 立即关闭，不弹确认弹窗
-                // 与设置面板"开启桌宠"开关共享同一份状态：shutdown + settings.showPet=false
-                shutdown();
-                if (global.AEDeepseekPet && global.AEDeepseekPet.settings) {
-                    global.AEDeepseekPet.settings.updateSettings({ showPet: false });
+                // 立即关闭，不弹确认弹窗。
+                // 先落盘再关运行时：关闭状态决定下次打开面板时桌宠是否出现，不能停在
+                // 500ms 防抖里（用户紧接着关面板时只剩卸载 flush 一条通道），也不能放在
+                // shutdown() 之后（子模块收尾一旦抛错，菜单点击的 try/catch 会吞掉写盘）。
+                // 落盘同步抛错时 finally 仍执行 shutdown，右键「关闭桌宠」不会整项失效
+                try {
+                    _persistShowPet(false);
+                } finally {
+                    shutdown();
                 }
                 // 若设置面板已打开，同步开关 UI 状态
                 try {
@@ -969,9 +1016,20 @@
             _shutdown = false;
             if (_container) _container.style.display = '';
             if (_sprites) _sprites.resume();
-            if (_sleepManager && typeof _sleepManager.resume === 'function') _sleepManager.resume();
             // 恢复 bridge 状态轮询（shutdown 时已暂停；内部自带防重与立即首检）
             _startBridgeCheck();
+            // 关闭态启动时启动闸门跳过了 sleepManager.init：此处补 init。
+            // init 在夜间会 emit pet:sleep 并播过入睡序列，下方睡眠分支不得再播一遍；
+            // resume 兼两个目的——已 init 的恢复计时；刚 init 的清掉 shutdown 期间
+            // pause() 置的 _paused（init 不重置它，留着会让用户交互不再重置入睡计时）
+            var _sleepStartedByInit = false;
+            if (_sleepManager) {
+                if (!_sleepManagerInited) {
+                    _startSleepManager();
+                    _sleepStartedByInit = _ctx.inSleepMode;
+                }
+                if (typeof _sleepManager.resume === 'function') _sleepManager.resume();
+            }
             // 恢复活动区域上下文：shutdown 先于出场动画完成时（showPet=false 启动路径），
             // _onAppearDone 未执行过，活动区域需在此初始化。
             _checkActivityZone();
@@ -980,10 +1038,12 @@
             // （idle 调度会被 inSleepMode 全部拦截，桌宠"假死"不动；点击还会播错乱的起床动画）
             if (_ctx.inSleepMode) {
                 _ctx.petState = 'sleep';
-                _sprites.play('sleepStart').then(function () {
-                    if (_ctx.inSleepMode) _sprites.play('sleep');
-                });
-                _dispatchBehaviors('sleep');
+                if (!_sleepStartedByInit) {
+                    _sprites.play('sleepStart').then(function () {
+                        if (_ctx.inSleepMode) _sprites.play('sleep');
+                    });
+                    _dispatchBehaviors('sleep');
+                }
                 return;
             }
             // 恢复模块运行时

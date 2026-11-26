@@ -1235,9 +1235,32 @@
     var _previewInjectMode = false;
     var _previewInjectQueue = [];
     var _injectCollapsed = false;
+    // 团队档「lane 宿主节点缺失」的告警只报一次（renderInjectChips 每次状态变化都会跑）。
+    var _injectChipsLaneWarned = false;
 
     function renderInjectChips() {
-        var wrap = byId('aeAgentInjectChips');
+        // 浮层宿主：团队档取当前 lane 的那一份（单 Agent 那份随单 Agent 消息区一起隐藏，画进去等于
+        // 不可见）；非团队档或取不到 lane 节点时回落单 Agent 节点。宿主解析全程兜错——它的唯一新增
+        // 外部调用是 lanes.domFor，抛错只该让浮层回落，不该打断 onStateChange。
+        var laneId = '';
+        var wrap = null;
+        try {
+            laneId = _currentLaneId();
+            if (laneId) {
+                var lanesApi = global.AEAgentTeam && global.AEAgentTeam.lanes;
+                var laneDom = (lanesApi && typeof lanesApi.domFor === 'function') ? lanesApi.domFor(laneId) : null;
+                if (laneDom && laneDom.injectChipsId) wrap = byId(laneDom.injectChipsId);
+            }
+        } catch (_) { wrap = null; }
+        if (!wrap) {
+            // 团队档回落单 Agent 节点 = 画进隐藏容器，界面上看不到；面板骨架未更新时给一次可见线索。
+            if (laneId && !_injectChipsLaneWarned) {
+                _injectChipsLaneWarned = true;
+                console.warn('[AEEngine] 待发送浮层：当前 lane「' + laneId
+                    + '」的宿主节点缺失（index.html 骨架未更新？），已回落到单 Agent 节点');
+            }
+            wrap = byId('aeAgentInjectChips');
+        }
         if (!wrap) return;
         var realQueue = (global.AEEngine && global.AEEngine.bridge && typeof global.AEEngine.bridge.getInjectQueue === 'function')
             ? global.AEEngine.bridge.getInjectQueue() : [];

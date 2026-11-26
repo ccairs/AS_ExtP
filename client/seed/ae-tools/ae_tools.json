@@ -90,7 +90,7 @@
           },
           "includeContent": {
             "type": "boolean",
-            "description": "layers/selected 用：是否返回图层内容摘要 content（effects/masks/keyframes/textAnimators/layerStyles 计数，text 为布尔）与动画指纹 anim，默认 true。两者同一开关：关掉可同时省掉这两项提取的宿主属性访问（大合成或需缩短单次调用耗时时置 false）"
+            "description": "layers/selected 用：是否返回图层内容摘要 content（effects/masks/keyframes/textAnimators/layerStyles 计数，text 为布尔）与动画指纹 anim，默认 true。layerStyles 只计已启用样式（每层恒有 10 个样式子组，未启用的不计入；全关时为 0，要看未启用样式及其参数用 queryDetails 的 layerStyles）。两者同一开关：关掉可同时省掉这两项提取的宿主属性访问（大合成或需缩短单次调用耗时时置 false）"
           }
         },
         "required": ["target"]
@@ -240,7 +240,15 @@
           },
           "includeLayerStyles": {
             "type": "boolean",
-            "description": "layer/selected 用：是否返回图层样式 layerStyles（只列已启用样式的参数 + 全局光 layerStyleLighting），默认 true"
+            "description": "layer/selected 用：是否返回图层样式 layerStyles 与全局光 layerStyleLighting，默认 true。layerStyles 列出样式组内全部样式子组（混合选项不算样式），每条 {name, matchName, enabled, index, params?}：已启用的排在前面，未启用也返回但默认只给骨架并置 paramsUnread（参数要 includeDisabledLayerStyleParams:true）；index 是子组在图层样式组内的序号（1-based，混合选项占 1）。params 是参数树：子组（该样式的参数里存在子组时，如渐变类）带 kind:\"group\" 并递归 params（最多展开 2 层，第 3 层起只留骨架并带 depthCapped；整层节点上限 500，超限置 layerStylesNodeCapped），叶子给 {name, matchName, value}，有键时另给 numKeys，表达式非空时给 expression（超 800 字符截断并带 expressionTruncated/expressionLength）；叶子的关键帧要 includeLayerStyleAnimation:true。超出层内预算的条目退化为骨架（无 params、带 paramsTruncated；未启用且没展开参数的骨架只带 paramsUnread），不会整条消失——骨架不受 6000B 约束（整条预算通常已吃满），每层至多多出一条骨架。layerStylesTotal 是全部条数，layerStylesEnabledTotal 是其中已启用条数（两者都是任意裁剪前总数，与返回条数可能不等）；层内 6000B 预算从尾部裁（先丢未启用条目；关键帧在裁剪后只给保留条目补，不占这 6000B），截断看 layerStylesTruncated / layerStylesBytesTruncated"
+          },
+          "includeDisabledLayerStyleParams": {
+            "type": "boolean",
+            "description": "layer/selected 用：未启用样式的 params 是否也展开，默认 false。置 true 后 layerStyles 里 enabled=false 的条目同 enabled=true 一样带 params（同一套参数树：子组递归、叶子带 value/numKeys/expression）；未启用样式的参数同样计入层内 6000B 预算与节点上限。不计入 layerStylesEnabledTotal"
+          },
+          "includeLayerStyleAnimation": {
+            "type": "boolean",
+            "description": "layer/selected 用：样式参数的关键帧是否展开，默认 false（只给 numKeys 与非空 expression，能看出「在动」但拿不到键值）。置 true 后每个有键的叶子带 keyframes 与 keyframesTotal/Offset/Limit/HasMore/Truncated（每属性一页：keyframeOffset 标量是默认起点，keyframeOffsets.layerStyle 是整块统一起点，逐参数起点用该参数的 matchName 作键、同时给两者时 matchName 优先；单属性上限同 keyframeLimit），只给 6000B 裁剪后保留的样式条目补，字节计入 12KB 关键帧预算与 24000 总预算，被裁时按同口径标记。结果仍超线时兜底会整条丢样式（params 一起丢，续读用 fields:['layerStyles'] 单层查）。与 includeLayerStyles:false 同时用时不返回"
           },
           "includeEffectAnimation": {
             "type": "boolean",
@@ -301,11 +309,11 @@
           },
           "keyframeOffset": {
             "type": "integer",
-            "description": "关键帧窗口偏移（0-based，按每个属性各自计；effect 与 layer/selected(scope=timeline) 用），默认 0。layer：每个关键帧属性各自一页（transform 六属性 / 蒙版四属性含 Mask Path / timeRemap / timeMap / Source Text / shapeContents 叶子），这是未点名属性的回退值，逐属性起点用 keyframeOffsets 对象。"
+            "description": "关键帧窗口偏移（0-based，按每个属性各自计；effect 与 layer/selected(scope=timeline) 用），默认 0。layer：每个关键帧属性各自一页（transform 六属性 / 蒙版四属性含 Mask Path / timeRemap / timeMap / Source Text / shapeContents 叶子），这是未点名属性的回退值，逐属性起点用 keyframeOffsets 对象。图层样式叶子属于该块内属性（要 includeLayerStyleAnimation:true 才有键），整块起点用 keyframeOffsets.layerStyle、逐参数用该参数 matchName。"
           },
           "keyframeOffsets": {
             "type": "object",
-            "description": "逐属性关键帧起点（0-based）：{属性键: offset}，layer/selected(scope=timeline) 用。键按输出字段前缀做大小写不敏感匹配（position/scale/rotation/opacity/anchorPoint/audioLevels/timeRemap/sourceText/maskPath/maskOpacity/maskFeather/maskExpansion/shapeContents），也可用该属性的 matchName（精确匹配）；未点名的属性回退 keyframeOffset 标量。值须为 number 且 ≥0（负数/字符串/布尔忽略）。"
+            "description": "逐属性关键帧起点（0-based）：{属性键: offset}，layer/selected(scope=timeline) 用。键按输出字段前缀做大小写不敏感匹配（position/scale/rotation/opacity/anchorPoint/audioLevels/timeRemap/sourceText/maskPath/maskOpacity/maskFeather/maskExpansion/shapeContents/layerStyle），也可用该属性的 matchName（精确匹配；图层样式叶子用该参数的 matchName）；未点名的属性回退 keyframeOffset 标量。值须为 number 且 ≥0（负数/字符串/布尔忽略）。"
           },
           "keyframeLimit": {
             "type": "integer",
@@ -512,7 +520,7 @@
       "readOnly": true,
       "category": "utility",
       "extendScript": "result = getPreviewFrame(__args);",
-      "description": "获取 After Effects 当前活动合成的预览帧截图。单时间点（timeInSeconds）返回一张 PNG；多时间点（timesInSeconds，2–6 个）逐帧抓取后合成一张带时间标签的联系表，用于检查动画连续性、出场层次、形变是否连贯。截图会自动注入上下文供视觉分析。核对局部细节（文字、UI、边缘）时传 region 或 zoom：注入的是裁切放大图，整帧仍在 fullFramePath（单帧）或 frames[].filePath（多帧）。回执带解析出的 compositionId 与 compName；compName 命中多个同名合成时返回 error 与 matchedCompositionIds，改用 compositionId 指定目标（不静默取首个）。timeInSeconds 越界钳制到 [0, duration]，此时回执带 timeClamped=true 与 requestedAt。",
+      "description": "获取 After Effects 当前活动合成的预览帧截图。单时间点（timeInSeconds）返回一张 PNG；多时间点（timesInSeconds，2–6 个）逐帧抓取后合成一张带时间标签的联系表，用于检查动画连续性、出场层次、形变是否连贯。截图会自动注入上下文供视觉分析。核对局部细节（文字、UI、边缘）时传 region 或 zoom：注入的是裁切放大图，整帧仍在 fullFramePath（单帧）或 frames[].filePath（多帧）。回执带解析出的 compositionId 与 compName；compName 命中多个同名合成时返回 error 与 matchedCompositionIds，改用 compositionId 指定目标（不静默取首个）。timeInSeconds 越界钳制到 [0, duration]，此时回执带 timeClamped=true 与 requestedAt。抓帧分辨率跟随合成面板的分辨率档位（comp.resolutionFactor）：PNG 按该档位逐轴缩放（半/三分之一/四分之一即 1/N），回执带 resolutionFactor、compWidth/compHeight 与 resolutionNote。需要清晰细节时把该合成档位设成 [1,1]（有 executeExtendScript 时写 app.project.itemByID(<compositionId>).resolutionFactor = [1,1]；没有就请用户在合成面板把分辨率切到「完整」），再另起一次调用抓帧（同一次脚本内改档位不生效），抓完还原。",
       "input_schema": {
         "type": "object",
         "properties": {

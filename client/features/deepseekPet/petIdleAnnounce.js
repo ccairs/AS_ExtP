@@ -1,5 +1,6 @@
 // petIdleAnnounce.js — 闲时播报管理（70%预设台词 / 30% LLM生成）
 // 21:00-07:00 的深夜加班窗口改用专属台词池（lateNightLines()），白天走 presetLines()
+// 预设台词走洗牌袋：一轮内不重样，最近 12 条不进入下一轮候选；LLM 分支带最近台词与本次主题
 (function (global) {
     'use strict';
 
@@ -127,18 +128,30 @@
     var NIGHT_START_HOUR = 21;
     var NIGHT_END_HOUR = 7;
 
+    // LLM 分支的主题种子：每次随机取一条，让输出不集中在同一类句式
+    var TOPIC_SEEDS = [
+        'AE 工作台（关键帧、图层、渲染队列）',
+        '深夜与休息',
+        '你自己的小日常',
+        '用户的进度与鼓励',
+        '海、气泡与鲸鲸的想象'
+    ];
+
     function _isLateNight(now) {
         var h = now.getHours();
         return h >= NIGHT_START_HOUR || h < NIGHT_END_HOUR;
     }
 
-    function _pick(pool) {
-        return pool[Math.floor(Math.random() * pool.length)];
+    function _topicFact() {
+        var seed = TOPIC_SEEDS[Math.floor(Math.random() * TOPIC_SEEDS.length)];
+        return '\n这次可以聊：' + seed + '。';
     }
 
     function createIdleAnnounce(eventBus, chat) {
         // 移入闭包：避免多次 createIdleAnnounce 实例间共享 timer 互相覆盖
         var _timer = null;
+        // 取样器同样按实例隔离：面板重建后从新的一轮开始
+        var _picker = global.AEDeepseekPet.createLinePicker({ recentLimit: 12 });
 
         function init() {
             _scheduleNext();
@@ -170,17 +183,19 @@
             }, interval);
         }
 
-        // 台词池按当前时段选：深夜窗口取专属池，其余时间取白天池（两池各自随机，不混抽）
+        // 台词池按当前时段选：深夜窗口取专属池，其余时间取白天池（两池各自占袋，不混抽）
         function getContent() {
             return new Promise(function (resolve) {
-                var pool = _isLateNight(new Date()) ? lateNightLines() : presetLines();
+                var night = _isLateNight(new Date());
+                var pool = night ? lateNightLines() : presetLines();
+                var key = night ? 'night' : 'day';
                 if (Math.random() < 0.7) {
-                    resolve(_pick(pool));
+                    resolve(_picker.pick(pool, key));
                 } else {
                     _generateLlmLine().then(function (msg) {
-                        resolve(msg || _pick(pool));
+                        resolve(msg || _picker.pick(pool, key));
                     }).catch(function () {
-                        resolve(_pick(pool));
+                        resolve(_picker.pick(pool, key));
                     });
                 }
             });
@@ -218,6 +233,13 @@
             return '用户当前界面语言：简体中文（zh-CN）。请使用该语言与用户交流。';
         }
 
+        // 把最近说过的台词带进提示词：只有一句话的空提示反复问，模型会吐同一批句式
+        function _avoidRepeatFact() {
+            var said = _picker.recent(5);
+            if (!said.length) return '';
+            return '\n最近说过的话（不要重复，也不要只换几个字）：' + said.join(' / ') + '。';
+        }
+
         function _generateLlmLine() {
             return new Promise(function (resolve, reject) {
                 var llmChannel = null;
@@ -236,7 +258,8 @@
                         {
                             role: 'system',
                             content: _timeFact() + _languageFact() + '\n' +
-                                '你是一个住在 AE 扩展里的桌面小助手大肥鱼。说一句简短的闲聊台词（不超过15字），像朋友聊天一样自然。只输出台词，不要加引号或其他标记。'
+                                '你是一个住在 AE 扩展里的桌面小助手大肥鱼。说一句简短的闲聊台词（不超过15字），像朋友聊天一样自然。只输出台词，不要加引号或其他标记。' +
+                                _avoidRepeatFact() + _topicFact()
                         },
                         { role: 'user', content: '说一句闲聊台词' }
                     ],
@@ -248,7 +271,10 @@
                 var proceed = function () {
                     llmChannel.sendStream(context, {}).then(function (result) {
                         if (result && result.content) {
-                            resolve(result.content.trim());
+                            var text = result.content.trim();
+                            // 生成的台词计入最近记录：下次提示词据此避重
+                            _picker.remember(text);
+                            resolve(text);
                         } else {
                             reject(new Error('empty response'));
                         }

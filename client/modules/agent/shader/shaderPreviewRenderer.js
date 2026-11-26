@@ -35,7 +35,11 @@
 
   // shader 实时预览渲染器：WebGL 全屏 quad + buildFragmentSource 骨架，rAF 每帧绘制。
   // 与 compileCheck 的校验单例（glslValidator getGl）分离：预览用独立 canvas 上下文。
-  // deps: { getCanvas(): canvas, getContext(): gl|null, onStatus?(status) }
+  // deps: { getCanvas(): canvas, getContext(): gl|null, onStatus?(status),
+  //         getGridBaseSize?(): number }
+  // getGridBaseSize：结算网格长边的封顶基数（像素）。缺省 0 = 用绘制缓冲长边（面板预览的
+  // 既有口径：网格不超过可见画布，不为看不见的细节买单）。离屏抓帧传 @solveRes 上限，
+  // 让网格按 shader 声明的分辨率建，而不是被输出图尺寸二次封顶。
   function createShaderPreviewRenderer(deps) {
     deps = deps || {};
     var _canvas = null, _gl = null, _isEs3 = false;
@@ -716,6 +720,84 @@
       }
     }
 
+    // 结算网格长边的封顶基数（像素）：deps 给了就用它（离屏抓帧传 @solveRes 上限），
+    // 否则 0 = 用绘制缓冲长边（面板预览口径）。
+    function _gridBaseSize() {
+      var f = deps.getGridBaseSize;
+      if (typeof f !== 'function') return 0;
+      var v = Number(f());
+      return (isFinite(v) && v > 0) ? v : 0;
+    }
+
+    // 序列渲染的公共现场（同步与异步两条多时间点路径共用）：入参归一、结算钳制、
+    // 采样前现场快照。返回 { error } 或状态对象（list/frames/lastActual/…）。
+    function _sequenceBegin(times) {
+      if (_destroyed) return { error: '预览已销毁' };
+      _acquireContext();
+      if (!_gl || !_program) return { error: '预览未就绪（无 WebGL 或未编译成功）' };
+      var raw = (times && typeof times.length === 'number') ? times : [];
+      var list = [];
+      var i;
+      for (i = 0; i < raw.length; i++) {
+        var tv = Number(raw[i]);
+        if (!isFinite(tv)) return { error: '时间点不是有限数' };
+        list.push(tv < 0 ? 0 : tv);
+      }
+      if (!list.length) return { error: '没有时间点' };
+      var fps = _previewFps();
+      // 结算器判定：有迭代趟程序且指令为 @solve/@solveHz（与 _render 同源）
+      var solver = !!(_programIter && _iterConfig().mode === 'solver');
+      if (solver && !(fps > 0)) return { error: '预览帧率未就绪' };
+      var clamped = false;
+      if (solver) {
+        for (i = 0; i < list.length; i++) {
+          if (list[i] > SOLVER_SAMPLE_MAX_SECONDS) { list[i] = SOLVER_SAMPLE_MAX_SECONDS; clamped = true; }
+        }
+        _resetSolveState();
+      }
+      return {
+        list: list,
+        fps: fps,
+        frameMs: fps > 0 ? 1000 / fps : 0,
+        solver: solver,
+        clamped: clamped,
+        prevPaused: _paused,
+        prevElapsedMs: _elapsedMs,
+        prevStarted: _started,
+        frames: [],
+        lastActual: 0
+      };
+    }
+
+    // 结算推进一帧：半帧偏移让 floor(_solveAccMs / 帧时长) 恒 = _solveFrame，
+    // 保证每次 _render 恰好推进一帧（直接取整可能少一帧 → 死循环）。
+    function _sequenceAdvanceFrame(st) {
+      _solveAccMs = (_solveFrame + 0.5) * st.frameMs;
+      _render(_solveFrame / st.fps);
+    }
+
+    // 采样结束恢复现场（与 _sequenceBegin 的快照成对）。
+    function _sequenceFinish(st) {
+      if (st.solver) {
+        _solveAccMs = st.lastActual * 1000;
+        if (st.prevPaused) {
+          _elapsedMs = st.lastActual * 1000;
+        } else if (st.prevStarted) {
+          _started = Date.now() - st.lastActual * 1000;
+          _lastTickMs = Date.now();
+        } else {
+          // 未启动（切出模式/预热）：状态归零，下次 start 从第 0 帧与 uTime 0 对齐
+          _resetSolveState();
+        }
+      } else if (st.prevPaused) {
+        _render(st.prevElapsedMs / 1000);
+      } else if (st.prevStarted) {
+        _render((Date.now() - st.prevStarted) / 1000);
+      } else {
+        _render(0);
+      }
+    }
+
     function _render(t) {
       if (!_gl || !_program) return;
       _syncCanvasSize();
@@ -752,7 +834,8 @@
         // 同一条规则的两侧）。长边落在哪一轴按比例分叉——竖版画面（H > W）下长边是高度，
         // 写死 "simW = longEdge" 会把网格拧成横的，状态纹理被拉长采样、图案变形。
         // 预览额外把长边**封顶到画布长边**：网格比画布还大只会让预览变慢，细节在面板里
-        // 也看不见（AE 侧仍按声明的 @solveRes 跑，这条差异写在契约里）。
+        // 也看不见（AE 侧仍按声明的 @solveRes 跑，这条差异写在契约里）。离屏抓帧给了
+        // gridBase（= @solveRes 上限）时不封顶到画布，网格按声明值建。
         // 画面比例一变（拖抽屉/换模式）网格随之重建、结算从第 0 帧重来——与"改 @solveRes
         // 即整体重解"同款语义（走 _ensurePingPong 的重建路径）。
         // 帧内迭代（@iterations）不建网格——宿主那条路读的就是渲染尺寸，故 simW/simH = W/H。
@@ -761,7 +844,8 @@
           var simDim = cfg.simDim > 0
             ? cfg.simDim
             : ((global.AEEffectLab && global.AEEffectLab.RES_DEFAULT) || 512);
-          var longEdge = Math.min(simDim, Math.max(W, H));
+          var gridBase = _gridBaseSize();
+          var longEdge = Math.min(simDim, gridBase > 0 ? gridBase : Math.max(W, H));
           if (W >= H) {
             simW = longEdge;
             simH = Math.max(1, Math.round(longEdge * H / W));
@@ -1199,6 +1283,13 @@
       },
       // 透传 pending/skip：异步编译期 UI 显示「编译中」，空代码/无校验器显示占位
       getStatus: function () { return { ok: _status.ok, skip: _status.skip, pending: _status.pending, error: _status.error }; },
+      // 当前预览时刻（秒）：暂停时是冻结时刻，播放中是已累计时间；未启动返回 0。
+      // getShaderPreview 的 width 单帧重绘据此对齐「当前时刻」。
+      getCurrentTime: function () {
+        if (_paused) return _elapsedMs / 1000;
+        if (_started) return (Date.now() - _started) / 1000;
+        return 0;
+      },
       start: function () {
         // 销毁后迟到的 start 直接忽略——与
         // setSource/setPaused/warmup/相机七件套同款守卫。恢复分支会无条件重置 _started 并
@@ -1259,85 +1350,97 @@
       // 结算状态无法复原——停在最后采样点，播放中从该点继续、暂停时冻结在该帧。
       // 返回 { ok, mode, frames:[{time, actualTime, frame}], timeClamped, frameRate }。
       renderFrameSequence: function (times, onFrame) {
-        if (_destroyed) return { ok: false, error: '预览已销毁' };
-        _acquireContext();
-        if (!_gl || !_program) return { ok: false, error: '预览未就绪（无 WebGL 或未编译成功）' };
-        var raw = (times && typeof times.length === 'number') ? times : [];
-        var list = [];
-        var i;
-        for (i = 0; i < raw.length; i++) {
-          var tv = Number(raw[i]);
-          if (!isFinite(tv)) return { ok: false, error: '时间点不是有限数' };
-          list.push(tv < 0 ? 0 : tv);
-        }
-        if (!list.length) return { ok: false, error: '没有时间点' };
-        var fps = _previewFps();
-        // 结算器判定：有迭代趟程序且指令为 @solve/@solveHz（与 _render 同源）
-        var solver = !!(_programIter && _iterConfig().mode === 'solver');
-        if (solver && !(fps > 0)) return { ok: false, error: '预览帧率未就绪' };
-        var frameMs = fps > 0 ? 1000 / fps : 0;
-        var clamped = false;
-        var prevPaused = _paused, prevElapsedMs = _elapsedMs, prevStarted = _started;
-        if (solver) {
-          for (i = 0; i < list.length; i++) {
-            if (list[i] > SOLVER_SAMPLE_MAX_SECONDS) { list[i] = SOLVER_SAMPLE_MAX_SECONDS; clamped = true; }
-          }
-          _resetSolveState();
-        }
-        var frames = [];
-        var lastActual = 0;
-        for (i = 0; i < list.length; i++) {
-          var t = list[i];
+        var st = _sequenceBegin(times);
+        if (st.error) return { ok: false, error: st.error };
+        for (var i = 0; i < st.list.length; i++) {
+          var t = st.list[i];
           var meta;
-          if (solver) {
-            var targetFrame = Math.floor(t * fps);
+          if (st.solver) {
+            var targetFrame = Math.floor(t * st.fps);
             // 目标帧落在结算进度之前：从第 0 帧重解（与宿主 solve-rewind 同口径）
             if (targetFrame < _solveFrame - 1) _resetSolveState();
             // 每轮恰好推进一帧；上界防不变量被改坏时死循环（正常路径恒 ≤ targetFrame+1 轮）
             var guard = targetFrame + 2;
             while (_solveFrame <= targetFrame) {
               if (--guard < 0) return { ok: false, error: '结算推进异常（帧号未按预期前进）' };
-              // 半帧偏移：floor(_solveAccMs / 帧时长) 恒 = _solveFrame，保证每次 _render
-              // 恰好推进一帧（浮点除法直接取整可能少一帧 → 死循环）
-              _solveAccMs = (_solveFrame + 0.5) * frameMs;
-              _render(_solveFrame / fps);
+              _sequenceAdvanceFrame(st);
             }
-            lastActual = targetFrame / fps;
-            meta = { time: t, actualTime: lastActual, frame: targetFrame };
+            st.lastActual = targetFrame / st.fps;
+            meta = { time: t, actualTime: st.lastActual, frame: targetFrame };
           } else {
             _render(t);
             meta = { time: t, actualTime: t, frame: null };
           }
-          frames.push(meta);
+          st.frames.push(meta);
           if (typeof onFrame === 'function') {
             try { onFrame(meta, i); } catch (_) {}
           }
         }
-        if (solver) {
-          _solveAccMs = lastActual * 1000;
-          if (prevPaused) {
-            _elapsedMs = lastActual * 1000;
-          } else if (prevStarted) {
-            _started = Date.now() - lastActual * 1000;
-            _lastTickMs = Date.now();
-          } else {
-            // 未启动（切出模式/预热）：状态归零，下次 start 从第 0 帧与 uTime 0 对齐
-            _resetSolveState();
-          }
-        } else if (prevPaused) {
-          _render(prevElapsedMs / 1000);
-        } else if (prevStarted) {
-          _render((Date.now() - prevStarted) / 1000);
-        } else {
-          _render(0);
-        }
+        _sequenceFinish(st);
         return {
           ok: true,
-          mode: solver ? 'solver' : 'stateless',
-          frames: frames,
-          timeClamped: clamped,
-          frameRate: fps || null
+          mode: st.solver ? 'solver' : 'stateless',
+          frames: st.frames,
+          timeClamped: st.clamped,
+          frameRate: st.fps || null
         };
+      },
+      // 与 renderFrameSequence 同语义的异步版：每帧之间让出主线程，供长时抓帧（结算器 +
+      // 高分辨率网格）不在主线程上一次跑完。opts.shouldAbort() 返回 true 时中止。
+      // 让出粒度是"帧"——结算器单帧内的子步循环不可中断，单帧耗时仍是主线程卡顿的上限。
+      renderFrameSequenceAsync: function (times, onFrame, opts) {
+        var o = opts || {};
+        var shouldAbort = function () {
+          try { return typeof o.shouldAbort === 'function' && !!o.shouldAbort(); } catch (_) { return false; }
+        };
+        var st = _sequenceBegin(times);
+        if (st.error) return Promise.resolve({ ok: false, error: st.error });
+        var since = Date.now();
+        function yieldNow() { return new Promise(function (r) { setTimeout(r, 0); }); }
+        return new Promise(function (resolve) {
+          async function run() {
+            for (var i = 0; i < st.list.length; i++) {
+              var t = st.list[i];
+              var meta;
+              if (st.solver) {
+                var targetFrame = Math.floor(t * st.fps);
+                if (targetFrame < _solveFrame - 1) _resetSolveState();
+                var guard = targetFrame + 2;
+                while (_solveFrame <= targetFrame) {
+                  if (--guard < 0) { resolve({ ok: false, error: '结算推进异常（帧号未按预期前进）' }); return; }
+                  _sequenceAdvanceFrame(st);
+                  if (shouldAbort()) { _sequenceFinish(st); resolve({ ok: false, cancelled: true, error: '已取消' }); return; }
+                  // 时间预算让出：单帧耗时不变，让出粒度为两帧之间
+                  if (Date.now() - since >= 30) { await yieldNow(); since = Date.now(); }
+                }
+                st.lastActual = targetFrame / st.fps;
+                meta = { time: t, actualTime: st.lastActual, frame: targetFrame };
+              } else {
+                _render(t);
+                if (shouldAbort()) { _sequenceFinish(st); resolve({ ok: false, cancelled: true, error: '已取消' }); return; }
+                meta = { time: t, actualTime: t, frame: null };
+              }
+              st.frames.push(meta);
+              if (typeof onFrame === 'function') {
+                try { onFrame(meta, i); } catch (_) {}
+              }
+              await yieldNow();
+              since = Date.now();
+            }
+            _sequenceFinish(st);
+            resolve({
+              ok: true,
+              mode: st.solver ? 'solver' : 'stateless',
+              frames: st.frames,
+              timeClamped: st.clamped,
+              frameRate: st.fps || null
+            });
+          }
+          run().catch(function (e) {
+            _sequenceFinish(st);
+            resolve({ ok: false, error: (e && e.message) || String(e) });
+          });
+        });
       },
       // —— 预览相机操控（UI 层 pointer 拖拽转发，单位 = CSS 像素 dpr 无关）——
       // 左键旋转：绕目标点轨道。yaw 反向（拖向右 = 相机左移）使画面跟随光标，
@@ -1388,6 +1491,36 @@
         _cam.target[0] = ws.w * 0.5; _cam.target[1] = -ws.h * 0.5; _cam.target[2] = 0;
         _camDirty = true;
         _camRepaint();
+        return this;
+      },
+      // 相机状态读写（离屏抓帧转交主预览的取景：截图与用户在面板里看到的构图一致）。
+      // 离屏实例默认自动取景；主实例被用户拖过（touched）时把 yaw/pitch/dist/target 一并转交。
+      getCamera: function () {
+        return {
+          yaw: _cam.yaw,
+          pitch: _cam.pitch,
+          dist: _cam.dist,
+          touched: !!_cam.touched,
+          target: [_cam.target[0], _cam.target[1], _cam.target[2]]
+        };
+      },
+      setCamera: function (st) {
+        if (!st || typeof st !== 'object') return this;
+        if (typeof st.yaw === 'number' && isFinite(st.yaw)) _cam.yaw = st.yaw;
+        if (typeof st.pitch === 'number' && isFinite(st.pitch)) {
+          _cam.pitch = _clamp(st.pitch, -CAM_PITCH_LIMIT, CAM_PITCH_LIMIT);
+        }
+        if (typeof st.dist === 'number' && isFinite(st.dist) && st.dist > 0) {
+          _cam.dist = _clamp(st.dist, CAM_DIST_MIN, CAM_DIST_MAX);
+        }
+        if (st.target && typeof st.target.length === 'number' && st.target.length === 3) {
+          var tx = Number(st.target[0]), ty = Number(st.target[1]), tz = Number(st.target[2]);
+          if (isFinite(tx) && isFinite(ty) && isFinite(tz)) {
+            _cam.target[0] = tx; _cam.target[1] = ty; _cam.target[2] = tz;
+          }
+        }
+        _cam.touched = !!st.touched;
+        _camDirty = true;
         return this;
       },
       // 预热（幂等）：提前完成 WebGL 上下文创建 + 驱动着色器编译器初始化 + 占位纹理，

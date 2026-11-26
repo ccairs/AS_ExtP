@@ -975,6 +975,17 @@
       return (_renderer && typeof _renderer.getStatus === 'function') ? _renderer.getStatus() : null;
     }
 
+    // 预览当前时刻（秒）：getShaderPreview 的 width 单帧重绘据此对齐「当前时刻」。
+    // 渲染器不存在（未进 shader 模式）返回 0。
+    function getPreviewTime() {
+      return (_renderer && typeof _renderer.getCurrentTime === 'function') ? _renderer.getCurrentTime() : 0;
+    }
+
+    // 预览相机状态：离屏抓帧转交主预览的取景（截图构图与用户在面板里看到的一致）。
+    function getPreviewCamera() {
+      return (_renderer && typeof _renderer.getCamera === 'function') ? _renderer.getCamera() : null;
+    }
+
     // 多时间点抓帧（getShaderPreview 的 timesInSeconds 用）：先按各时间点渲染画面，再截图；
     // 合成联系表由工具侧做。渲染器/画布不可用返回 null；渲染失败返回 { ok:false, error }。
     function capturePreviewFrames(times) {
@@ -1501,7 +1512,7 @@
       showTeamTab: showTeamTab, bindTeamTabs: bindTeamTabs,
       refreshLibrary: refreshLibrary, loadFromLibrary: loadFromLibrary, deleteFromLibrary: deleteFromLibrary,
       deleteSelectedFromLibrary: deleteSelectedFromLibrary,
-      refreshPreviewFromCode: refreshPreviewFromCode, syncPreviewStatus: syncPreviewStatus, getPreviewStatus: getPreviewStatus, capturePreviewFrames: capturePreviewFrames, startPreview: startPreview, stopPreview: stopPreview, destroy: destroy,
+      refreshPreviewFromCode: refreshPreviewFromCode, syncPreviewStatus: syncPreviewStatus, getPreviewStatus: getPreviewStatus, getPreviewTime: getPreviewTime, getPreviewCamera: getPreviewCamera, capturePreviewFrames: capturePreviewFrames, startPreview: startPreview, stopPreview: stopPreview, destroy: destroy,
       bindResizer: bindResizer, bindPreviewEvents: bindPreviewEvents,
       showRight: showRight, hideRight: hideRight, renderUniforms: renderUniforms,
       updateCompileStatus: updateCompileStatus, saveToLibrary: saveToLibrary, bindRightEvents: bindRightEvents

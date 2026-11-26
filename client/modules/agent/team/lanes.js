@@ -457,7 +457,10 @@
             statusId: 'status',
             inlineStatusId: 'aeAgentInlineStatus',
             statusPanelId: 'aeAgentStatusPanel',
-            tokenStatsId: 'aeAgentTokenStats_' + id
+            tokenStatsId: 'aeAgentTokenStats_' + id,
+            // 待发送浮层（执行中追加的消息）按 lane 各一份：浮层挂在消息区内部，单 Agent 那份在
+            // 团队档随单 Agent 消息区一起隐藏，共用会让当前 lane 的队列无处可画。
+            injectChipsId: 'aeAgentInjectChips_' + id
         };
     }
 

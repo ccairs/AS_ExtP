@@ -736,15 +736,13 @@
             if (opts.state.searchedTools) opts.state.searchedTools.clear();
             opts.toolHistory.rebuildSearchedToolsFromHistory(cm);
 
-            // 压缩后改走 syncStateFromCm 合并重赋值（修复的遗漏位置）——
-            // 整体重赋值 cm.list() 会剥离 state 中的 _local 本地消息（/help 帮助文本、
-            // /compress 进度提示仅 UI 展示不进 cm），压缩后 cm 变短触发 view 全量重渲染，
-            // _local 从 state 与 UI 永久消失。compactWithSummary 恰在 cm 头部前置注入
-            // 1 条摘要卡，计入 addedCount。摘要卡落在 state 中部（保留的旧历史之后），
-            // 增量渲染按尾部追加假设会错位，故重置渲染计数强制全量重渲染（与压缩前
-            // 行为一致，仅 _local 得以保留）。
+            // 压缩后以 cm 为准重建 state（dropHead）：被压缩的旧消息不再留在面板里。
+            // 保留旧消息会让本次会话与重开面板（从会话文件恢复 cm.list()）出现两套视图——
+            // 本次能看到、重开就消失。_local 本地提示按锚点回插，不会丢。
+            // 摘要卡位于 cm[0]，重建后落在 state 顶部；它是被压缩旧段的唯一 UI 载体，
+            // 更早内容走 read_early_history 从归档回看。
             if (typeof opts.chatViewHelpers.syncStateFromCm === 'function') {
-                opts.chatViewHelpers.syncStateFromCm(1);
+                opts.chatViewHelpers.syncStateFromCm(0, { dropHead: true });
             } else {
                 opts.state.messages = cm.list();
             }

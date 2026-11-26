@@ -1,5 +1,5 @@
 // sleepTalk.js — 睡眠期间随机弹出梦话气泡
-// 仅在 inSleepMode 时调度，每 10-25 秒弹一句梦话
+// 仅在 inSleepMode 时调度，每 20-45 秒弹一句梦话
 (function (global) {
     'use strict';
 
@@ -9,7 +9,7 @@
     //   ② 它每天待着的 AE 工作台画面（关键帧/图层/渲染队列/表达式…）
     //   ③ 鲸鲸日常与撒娇（海、气泡、熬夜的 user）
     //   ④ 扩展面板日常（脚本校验、素材库、记忆、模型、搜索、工具…）
-    // 10-25 秒一句的节奏下，连睡一整晚也很难重样。
+    // 取样走洗牌袋：一轮洗完才重洗，最近 12 条不进入下一轮候选。
     // 台词在读取时按当前语言求值：装载期不求值，切换语言后立即生效
     function dreamLines() {
         return [
@@ -114,6 +114,8 @@
 
     function createSleepTalk() {
         var _timer = null;
+        // 取样器挂在行为实例上：睡眠期间反复触发也能延续同一轮的播放进度
+        var _picker = global.AEDeepseekPet.createLinePicker({ recentLimit: 12 });
 
         return {
             id: 'sleepTalk',
@@ -124,17 +126,15 @@
                 return ctx.inSleepMode === true;
             },
             action: function (petApi) {
-                // 随机 10-25 秒后弹一句梦话，循环调度
+                // 随机 20-45 秒后弹一句梦话，循环调度
                 // 统一走 schedule() 递归，保留单一 _timer 调度语义（由 onInterrupt 清理）
                 function schedule() {
-                    var delay = 10000 + Math.random() * 15000;
+                    var delay = 20000 + Math.random() * 25000;
                     _timer = setTimeout(function () {
                         // 睡眠被唤醒后停止调度
                         var st = petApi.getState();
                         if (!st.inSleepMode) return;
-                        var pool = dreamLines();
-                        var line = pool[Math.floor(Math.random() * pool.length)];
-                        petApi.showBubble(line, 4000);
+                        petApi.showBubble(_picker.pick(dreamLines(), 'dream'), 4000);
                         // 递归调度下一次
                         schedule();
                     }, delay);

@@ -183,6 +183,14 @@
         return String(name).replace(/\.(ffx|aep|aet)$/i, '');
     }
 
+    // 预设/工程素材的落盘预览帧 URL（素材库导入时截帧，路径由库名 + 条目 id 决定）。
+    // 无预览帧记录时 previewUrlFor 返回空串 → 悬停浮层不弹。
+    function _previewUrlFor(lib, item) {
+        var S = global.AEAssetsShared;
+        if (!S || typeof S.previewUrlFor !== 'function') return '';
+        return S.previewUrlFor(_getDataDir(), lib, item) || '';
+    }
+
     // ===== presets 扫描 =====
     function scanPresets() {
         return _readJsonFile(_getDataDir() + '/assets/presets/index.json').then(function (data) {
@@ -199,6 +207,7 @@
                         type: 'preset',
                         meta: {
                             size: it.size,
+                            previewUrl: _previewUrlFor('presets', it),
                             missing: !oks[i]
                         }
                     };
@@ -223,6 +232,7 @@
                         type: 'project',
                         meta: {
                             sourceType: it.sourceType,
+                            previewUrl: _previewUrlFor('project-assets', it),
                             missing: !oks[i]
                         }
                     };
@@ -248,6 +258,8 @@
                         meta: {
                             size: it.size,
                             sourceType: it.sourceType,
+                            mediaType: it.type || '',
+                            sequence: it.sequence || null,
                             missing: !oks[i]
                         }
                     };

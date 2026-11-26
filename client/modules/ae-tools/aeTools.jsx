@@ -1484,29 +1484,63 @@ function _readSourceTextKeyframes(sdProp, from, count) {
     return out;
 }
 
-// 图层样式深读：只返回**已启用**的样式参数 + 全局光（混合选项组里的角度/高度）。
-function _readLayerStyleParams(styleGroup) {
-    var params = [];
+// 样式参数是否是组：官方三成员 PROPERTY（叶子，真机 6212）/INDEXED_GROUP（6214）/NAMED_GROUP（6213），
+// 组只认后两者；常量表不可用或未命中时退到 numProperties > 0（叶子读不到可用子项数）。
+function _isStyleParamGroup(prop) {
+    var ptype = 0;
+    try { ptype = Number(prop.propertyType); } catch (_) { ptype = 0; }
     try {
-        for (var i = 1; i <= styleGroup.numProperties; i++) {
-            var p = styleGroup.property(i);
-            var pm = "";
-            try { pm = String(p.matchName || ""); } catch (_) {}
-            if (pm.indexOf("/enabled") >= 0) continue;   // 样式开关本身不进参数表
-            var rec = { name: "", matchName: pm, value: null };
-            try { rec.name = String(p.name || ""); } catch (_) {}
-            try { rec.value = p.value; } catch (_) {}
-            params.push(rec);
+        if (ptype === PropertyType.INDEXED_GROUP || ptype === PropertyType.NAMED_GROUP) return true;
+    } catch (_) { /* 常量表不可用时走下面的兜底 */ }
+    try { return Number(prop.numProperties) > 0; } catch (_) { return false; }
+}
+
+// 样式参数树：递归展开子组（渐变颜色、斜面的高光/阴影等），深度上限取自 reader.maxDepth（默认 3）。
+// 叶子交给 reader.readLeaf 填值/numKeys/关键帧/表达式——关键帧窗口与预算都在 _getSingleLayerDetail 里；
+// 没传 reader 时只读 value。样式开关（matchName 含 /enabled 的子项）不进参数表。
+// reader.nodeBudget 是整层的参数节点预算（{used, limit, capped}），耗尽即停并置 capped。
+function _readLayerStyleParams(styleGroup, depth, reader, budget) {
+    var params = [];
+    var maxDepth = 3;
+    try { if (reader && typeof reader.maxDepth === "number") maxDepth = reader.maxDepth; } catch (_) {}
+    for (var i = 1; i <= styleGroup.numProperties; i++) {
+        var p = null;
+        try { p = styleGroup.property(i); } catch (_) {}
+        if (!p) continue;
+        var pm = "";
+        try { pm = String(p.matchName || ""); } catch (_) {}
+        if (pm.indexOf("/enabled") >= 0) continue;   // 样式开关本身不进参数表
+        if (budget && budget.used >= budget.limit) { budget.capped = true; break; }
+        var rec = { name: "", matchName: pm };
+        try { rec.name = String(p.name || ""); } catch (_) {}
+        if (_isStyleParamGroup(p)) {
+            if (budget) budget.used++;
+            rec.kind = "group";
+            if (depth >= maxDepth) rec.depthCapped = true;
+            else rec.params = _readLayerStyleParams(p, depth + 1, reader, budget);
+        } else {
+            if (budget) budget.used++;
+            if (reader && typeof reader.readLeaf === "function") reader.readLeaf(rec, p);
+            else { try { rec.value = p.value; } catch (_) { rec.value = null; } }
         }
-    } catch (_) {}
+        params.push(rec);
+    }
     return params;
 }
 
-function _readLayerStyles(layer) {
-    var result = { styles: [], lighting: null };
+// 图层样式：列组内全部样式子组（混合选项组只提供全局光，不算样式），每条带 enabled 与 index。
+// 已启用的排在前面、未启用的排在后面，同类保持子组原序——层内字节预算从尾部裁时先丢未启用条目。
+// 未启用样式的参数默认不读（省略 params，置 paramsUnread）：
+// includeDisabledLayerStyleParams:true 才展开。
+function _readLayerStyles(layer, opts, reader) {
+    var enabledStyles = [];
+    var disabledStyles = [];
+    var lighting = null;
+    var withDisabledParams = !!(opts && opts.includeDisabledLayerStyleParams === true);
+    var nodeBudget = (reader && reader.nodeBudget) ? reader.nodeBudget : null;
     var g = null;
     try { g = layer.property("ADBE Layer Styles"); } catch (_) {}
-    if (!g) return result;
+    if (!g) return { styles: [], lighting: null };
     for (var i = 1; i <= g.numProperties; i++) {
         var s = null;
         try { s = g.property(i); } catch (_) {}
@@ -1517,7 +1551,7 @@ function _readLayerStyles(layer) {
             try {
                 var ga = s.property("ADBE Global Angle2");
                 var gh = s.property("ADBE Global Altitude2");
-                result.lighting = {
+                lighting = {
                     angle: ga ? ga.value : null,
                     altitude: gh ? gh.value : null
                 };
@@ -1525,13 +1559,21 @@ function _readLayerStyles(layer) {
             continue;
         }
         var enabled = false;
+        // 读不到 enabled 时按未启用处理（无法区分「关闭」与「未知」，不另造标记）
         try { enabled = (s.enabled === true); } catch (_) {}
-        if (!enabled) continue;
-        var rec = { name: "", matchName: mn, params: _readLayerStyleParams(s) };
+        var rec = { name: "", matchName: mn, enabled: enabled, index: i };
         try { rec.name = String(s.name || ""); } catch (_) {}
-        result.styles.push(rec);
+        if (enabled || withDisabledParams) {
+            if (reader) reader.currentStyle = rec;
+            rec.params = _readLayerStyleParams(s, 1, reader, nodeBudget);
+            if (reader) reader.currentStyle = null;
+        } else {
+            rec.paramsUnread = true;
+        }
+        if (enabled) enabledStyles.push(rec);
+        else disabledStyles.push(rec);
     }
-    return result;
+    return { styles: enabledStyles.concat(disabledStyles), lighting: lighting };
 }
 
 // 单图层完整详情提取（供 getLayerInfo 和 getSelectedDetails 复用）
@@ -1597,12 +1639,12 @@ function _getSingleLayerDetail(layer, comp, opts) {
     }
     // 逐属性 offset（键大小写不敏感 + 未知键回显）：键先按输出
     // 字段前缀做大小写不敏感匹配（position/scale/rotation/opacity/anchorPoint/audioLevels/
-    // timeRemap/sourceText/maskPath/maskOpacity/maskFeather/maskExpansion/shapeContents），
+    // timeRemap/sourceText/maskPath/maskOpacity/maskFeather/maskExpansion/shapeContents/layerStyle），
     // 其次按属性 matchName 精确匹配；两者都不命中的键（如 positionKeyframes 这种带后缀写法）
     // 收集到结果级 keyframeOffsetsIgnored，不静默忽略。值须为 number 且 ≥0，否则忽略（回退标量）。
     var _KF_OFFSET_PREFIXES = ["position", "scale", "rotation", "opacity", "anchorPoint",
         "audioLevels", "timeRemap", "sourceText", "maskPath", "maskOpacity", "maskFeather",
-        "maskExpansion", "shapeContents"];
+        "maskExpansion", "shapeContents", "layerStyle"];
     function _kfPrefixKey(key) {
         var lk = String(key).toLowerCase();
         for (var pi = 0; pi < _KF_OFFSET_PREFIXES.length; pi++) {
@@ -1791,10 +1833,12 @@ function _getSingleLayerDetail(layer, comp, opts) {
         return _kfOffset;
     }
     // 组合：按属性取窗口 → 计费 → 输出。属性不可读时不产出字段（旧行为：字段省略）
-    function _kfApply(obj, key, prop) {
+    // offsetPrefix：逐属性起点的查表键（缺省 = 输出字段名）。图层样式的叶子传 "layerStyle"——
+    // 它们的输出字段名是 keyframes，会被 _kfOffsetFor 误当成 timeRemap 块的无前缀数组。
+    function _kfApply(obj, key, prop, offsetPrefix) {
         var total = 0;
         try { total = Number(prop.numKeys) || 0; } catch (_) { total = 0; }
-        var off = _kfOffsetFor(key, prop);
+        var off = _kfOffsetFor(offsetPrefix || key, prop);
         if (off > total) off = total;
         var list = [];
         try { list = collectKeyframes(prop, off, _kfLimit); } catch (_) { list = []; }
@@ -1843,6 +1887,9 @@ function _getSingleLayerDetail(layer, comp, opts) {
     var TEXT_SHOW_LIMIT = 2000;
     var TEXT_ANIMATOR_BYTE_BUDGET = 6000;
     var LAYER_STYLE_BYTE_BUDGET = 6000;
+    // 样式参数节点预算（整层）：渐变类样式每个色标占一组，叶子可能很多，超过即停并置
+    // layerStylesNodeCapped（不静默丢，调用方据 fields:['layerStyles'] 单层复查）。
+    var LAYER_STYLE_NODE_LIMIT = 500;
     // ── 蒙版顶点计费 ──────────────────────────────────────────────────────────
     // vertices 仍从载荷条目字节里豁免（否则一条 vertexLimit:2000 的蒙版会被整条丢弃），但按
     // 实际 JSON 单独计入响应级 respUsed；额度不足时从尾部裁顶点数组（置 verticesTruncated），
@@ -1919,10 +1966,10 @@ function _getSingleLayerDetail(layer, comp, opts) {
         return actual;
     }
     // ── 结果组装级兜底 ─────────────────────────────────────────────────────────
-    // 固定字段（base/transform 静态值、text/layerStyles 等）不逐字节计入 24000；多层同页时
-    // 结果仍可能越过 28KB。这里按 JSON 长度兜底，收缩顺序固定为 载荷 → 形状 → 关键帧（与
-    // emission 的优先级一致）：只裁到刚好过线，真被收缩的层置 responseBytesTruncated，并同步
-    // 续页/分项标记。返回是否发生收缩。
+    // 固定字段（base/transform 静态值、text 等）不逐字节计入 24000（layerStyles 的条目字节
+    // 按实际 JSON 计入）；多层同页时结果仍可能越过 28KB。这里按 JSON 长度兜底，收缩顺序固定为
+    // 载荷 → 形状 → 关键帧（与 emission 的优先级一致）：只裁到刚好过线，真被收缩的层置
+    // responseBytesTruncated，并同步续页/分项标记。返回是否发生收缩。
     function _collectKfRefs(o, acc, depth) {
         if (!o || typeof o !== "object" || depth > 10) return acc;
         for (var k in o) {
@@ -3041,38 +3088,125 @@ function _getSingleLayerDetail(layer, comp, opts) {
         // 动画器字节计入响应级总预算；空数组（非文本层/无动画器）不计费。
         if (_taTotal > 0) _respCharge(_taBytes);
     }
-    // 图层样式：只列已启用的样式参数 + 全局光（混合选项组的角度/高度）；includeLayerStyles:false 可关。
-    // 与 textAnimators 同类：按 numProperties 全量返回时无上限——5 层×20
-    // 样式（每样式 4 参数约 340B）约 34KB。现在按条目 JSON 长度累计，超 LAYER_STYLE_BYTE_BUDGET
-    // 从尾部裁，恒给 layerStylesTotal/layerStylesTruncated（预算截断为 true），字节裁断另置
-    // layerStylesBytesTruncated + responseBytesTruncated；字节计入响应级 respUsed。
+    // 图层样式：列全部样式子组（未启用也返回，带 enabled），外加全局光（混合选项组的角度/高度）；
+    // includeLayerStyles:false 可关。参数树递归展开子组（子组最多展开 2 层，第 3 层起只留骨架并带
+    // depthCapped；整层节点预算 LAYER_STYLE_NODE_LIMIT），每个叶子的关键帧只给 numKeys、
+    // 表达式非空才给文本（≤800 截断）；includeLayerStyleAnimation:true 才展开关键帧（走 _kfApply：
+    // keyframeOffset/keyframeLimit 窗口 + 12KB 关键帧预算 + 逐属性 matchName 起点），且只给裁剪后
+    // 仍保留的条目补，不替被裁条目付预算。超 LAYER_STYLE_BYTE_BUDGET 从尾部裁（已启用排在前面，
+    // 先丢未启用条目），有样式时给 layerStylesTotal/layerStylesEnabledTotal/layerStylesTruncated，
+    // 字节裁断另置 layerStylesBytesTruncated + responseBytesTruncated；字节计入响应级 respUsed。
     if (includeLayerStyles && _wantField("layerStyles")) {
         try {
-            var lsInfo = _readLayerStyles(layer);
+            var _lsAnim = opts.includeLayerStyleAnimation === true;
+            var _lsReader = {
+                maxDepth: 3,
+                nodeBudget: { used: 0, limit: LAYER_STYLE_NODE_LIMIT, capped: false },
+                currentStyle: null,   // 正在读的样式记录；关键帧延后到裁剪后只给保留条目补
+                leafPairs: [],
+                readLeaf: function (rec, prop) {
+                    try { rec.value = prop.value; } catch (_) { rec.value = null; }
+                    var nk = 0;
+                    try { nk = Number(prop.numKeys) || 0; } catch (_) { nk = 0; }
+                    if (nk > 0) {
+                        rec.numKeys = nk;
+                        if (_lsAnim) _lsReader.leafPairs.push({ rec: rec, prop: prop, style: _lsReader.currentStyle });
+                    }
+                    var expr = "";
+                    try { expr = (prop.expression === undefined || prop.expression === null) ? "" : String(prop.expression); }
+                    catch (_) { expr = ""; }
+                    if (!expr) return;
+                    if (expr.length > EXPR_SHOW_LIMIT) {
+                        rec.expression = expr.substring(0, EXPR_SHOW_LIMIT);
+                        rec.expressionTruncated = true;
+                        rec.expressionLength = expr.length;
+                    } else {
+                        rec.expression = expr;
+                    }
+                }
+            };
+            var lsInfo = _readLayerStyles(layer, opts, _lsReader);
             var _lsTotal = lsInfo.styles.length;
+            var _lsEnabledTotal = 0;
+            for (var _lse = 0; _lse < _lsTotal; _lse++) {
+                if (lsInfo.styles[_lse].enabled === true) _lsEnabledTotal++;
+            }
             var _lsKept = [];
             var _lsBytes = 2;                  // "[]" 自身
             var _lsBytesHit = false;
+            // 裁剪期记录里还没有关键帧（关键帧在裁完之后只给保留条目补），所以这里按整条 JSON 计。
+            // 装不下的条目退化为骨架（enabled/index + paramsTruncated 或 paramsUnread）后停止：
+            // 调用方仍看得到有多少样式、哪些启用，参数改 fields:['layerStyles'] 单层查。
+            // 骨架**不受 6000B 约束**——预算通常已被前面的整条吃满，留缝判断会让它永远进不来；
+            // 每个响应层最多因此超出约一条骨架（百字节级），硬上限仍由结果兜底把关。
             for (var _lsi = 0; _lsi < lsInfo.styles.length; _lsi++) {
                 var _lsb = 0;
                 try { _lsb = JSON.stringify(lsInfo.styles[_lsi]).length; } catch (_) { _lsb = 0; }
+                if (_lsb < 0) _lsb = 0;
                 var _lsAdd = _lsb + (_lsKept.length > 0 ? 1 : 0);
-                if (_lsBytes + _lsAdd > LAYER_STYLE_BYTE_BUDGET) { _lsBytesHit = true; break; }
+                if (_lsBytes + _lsAdd > LAYER_STYLE_BYTE_BUDGET) {
+                    _lsBytesHit = true;
+                    var _lsOver = lsInfo.styles[_lsi];
+                    var _lsSkel = {
+                        name: _lsOver.name, matchName: _lsOver.matchName,
+                        enabled: _lsOver.enabled, index: _lsOver.index
+                    };
+                    if (_lsOver.paramsUnread) _lsSkel.paramsUnread = true;
+                    else _lsSkel.paramsTruncated = true;
+                    var _lsSkelBytes = 0;
+                    try { _lsSkelBytes = JSON.stringify(_lsSkel).length; } catch (_) { _lsSkelBytes = 0; }
+                    _lsKept.push(_lsSkel);
+                    _lsBytes += _lsSkelBytes + (_lsKept.length > 1 ? 1 : 0);
+                    break;
+                }
                 _lsKept.push(lsInfo.styles[_lsi]);
                 _lsBytes += _lsAdd;
             }
+            // 本块字节先计费，再放关键帧：_kfTrim 按剩余 respUsed 放行，先计费才不会让
+            // 样式自己的关键帧看着"额度还很宽"（否则账面可低估本块最多约 6000B）。
+            if (_lsTotal > 0) _respCharge(_lsBytes);
+            // 关键帧延后补：只给真正保留的条目出关键帧，被 6000B 裁掉的样式不再占 12KB 关键帧预算。
+            // 起点：该参数 matchName 显式给了 keyframeOffsets 就用它（更具体，优先），否则整块
+            // "layerStyle" 起点；matchName 命中的键记入已消费表，避免被回显成未知键。
+            if (_lsAnim && _lsReader.leafPairs.length > 0) {
+                for (var _lsp = 0; _lsp < _lsReader.leafPairs.length; _lsp++) {
+                    var _lsPair = _lsReader.leafPairs[_lsp];
+                    var _lsPairKept = false;
+                    for (var _lsk = 0; _lsk < _lsKept.length; _lsk++) {
+                        if (_lsKept[_lsk] === _lsPair.style) { _lsPairKept = true; break; }
+                    }
+                    if (!_lsPairKept) continue;
+                    var _lsPairPrefix = "layerStyle";
+                    try {
+                        var _lsMn = String(_lsPair.prop.matchName || "");
+                        if (_lsMn && _kfOffsets && typeof _kfOffsets[_lsMn] === "number") {
+                            _lsPairPrefix = _lsMn;
+                            _kfUsedMatchNames[_lsMn] = true;
+                        }
+                    } catch (_) { _lsPairPrefix = "layerStyle"; }
+                    _kfApply(_lsPair.rec, "keyframes", _lsPair.prop, _lsPairPrefix);
+                }
+                // 关键帧元数据（keyframesTotal/Offset/Limit/HasMore/…）不在 _kfTrim 的计费里
+                //（它只算数组 JSON），这里补一次响应级计费，避免账面低估 24000。
+                var _lsAfter = 0;
+                try { _lsAfter = JSON.stringify(_lsKept).length; } catch (_) { _lsAfter = 0; }
+                var _lsMetaBytes = _lsAfter - _lsBytes - _sumExemptBytes(_lsKept, 0);
+                if (_lsMetaBytes > 0) _respCharge(_lsMetaBytes);
+            }
             info.layerStyles = _lsKept;
-            // 0 个已启用样式：只给空数组，不追加分页字段——薄数据体积与旧行为一致。
+            // 0 个样式子组（组缺失或空）：只给空数组，不追加分页字段——薄数据体积与旧行为一致。
+            // layerStylesTotal 是全部样式条数（含未启用），layerStylesEnabledTotal 是其中已启用的。
             if (_lsTotal > 0) {
                 info.layerStylesTotal = _lsTotal;
+                info.layerStylesEnabledTotal = _lsEnabledTotal;
                 info.layerStylesTruncated = (_lsBytesHit || _lsKept.length < _lsTotal);
             }
+            if (_lsReader.nodeBudget.capped) info.layerStylesNodeCapped = true;
             if (_lsBytesHit) {
                 info.layerStylesBytesTruncated = true;
                 info.responseBytesTruncated = true;
             }
             if (lsInfo.lighting) info.layerStyleLighting = lsInfo.lighting;
-            if (_lsTotal > 0) _respCharge(_lsBytes);
         } catch (_) {}
     }
     // content 摘要（复用 queryProject 的同一函数）：只有 fields 里点名才给——layer 详情默认
@@ -3348,6 +3482,10 @@ function getLayerInfo(args) {
             includeMaskVertices: args.includeMaskVertices === true,
             includeTextAnimators: args.includeTextAnimators !== false,
             includeLayerStyles: args.includeLayerStyles !== false,
+            // 未启用样式的参数：opt-in（默认只给 enabled/index 骨架，置 paramsUnread）
+            includeDisabledLayerStyleParams: args.includeDisabledLayerStyleParams === true,
+            // 样式参数的动画：opt-in（默认只给 numKeys 与非空表达式，关键帧要显式开）
+            includeLayerStyleAnimation: args.includeLayerStyleAnimation === true,
             includeShapeContents: args.includeShapeContents !== false,
             includeShapeValues: args.includeShapeValues === true,
             // 效果动画索引：opt-in；fields 不含 effects 时不返回（块级交集）
@@ -4073,7 +4211,7 @@ var _INTERNAL_NAMES = [
     // 对外入口只有 queryProject（content 摘要）与 queryDetails（layer 深读）。
     '_countTransformKeyframes', '_countEnabledLayerStyles', '_getLayerContentSummary',
     '_readMaskShape', '_readTextAnimators', '_readSourceTextKeyframes',
-    '_readLayerStyleParams', '_readLayerStyles',
+    '_readLayerStyleParams', '_readLayerStyles', '_isStyleParamGroup',
     // 图层动画指纹 helper——未导出顶层名，授权代码沿作用域链按名
     // 可达（可读动画属性名单/关键帧数/嵌套合成来源），必登记；对外入口仍是 queryProject
     //（layers/selected 条目的 anim 字段），总览入口 getOverviewInfo 已导出、不在此列。
@@ -6280,6 +6418,18 @@ function getPreviewFrame(args) {
         }
         if (time < 0) { time = 0; _timeClamped = true; }
         if (comp.duration > 0 && time > comp.duration) { time = comp.duration; _timeClamped = true; }
+        // 抓帧分辨率跟随合成面板的分辨率档位（comp.resolutionFactor）：saveFrameToPng 按该档位出图，
+        // 档位非 [1,1] 时 PNG 是合成尺寸的 1/N。本工具不改工程状态，只把档位与合成尺寸回报给调用方；
+        // 读不到档位（桩/异常）时只缺席 resolutionFactor/resolutionNote，compWidth/compHeight 恒有。
+        var _resFactor = null;
+        try {
+            var _rf = comp.resolutionFactor;
+            if (_rf && _rf.length >= 2) {
+                var _rfx = Number(_rf[0]);
+                var _rfy = Number(_rf[1]);
+                if (isFinite(_rfx) && isFinite(_rfy) && _rfx > 0 && _rfy > 0) _resFactor = [_rfx, _rfy];
+            }
+        } catch (_rfErr) { _resFactor = null; }
         var fileName = "ae_preview_" + (new Date().getTime()) + ".png";
         // 预览帧写盘目录，两级候选（都必须在数据目录内——缓存/临时产物一律写数据目录，
         // 系统临时目录那边的产物没有任何清扫覆盖，用户清过
@@ -6464,6 +6614,10 @@ function getPreviewFrame(args) {
             fileName: fileName,
             width: comp.width,
             height: comp.height,
+            // 合成尺寸另给一份：width/height 会被面板按 PNG 实际像素校正（降采样档位下两者不同），
+            // 调用方据此判断本次抓帧是否被降采样。
+            compWidth: comp.width,
+            compHeight: comp.height,
             capturedAt: time,
             // fileSize 用校验通过那一次读到的真实长度（outputFile.length 在渐进写入期是陈旧的，
             // 实测 10,833,057 vs 1,476,761）；无校验值时回退旧口径以保证字段恒有值。
@@ -6476,6 +6630,28 @@ function getPreviewFrame(args) {
         if (_timeClamped) {
             _frameOut.timeClamped = true;
             _frameOut.requestedAt = _timeRequested;
+        }
+        // 档位非完整时把「图为什么小、怎么拿到清晰的图」一并写进回执：抓帧工具本身不改工程状态，
+        // 改档位由调用方决定（同一次脚本内改档位不会立即生效，须另起一次调用抓帧）。修法按**回执里的
+        // compositionId** 定位（抓帧目标可以不是活动合成）；当前视图没有 executeExtendScript 时
+        //（如导演 lane）给不依赖该工具的兜底，否则指示的修法在那里不可执行。
+        if (_resFactor) {
+            _frameOut.resolutionFactor = _resFactor;
+            if (_resFactor[0] !== 1 || _resFactor[1] !== 1) {
+                var _frameId = (_frameOut.compositionId > 0) ? _frameOut.compositionId : 0;
+                // 按 Item.id 定位必须用 itemByID：Project.item() 收的是项目项索引，拿 id 当索引会
+                // 改到别的合成或直接抛 Invalid index。
+                var _frameTarget = _frameId
+                    ? ("app.project.itemByID(" + _frameId + ").resolutionFactor")
+                    : "app.project.activeItem.resolutionFactor";
+                _frameOut.resolutionNote = "抓帧分辨率跟随合成面板的分辨率档位：comp.resolutionFactor=["
+                    + _resFactor[0] + "," + _resFactor[1] + "]，整帧 PNG（单帧 filePath 或 fullFramePath、多帧 frames[]）实际像素约为 "
+                    + Math.round(comp.width / _resFactor[0]) + "×" + Math.round(comp.height / _resFactor[1])
+                    + "（合成 " + comp.width + "×" + comp.height + "）。需要清晰细节时把该合成档位设成 [1,1]："
+                    + "有 executeExtendScript 时写 " + _frameTarget + " = [1,1]；没有就请用户在合成面板把分辨率切到「完整」。"
+                    + "改档位后另起一次调用抓帧（同一次脚本内改档位不生效），抓完还原成 ["
+                    + _resFactor[0] + "," + _resFactor[1] + "]。";
+            }
         }
         return _frameOut;
     } catch (e) {
@@ -6652,6 +6828,8 @@ function _getPreviewFrames(args) {
         var missing = [];
         var failures = [];
         var previewDir = "";
+        // 分辨率档位元数据（与单帧回执同形）：整批同一合成，取首帧即可。
+        var _resMeta = null;
         // 抓帧身份取自**单帧成功回执**（getPreviewFrame 已带 compositionId/
         // compName）——批抓不重复解析合成，切片单测的 getPreviewFrame 桩没有这两个字段时
         // 保持 0/空串，不编造。
@@ -6683,6 +6861,14 @@ function _getPreviewFrames(args) {
                 _resCompName = String(r.compName || "");
             }
             if (r.previewDir) previewDir = r.previewDir;
+            if (!_resMeta && r.resolutionFactor) {
+                _resMeta = {
+                    factor: r.resolutionFactor,
+                    compWidth: r.compWidth,
+                    compHeight: r.compHeight,
+                    note: r.resolutionNote
+                };
+            }
             frames.push({
                 time: times[k],
                 filePath: r.filePath,
@@ -6721,6 +6907,14 @@ function _getPreviewFrames(args) {
             iendVerified: true,
             previewDir: previewDir
         };
+        // 档位元数据与单帧回执同口径（顶层 width/height 会被面板改指联系表尺寸；帧的实际像素看
+        // frames[].width/height，面板按 IHDR 逐帧校正）。
+        if (_resMeta) {
+            out.resolutionFactor = _resMeta.factor;
+            if (_resMeta.compWidth) out.compWidth = _resMeta.compWidth;
+            if (_resMeta.compHeight) out.compHeight = _resMeta.compHeight;
+            if (_resMeta.note) out.resolutionNote = _resMeta.note;
+        }
         if (clamped) out.timeClamped = true;
         if (missing.length) {
             var missingText = [];
@@ -8786,6 +8980,8 @@ function getSelectedDetails(args) {
                 if (args.includeMaskVertices !== undefined) layerArgs.includeMaskVertices = args.includeMaskVertices;
                 if (args.includeTextAnimators !== undefined) layerArgs.includeTextAnimators = args.includeTextAnimators;
                 if (args.includeLayerStyles !== undefined) layerArgs.includeLayerStyles = args.includeLayerStyles;
+                if (args.includeDisabledLayerStyleParams !== undefined) layerArgs.includeDisabledLayerStyleParams = args.includeDisabledLayerStyleParams;
+                if (args.includeLayerStyleAnimation !== undefined) layerArgs.includeLayerStyleAnimation = args.includeLayerStyleAnimation;
                 if (args.includeShapeContents !== undefined) layerArgs.includeShapeContents = args.includeShapeContents;
                 if (args.includeShapeValues !== undefined) layerArgs.includeShapeValues = args.includeShapeValues;
                 if (args.shapeNodeLimit !== undefined) layerArgs.shapeNodeLimit = args.shapeNodeLimit;

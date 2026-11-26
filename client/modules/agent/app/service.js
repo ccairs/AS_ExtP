@@ -791,7 +791,7 @@ function updatePreviewScriptFromAgent(script, opts) {
                 shaderDraft: generatedScript
             });
         } catch (_) {}
-        togglePreviewDrawer(true);
+        // 提交不改右抽屉显隐：抽屉展开/收起只由交互操作与模式切换决定。
     }
     // 是否真的落进了目标区：目标元素缺失时返回 false，提交工具据此报错而不是回 passed
     // （跳过写入仍报成功会变成"回执描述的内容没进预览区"这类静默失败）

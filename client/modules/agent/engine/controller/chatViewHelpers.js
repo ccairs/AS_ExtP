@@ -42,22 +42,70 @@
             return opts.scriptSessionStore;
         }
 
-        // state.messages ← cm.list() 的「合并重赋值」——直接整体重赋值会剥离
+        // state.messages ← cm.list() 的「合并重赋值 / 全量重建」——直接整体重赋值会剥离
         // state 中的 _local 本地消息（/help、/compress 提示，仅 UI 展示不进 cm）。恰有一条
         // _local 时，pushSystemResult 新增卡片后 state 长度不变，view.renderMessages 因
         // _renderedCount >= messages.length 早退，新 system-result 卡片永不渲染；且 _local
-        // 之后的消息下标整体前移，已渲染的编辑/重生成按钮索引错位。合并语义：遍历旧
-        // state.messages，_local 条目原位保留（cm 中无对应，保持 cmIndexForStateIndex
-        // 的「cm 比 state 少」offset 不变量）；非 _local 槽位按序换成 cm.list() 条目，其中
-        // 头部已被 pruneByTokens 裁剪掉的旧消息保留原条目（UI 完整历史）；cm 尾部新增
-        // 条目（新 system-result 卡片/隐藏消息等）追加到末尾，state 长度随之 +1 供增量渲染。
+        // 之后的消息下标整体前移，已渲染的编辑/重生成按钮索引错位。
+        //
+        // 两种语义由 options.dropHead 选择：
+        //   · 合并（默认）：遍历旧 state.messages，_local 条目原位保留（cm 中无对应，
+        //     保持 cmIndexForStateIndex 的「cm 比 state 少」offset 不变量）；非 _local
+        //     槽位按序换成 cm.list() 条目，头部已被 pruneByTokens 裁剪掉的旧消息保留
+        //     原条目（UI 完整历史）；cm 尾部新增条目追加到末尾，state 长度随之 +1 供
+        //     增量渲染。尾部新增类调用点（新 system-result 卡、隐藏消息、用户消息）与
+        //     pruneByTokens 硬裁剪都走这一支。
+        //   · 重建（dropHead: true）：以 cm.list() 为准全量重建 state，旧 head 不再进
+        //     state；_local 按「尾部对齐」换算后回插（见分支内注释）。用于上下文压缩——
+        //     摘要卡已承载被压缩段的记忆，state 与 cm、与会话文件因此是同一份消息集合，
+        //     本次会话与重开面板后的视图一致。
         // addedCount：调用方本次在 cm 尾部新增的条数（须先 add 再同步）——头部裁剪偏移
         // 与尾部新增会使「非 _local 数 - cm 数」差值产生歧义，凭 addedCount 扣除新增段
-        // 才能准确算出头部裁剪数（两个调用点均为先追加 1 条再同步，故传 1）。
-        function syncStateFromCm(addedCount) {
+        // 才能准确算出头部裁剪数（合并语义的调用点均为先追加 1 条再同步，故传 1）。
+        // 重建语义不使用 addedCount（cm.list() 即全量真值）。
+        function syncStateFromCm(addedCount, options) {
             var added = (typeof addedCount === 'number' && addedCount > 0) ? addedCount : 0;
+            var dropHead = !!(options && options.dropHead);
             var cmList = getActiveCm().list();
             var oldMsgs = opts.state.messages;
+            if (dropHead) {
+                // _local 只存在于 state，重建后按「尾部对齐」换算它该插在哪：被压缩掉的前段在
+                // 新 cm 里没有对应条目，这类 _local 落到摘要卡之后；保留段内的 _local 则回到它
+                // 在 cm 中的同位置（seen - 被压缩条数 + 1）。
+                var oldNonLocal = 0;
+                for (var oi = 0; oi < oldMsgs.length; oi++) {
+                    if (!oldMsgs[oi]._local) oldNonLocal++;
+                }
+                // 摘要卡占新 cm 的第 0 位（上下文压缩）：这一条在旧 state 里没有对应，
+                // 算被压缩条数时要扣掉；卡之后的位序才是「保留段」的起点。
+                var newEntries = (cmList[0] && (cmList[0]._compactSummary
+                    || (cmList[0].role === 'system-result' && cmList[0].title === '上下文压缩'))) ? 1 : 0;
+                var headDropped = Math.max(0, oldNonLocal - (cmList.length - newEntries));
+                var locals = [];
+                var seenNonLocal = 0;
+                for (var lj = 0; lj < oldMsgs.length; lj++) {
+                    if (!oldMsgs[lj]._local) { seenNonLocal++; continue; }
+                    locals.push({
+                        anchor: Math.min(cmList.length, Math.max(newEntries, seenNonLocal - headDropped + 1)),
+                        msg: oldMsgs[lj]
+                    });
+                }
+                var rebuilt = [];
+                var localAt = 0;
+                for (var cmPos = 0; cmPos < cmList.length; cmPos++) {
+                    while (localAt < locals.length && locals[localAt].anchor <= cmPos) {
+                        rebuilt.push(locals[localAt].msg);
+                        localAt++;
+                    }
+                    rebuilt.push(cmList[cmPos]);
+                }
+                while (localAt < locals.length) {
+                    rebuilt.push(locals[localAt].msg);
+                    localAt++;
+                }
+                opts.state.messages = rebuilt;
+                return;
+            }
             var nonLocal = 0;
             for (var i = 0; i < oldMsgs.length; i++) {
                 if (!oldMsgs[i]._local) nonLocal++;

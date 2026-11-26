@@ -914,6 +914,13 @@
             return msg.text == null ? '' : String(msg.text);
         }
 
+        // 团队消息（send_message 投递）的判据：投递链以 role='user' + detail.team='dispatch' 落库
+        //（LLM 报文需要 user 回合），但它不是用户写的——渲染成系统消息卡，不占用户气泡；
+        // 判据只认投递通道写入的 detail.team，不按正文前缀猜。
+        function _isPeerTeamMessage(msg) {
+            return !!(msg && msg.role === 'user' && msg.detail && msg.detail.team === 'dispatch');
+        }
+
         // ── 消息级 hover 操作：用户消息「编辑」/ 对话泡「复制」/ 助手消息时间戳 ──
         // 入口在 busy 时经 CSS（.ae-agent-list-busy）隐藏；编辑另有 controller 侧 busy/_stopping 守卫，
         // 复制只读剪贴板、不碰会话状态，守卫缺省不影响它。
@@ -1327,6 +1334,20 @@
                     continue;
                 }
 
+                // 团队消息（detail.team='dispatch'）：投递链以 role='user' 落库（LLM 报文需要
+                // user 回合），但它不是用户写的——显示成系统消息卡（标题 + 常显正文），不占用户气泡。
+                if (_isPeerTeamMessage(m)) {
+                    _renderSystemResult(listEl, {
+                        title: '团队消息',
+                        visibleText: stripContextBlock(m.text || ''),
+                        detailText: '',
+                        createdAt: m.createdAt
+                    }, debug);
+                    i++;
+                    if (useRaf && (Date.now() - _frameStart > 8)) break;
+                    continue;
+                }
+
                 if (m.role === 'system-result') {
                     _renderSystemResult(listEl, m, debug);
                     i++;
@@ -1611,8 +1632,8 @@
                     item.appendChild(detail);
                 }
 
-                // hover 操作入口：用户消息「编辑」（本地消息不挂；
-                // busy 时经 CSS 隐藏，controller 侧另有守卫）
+                // hover 操作入口：用户消息「编辑」（本地消息不挂；团队消息在渲染入口就转成系统卡、
+                // 不走气泡路径。busy 时经 CSS 隐藏，controller 侧另有守卫）
                 if ((m.role === 'user' || m.role === 'assistant') && !m._local) {
                     var msgActions = _buildMsgActions(i, m);
                     if (msgActions) item.appendChild(msgActions);
@@ -2849,6 +2870,7 @@
         // 与 token stats 记录无关（那是模型调用/工具执行），故由外部注入 getActiveCm 实时取。
         // `_hidden` 不计：goal 第 1 轮的 `<goal_round>` 指令以隐藏 user 消息承载（UI 不可见），
         // 它不是人类回合；续轮（第 2 轮起）以 system-result 卡承载同样不计——两轮口径一致。
+        // 团队消息（detail.team='dispatch'）同样不计：它是 Agent 之间的投递，不是人发的一轮。
         function _getUserRoundCount() {
             var cm = (typeof opts.getActiveCm === 'function') ? opts.getActiveCm() : null;
             if (!cm || typeof cm.list !== 'function') return 0;
@@ -2856,7 +2878,7 @@
             var n = 0;
             for (var i = 0; i < msgs.length; i++) {
                 if (msgs[i] && msgs[i].role === 'user' && msgs[i]._local !== true
-                    && msgs[i]._hidden !== true) n++;
+                    && msgs[i]._hidden !== true && !_isPeerTeamMessage(msgs[i])) n++;
             }
             return n;
         }
